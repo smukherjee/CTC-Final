@@ -1,0 +1,20 @@
+from sqlalchemy import Column, Integer, String, Text
+from ..db.db import engine
+from sqlalchemy.orm import declarative_base
+
+Base = declarative_base()
+
+
+class PartyModel(Base):
+    __tablename__ = "parties"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(256), nullable=False)
+    type = Column(String(64), nullable=False)
+    gst_no = Column(String(64), nullable=True)
+    contact = Column(String(64), nullable=True)
+    address = Column(Text, nullable=True)
+
+
+def create_tables():
+    Base.metadata.create_all(bind=engine)

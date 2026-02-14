@@ -1,0 +1,11 @@
+# .dockerignore for frontend
+node_modules/
+dist/
+build/
+.DS_Store
+*.log*
+.env*
+.git/
+Dockerfile*
+.dockerignore
+coverage/

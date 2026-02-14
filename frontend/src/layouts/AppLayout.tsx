@@ -19,6 +19,8 @@ export default function AppLayout() {
     const navItems = [
         { label: 'Dispatch Register', icon: Truck, path: '/operations/dispatch' },
         { label: 'Create LR', icon: FileText, path: '/operations/create-lr' },
+        { label: 'Parties (Masters)', icon: LayoutDashboard, path: '/masters/parties' },
+        { label: 'Vendors (Masters)', icon: LayoutDashboard, path: '/masters/vendors' },
         { label: 'POD Verification', icon: CheckSquare, path: '/finance/pod-verify' },
         { label: 'Invoices', icon: Banknote, path: '/finance/invoices' },
         { label: 'Settings', icon: Settings, path: '/admin/settings' },
