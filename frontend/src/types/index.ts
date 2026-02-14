@@ -37,6 +37,22 @@ export interface Vehicle {
     status: VehicleStatus;
 }
 
+export interface Contract {
+    id: string;
+    name: string;
+    party_id?: string;
+    start_date?: string;
+    end_date?: string;
+    expiry_alert_days?: number;
+}
+
+export interface Template {
+    id: string;
+    name: string;
+    description?: string;
+    file_url?: string;
+}
+
 export type TripStatus = 'SCHEDULED' | 'IN_TRANSIT' | 'COMPLETED' | 'CANCELLED';
 
 export interface Trip {

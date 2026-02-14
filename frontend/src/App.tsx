@@ -4,6 +4,10 @@ import DispatchRegister from '@/features/operations/DispatchRegister';
 import CreateLR from '@/features/operations/CreateLR';
 import PartyMaster from '@/features/party/PartyMaster';
 import VendorMaster from '@/features/vendor/VendorMaster';
+import VehicleMaster from '@/features/vehicle/VehicleMaster';
+import ContractMaster from '@/features/contract/ContractMaster';
+import UserMaster from '@/features/user/UserMaster';
+import TemplateMaster from '@/features/template/TemplateMaster';
 
 function App() {
   console.log("App component rendering!"); // Debug log
@@ -28,6 +32,10 @@ function App() {
           <Route path="masters">
             <Route path="parties" element={<PartyMaster />} />
             <Route path="vendors" element={<VendorMaster />} />
+            <Route path="vehicles" element={<VehicleMaster />} />
+            <Route path="contracts" element={<ContractMaster />} />
+            <Route path="users" element={<UserMaster />} />
+            <Route path="templates" element={<TemplateMaster />} />
           </Route>
         </Route>
       </Routes>
