@@ -1,17 +1,20 @@
-# Implementation Plan: CTC-ERP Core (React)
+# Implementation Plan: CTC-ERP Core (React + FastAPI + PostgreSQL)
 
 ## 1. Project Setup
-- Initialize React project (Vite + TypeScript + Tailwind CSS)
-- Set up folder structure for features, components, types, utils, and assets
+- Frontend: Initialize React project (Vite + TypeScript + Tailwind CSS)
+- Backend: Initialize Python FastAPI project (with Poetry or pipenv)
+- Set up PostgreSQL database
+- Configure Alembic for DB migrations
+- Set up folder structure for features, components, types, utils, and assets (frontend & backend)
 - Configure ESLint, Prettier, and basic CI
 
 ## 2. Data Model & API Contracts
-- Define TypeScript interfaces for all entities (User, Party, Vendor, Vehicle, Contract, LR, HireMemo, Invoice, EWayBill, POD, PettyCash, etc.)
-- Create mock API endpoints or services for CRUD operations on all masters and transactions
-- Document API contracts (OpenAPI/Swagger or TypeScript types)
+- Define TypeScript interfaces (frontend) and Pydantic models (backend) for all entities (User, Party, Vendor, Vehicle, Contract, LR, HireMemo, Invoice, EWayBill, POD, PettyCash, etc.)
+- Create OpenAPI schema via FastAPI
+- Document API endpoints and contracts
 
 ## 3. Master Data Management
-- Build Master Data screens:
+- Build Master Data screens (React):
   - Customer/Consignor/Consignee Master
   - Vendor/Supplier/Broker/Driver Master
   - Vehicle Master
@@ -19,6 +22,7 @@
   - User Management
   - Document Template Master
 - Implement Tally lock visualization and field-level permissions
+- Backend CRUD endpoints for all masters
 
 ## 4. Core Operations
 - Dispatch Register (Smart Grid):
@@ -35,28 +39,31 @@
   - Batch LR selection, annexure generation, variable charges
 - Voucher & Ledger:
   - Debit voucher generation, Petty Cash/Bank Book views
+- Implement all business logic in FastAPI services
 
 ## 5. Reporting & Audit
-- Pending billing report
+- Pending billing report (API + UI)
 - Audit trail view (Admin only)
 - Contract expiry dashboard/alerts
 
 ## 6. Security & Access Control
-- Implement role-based routing and UI controls
+- JWT-based authentication (FastAPI)
+- Role-based routing and UI controls (React)
 - Field-level permissions (view/edit restrictions)
 
 ## 7. Testing & Validation
-- Unit and integration tests for all components and services
+- Unit and integration tests for all components and services (pytest, React Testing Library)
 - End-to-end test scenarios (5-10 full cycles)
 - Data migration/import scripts using manual register mapping
 
 ## 8. Documentation & Training
 - User manual and admin guide
 - Field mapping documentation
-- API and data model docs
+- API and data model docs (Swagger/OpenAPI)
 
 ## 9. Deployment
 - Web/Desktop build pipeline
+- Backend deployment (Docker, Gunicorn/Uvicorn)
 - Initial manual parallel run support
 
 ---
