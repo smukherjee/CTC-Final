@@ -12,11 +12,6 @@ This specification defines the core features required for the CTC-ERP system, fo
 - All cash/bank advances and balances are logged, and vouchers are generated.
 - Admins manage master data for suppliers, brokers, and contracts.
 - Role-based access ensures users only see and edit permitted data.
-- POD receipt can be flagged both manually (tick/checkbox) and automatically on POD upload.
-- E-way Bill expiry alerts will use pop-up/modal notifications.
-- File uploads for LR, Invoice, E-way Bill, and POD are optional.
-- Annexure for batch billing will include all available fields as per the invoice annexure.pdf.
-- Bank Book and Cash Book will be visible to all role
 
 ## Functional Requirements
 1. **Centralized Dispatch Register**
@@ -31,7 +26,6 @@ This specification defines the core features required for the CTC-ERP system, fo
 4. **Proof of Delivery (POD) Management**
    - Flag POD receipt for each LR.
    - Upload and archive digital POD, searchable by LR or Vehicle No.
-   - POD receipt can be flagged both manually (tick/checkbox) and automatically on POD upload.
 5. **Billing & Annexure Generation**
    - Batch select LRs for single invoice.
    - Auto-generate annexure with LR details, vehicle numbers, and freight.
@@ -41,11 +35,10 @@ This specification defines the core features required for the CTC-ERP system, fo
    - Auto-populate Bank Book and Cash Book from daily entries.
 7. **Master Data Management**
    - Supplier/Broker Master: KYC, vehicle types, rate history (3-5 years).
-   - Contract Master: Client-specific rates, validity, expiry alerts (alert timing is configurable per contract; system must allow setting alert lead time in days/hours. Alert generation must comply with Indian e-way bill law—e.g., for e-way bills expiring at midnight, alert triggers as per statutory requirements. Alerts via pop-up/modal and dashboard, repeat until resolved).
-8. **Security, Audit & Access Control**
+   - Contract Master: Client-specific rates, validity, expiry alerts.
+8. **Security & Access Control**
    - Role-based permissions: Dispatch, Tracking, Accounts.
    - Restrict financial data from non-accounts users.
-   - Audit trail: All changes to financials, master data, and critical actions (e.g., billing, voucher, contract edits) are logged with user, timestamp, and before/after values. Audit logs are viewable by Admin.
 9. **Reporting**
    - Generate pending billing report for unbilled LRs older than 15-20 days.
 10. **Deployment & Transition**
