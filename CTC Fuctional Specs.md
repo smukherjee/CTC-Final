@@ -79,7 +79,7 @@ so that we maintain numerical integrity and prevent duplicate entries.
 
 * Linked to: FR-1.2, FR-1.3, AS-04
 
-#### Suggested Tasks for Complex Stories (US-2.01):
+#### Suggested Tasks for Complex Stories (US-2.01)
 
 * [ ] [DB] Design `LorryReceipts` table with indexing on LR Number (estimate: 4 hours)
 * [ ] [BE] Build REST API for CRUD operations on LR records (estimate: 8 hours)
