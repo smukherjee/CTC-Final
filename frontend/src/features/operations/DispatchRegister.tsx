@@ -1,13 +1,14 @@
 import { AgGridReact } from 'ag-grid-react';
-import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community';
+import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import axios from 'axios';
 import type { LR, LRStatus } from '@/types';
 import { format, isBefore, addHours, parseISO } from 'date-fns';
-import { Trash2, FileEdit } from 'lucide-react';
+import { Trash2, FileEdit, Truck } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import CreateLR from './CreateLR';
 
-// Register AG Grid Modules
+// Register AG Grid Modules (explicitly include useful community modules)
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 // ============ MOCK MASTER DATA ============
@@ -17,7 +18,7 @@ const CONSIGNORS = [
     { id: 'C005', name: 'FLYJAC LOGISTICS P LTD' },
     { id: 'C007', name: 'VOLTAS LTD' },
     { id: 'C009', name: 'BLUE STAR LIMITED' },
-    { id: 'C003', name: 'VIJAY SALES P LTD' }, // Added from new mock data
+    { id: 'C011', name: 'VIJAY SALES P LTD' }, // Added from new mock data
 ];
 
 const CONSIGNEES = [
@@ -26,32 +27,16 @@ const CONSIGNEES = [
     { id: 'C006', name: 'PRIME AGENCIES PUNE' },
     { id: 'C008', name: 'COOL ZONE HYDERABAD' },
     { id: 'C010', name: 'SHARMA TRADERS DELHI' },
-    { id: 'C006', name: 'NATIONAL ELECTRONICS' }, // Added from new mock data
+    { id: 'C012', name: 'NATIONAL ELECTRONICS' }, // Added from new mock data
 ];
 
 const STATUS_OPTIONS: LRStatus[] = ['DRAFT', 'DISPATCHED', 'DELIVERED', 'POD_UPLOADED', 'POD_VERIFIED', 'BILLED'];
 
 const FOB_OPTIONS = ['SRICITY', 'CHENNAI', 'BANGALORE', 'HYDERABAD', 'MUMBAI', 'DELHI'];
 
-const THROUGH_OPTIONS = ['SBR', 'DIRECT', 'RKT', 'VRL', 'TCI', 'RADHEKRISHNA', 'MEENAKSHI']; // Added from new mock data
+const THROUGH_OPTIONS = ['SBR', 'DIRECT', 'RKT', 'VRL', 'TCI', 'RADHEKRISHNA', 'MEENAKSHI']; // Fallback list for Through
 
-// ============ THEME ============
-const ctcTheme = themeQuartz.withParams({
-    accentColor: '#1e293b',
-    backgroundColor: '#ffffff',
-    borderColor: '#e2e8f0',
-    browserColorScheme: 'light',
-    chromeBackgroundColor: '#f8fafc',
-    foregroundColor: '#0f172a',
-    headerFontSize: 11,
-    headerFontWeight: 600,
-    fontSize: 11,
-    rowBorder: true,
-    wrapperBorderRadius: 8,
-    cellHorizontalPaddingScale: 0.7, // Reduce horizontal padding
-    headerHeight: 32, // Compact header
-    rowHeight: 32, // Compact rows
-});
+// Use CSS theme class `ag-theme-alpine` on the grid container
 
 // ============ MOCK DATA ============
 const INITIAL_DATA: LR[] = [
@@ -223,7 +208,7 @@ function StatusBadge({ value }: { value: LRStatus }) {
 
 // ============ MAIN COMPONENT ============
 export default function DispatchRegister() {
-    const [rowData, setRowData] = useState<LR[]>(INITIAL_DATA);
+    const [rowData, setRowData] = useState<LR[]>([]);
     const [selectedLR, setSelectedLR] = useState<LR | null>(null);
     const [isLrModalOpen, setIsLrModalOpen] = useState(false);
     const gridRef = useRef<AgGridReact>(null);
@@ -246,12 +231,16 @@ export default function DispatchRegister() {
 
     const handleSaveLR = (updatedLR: LR) => {
         setRowData(prev => {
-            const index = prev.findIndex(row => row.id === updatedLR.id);
+            // Robustly find index by casting both to string
+            const index = prev.findIndex(row => String(row.id) === String(updatedLR.id));
             if (index >= 0) {
                 const newData = [...prev];
                 newData[index] = updatedLR;
                 return newData;
             } else {
+                // Should we add it? Only if it's truly new.
+                // If it was supposed to be an update but not found, adding it creates a duplicate visually if the ID logic was wrong.
+                // But here we assume if ID not found, it's new.
                 return [updatedLR, ...prev];
             }
         });
@@ -272,6 +261,90 @@ export default function DispatchRegister() {
         resizeObserver.observe(containerRef.current);
 
         return () => resizeObserver.disconnect();
+    }, []);
+
+    // Cities master list (for Origin/Destination/FOB dropdowns)
+    const [citiesList, setCitiesList] = useState<string[]>(FOB_OPTIONS);
+    // Vendors master list (for Through dropdown)
+    const [vendorsList, setVendorsList] = useState<string[]>(THROUGH_OPTIONS);
+
+    useEffect(() => {
+        let mounted = true;
+        axios.get('/api/city/')
+            .then(res => {
+                const data = res.data;
+                if (!mounted) return;
+                if (Array.isArray(data)) {
+                    const names = data.map((c: any) => c.name || c.code).filter(Boolean);
+                    if (names.length) setCitiesList(names);
+                }
+            })
+            .catch(err => {
+                console.debug('Failed to load cities master', err);
+            });
+
+        axios.get('/api/vendor/')
+            .then(res => {
+                const data = res.data;
+                if (!mounted) return;
+                if (Array.isArray(data)) {
+                    const names = data.map((v: any) => v.name).filter(Boolean);
+                    if (names.length) setVendorsList(names);
+                }
+            })
+            .catch(err => {
+                console.debug('Failed to load vendors master', err);
+            });
+
+        return () => { mounted = false; };
+    }, []);
+
+    // Load persisted LRs from backend on mount
+    useEffect(() => {
+        let mounted = true;
+        axios.get('/api/lr/')
+            .then(res => {
+                if (!mounted) return;
+                const data = res.data;
+                if (Array.isArray(data) && data.length > 0) {
+                    const mapped: LR[] = data.map((it: any) => ({
+                        id: String(it.id),
+                        lr_number: it.lr_number,
+                        date: it.date || it.created_at || '',
+                        dispatch_id: it.dispatch_id,
+                        consignor_id: it.consignor_id || '',
+                        consignor_name: it.consignor_name || '',
+                        consignee_id: it.consignee_id || '',
+                        consignee_name: it.consignee_name || '',
+                        from: it.origin || it.from || '',
+                        to: it.destination || it.to || '',
+                        origin: it.origin || it.from || '',
+                        destination: it.destination || it.to || '',
+                        goods_items: it.goods_items || [],
+                        articles_count: it.articles_count || 0,
+                        articles_description: it.articles_description || '',
+                        weight: it.weight || 0,
+                        freight_amount: it.freight_amount || 0,
+                        fob: it.fob || '',
+                        through: it.through || '',
+                        vehicle_type: it.vehicle_type || '',
+                        vehicle_number: it.vehicle_number || '',
+                        bill_number: it.bill_number || '',
+                        remarks: it.remarks || '',
+                        status: it.status || 'DRAFT',
+                    }));
+                    setRowData(mapped);
+                    return;
+                }
+                // fallback to initial mock data if none persisted
+                setRowData(INITIAL_DATA);
+            })
+            .catch(err => {
+                console.debug('Failed to load persisted LRs', err);
+                setRowData(INITIAL_DATA);
+            });
+
+        return () => { mounted = false; };
     }, []);
 
     // Check if E-Way is expiring soon (within 8 hours) - Kept for potential future use or if other parts of the app use it
@@ -314,6 +387,18 @@ export default function DispatchRegister() {
             const consignee = CONSIGNEES.find(c => c.name === event.newValue);
             if (consignee) {
                 event.data.consignee_id = consignee.id;
+            }
+        }
+
+        // If through changed, try to set through_id (vendor reference)
+        if (event.colDef.field === 'through') {
+            const vendor = (vendorsList || []).find(v => v === event.newValue);
+            if (vendor) {
+                // store human-readable name and also vendor id if available
+                event.data.through = vendor;
+                // attempt to set through_id if vendor list contained objects earlier
+                // (some parts of the app may expect through_id)
+                // we can map name -> id only if we have full vendor objects; otherwise keep name
             }
         }
 
@@ -474,6 +559,8 @@ export default function DispatchRegister() {
             headerName: 'ORIGIN',
             width: 100,
             editable: true,
+            cellEditor: 'agSelectCellEditor',
+            cellEditorParams: { values: citiesList },
         },
         // 11. DESTINATION
         {
@@ -481,6 +568,8 @@ export default function DispatchRegister() {
             headerName: 'DESTINATION',
             width: 110,
             editable: true,
+            cellEditor: 'agSelectCellEditor',
+            cellEditorParams: { values: citiesList },
         },
         // 12. FOB
         {
@@ -489,7 +578,7 @@ export default function DispatchRegister() {
             width: 90,
             editable: true,
             cellEditor: 'agSelectCellEditor',
-            cellEditorParams: { values: FOB_OPTIONS },
+            cellEditorParams: { values: citiesList.length ? citiesList : FOB_OPTIONS },
         },
         // 13. THROUGH
         {
@@ -498,7 +587,7 @@ export default function DispatchRegister() {
             width: 100,
             editable: true,
             cellEditor: 'agSelectCellEditor',
-            cellEditorParams: { values: THROUGH_OPTIONS },
+            cellEditorParams: { values: vendorsList.length ? vendorsList : THROUGH_OPTIONS },
         },
         // 14. BILL NO
         {
@@ -518,23 +607,38 @@ export default function DispatchRegister() {
         {
             field: 'status',
             headerName: 'STATUS',
-            filter: 'agSetColumnFilter',
+            filter: 'agTextColumnFilter',
             width: 120,
             editable: true,
             cellEditor: 'agSelectCellEditor',
             cellEditorParams: { values: STATUS_OPTIONS },
             cellRenderer: (params: { value: LRStatus }) => <StatusBadge value={params.value} />,
-            enableRowGroup: true,
         },
         // Actions
         {
             headerName: 'Act',
-            width: 50,
+            width: 80,
             pinned: 'right',
             filter: false,
             sortable: false,
             cellRenderer: (params: { data: LR }) => (
                 <div className="flex items-center justify-center h-full gap-1">
+                    <button
+                        onClick={() => {
+                            // Navigate to Hire Memo with pre-filled LR ID
+                            // We need access to router here, but AgGrid cell renderer might be tricky with hooks unless we pass context.
+                            // Better: use window.location or a callback passed to context.
+                            // Or use a simpler approach: define a handler outside and pass it if possible, 
+                            // but in functional comp with params usage, we can just use window.location for now 
+                            // or better, use the navigate function from hook if we lift this definition.
+                            // Since colDefs is useMemo'd, we can't easily capture navigate unless we add it to deps.
+                            window.location.href = `/operations/hirememo?lr_id=${params.data.id}`;
+                        }}
+                        className="p-1 rounded hover:bg-blue-100 text-blue-600 transition-colors"
+                        title="Create Hire Memo"
+                    >
+                        <Truck size={14} />
+                    </button>
                     <button
                         onClick={() => handleDelete(params.data.id)}
                         className="p-1 rounded hover:bg-red-100 text-red-600 transition-colors"
@@ -545,14 +649,14 @@ export default function DispatchRegister() {
                 </div>
             ),
         },
-    ], [handleDelete]);
+    ], [handleDelete, citiesList]);
 
     // Default column settings
     const defaultColDef = useMemo(() => ({
         sortable: true,
         resizable: true,
         filter: true,
-        floatingFilter: true,
+        floatingFilter: false,
         unSortIcon: true,
         sortingOrder: ['asc', 'desc', null] as any,
     }), []);
@@ -582,7 +686,7 @@ export default function DispatchRegister() {
             </div>
 
             {/* AG Grid */}
-            <div ref={containerRef} className="flex-1 min-h-[500px] rounded-lg overflow-hidden border border-slate-200">
+            <div ref={containerRef} className="flex-1 min-h-[500px] rounded-lg overflow-hidden border border-slate-200 ag-theme-alpine">
                 <style>{`
                     .eway-expiry-warning {
                         background-color: #fef2f2 !important;
@@ -602,7 +706,7 @@ export default function DispatchRegister() {
                     defaultColDef={defaultColDef}
                     getRowId={getRowId}
                     getRowClass={getRowClass}
-                    theme={ctcTheme}
+
                     // Editing
                     editType="fullRow"
                     stopEditingWhenCellsLoseFocus={true}

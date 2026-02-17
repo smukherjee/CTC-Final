@@ -151,6 +151,7 @@ export interface LR {
     // New fields from Requirements
     fob?: string;
     through?: string; // Broker/Vendor Ref
+    through_id?: string; // Vendor id (foreign key)
 
     status: LRStatus;
 

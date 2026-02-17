@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Template } from '@/types';
+import type { Template } from '@/types';
 
 export default function TemplateMaster() {
   const [templates, setTemplates] = useState<Template[]>([]);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Contract } from '@/types';
+import type { Contract } from '@/types';
 
 export default function ContractMaster() {
   const [contracts, setContracts] = useState<Contract[]>([]);

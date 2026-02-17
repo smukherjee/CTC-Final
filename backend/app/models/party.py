@@ -1,8 +1,5 @@
 from sqlalchemy import Column, Integer, String, Text
-from ..db import engine
-from sqlalchemy.orm import declarative_base
-
-Base = declarative_base()
+from ..db import engine, Base
 
 
 class PartyModel(Base):

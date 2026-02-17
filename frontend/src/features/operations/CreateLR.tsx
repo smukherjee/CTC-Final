@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import axios from 'axios';
 import { useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -6,22 +7,22 @@ import { z } from 'zod';
 import { Plus, Trash2, Printer, Save, Lock, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { AgGridReact } from 'ag-grid-react';
-import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community';
+import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import type { LR, GoodsLineItem } from '@/types';
 import { Button } from '@/components/ui/button';
 import { printLR } from '@/utils/printLR';
 
-// Register AG Grid Modules
+// Register AG Grid Modules (explicitly include useful community modules)
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-// Mock data for dropdowns
+// Mock data for dropdowns (used when masters fail to load)
 const CONSIGNORS = [
     { id: 'C001', name: 'HAVELLS INDIA LTD SRICITY' },
     { id: 'C003', name: 'SURYA ELECTRICALS CHENNAI' },
     { id: 'C005', name: 'FLYJAC LOGISTICS P LTD' },
     { id: 'C007', name: 'VOLTAS LTD' },
     { id: 'C009', name: 'BLUE STAR LIMITED' },
-    { id: 'C003', name: 'VIJAY SALES P LTD' },
+    { id: 'C011', name: 'VIJAY SALES P LTD' },
 ];
 
 const CONSIGNEES = [
@@ -30,59 +31,38 @@ const CONSIGNEES = [
     { id: 'C006', name: 'PRIME AGENCIES PUNE' },
     { id: 'C008', name: 'COOL ZONE HYDERABAD' },
     { id: 'C010', name: 'SHARMA TRADERS DELHI' },
-    { id: 'C006', name: 'NATIONAL ELECTRONICS' },
+    { id: 'C012', name: 'NATIONAL ELECTRONICS' },
 ];
 
 const CITIES = ['SRICITY', 'CHENNAI', 'BANGALORE', 'HYDERABAD', 'MUMBAI', 'DELHI', 'PUNE', 'BHIWANDI', 'KANNUR'];
 
 // Zod Schema for Validation
 const lrSchema = z.object({
-    lr_number: z.string(),
-    date: z.string().refine((date) => new Date(date) <= new Date(), {
-        message: "Date cannot be in the future",
-    }),
-    consignor_id: z.string().min(1, "Consignor is required"),
-    consignee_id: z.string().min(1, "Consignee is required"),
-    from: z.string().min(1, "Origin is required"),
-    to: z.string().min(1, "Destination is required"),
-    vehicle_number: z.string()
-        .regex(/^[A-Z]{2}\s\d{2}\s[A-Z]{1,2}\s\d{4}$/, "Invalid Vehicle Number (e.g. MH 12 AB 1234)")
-        .optional()
-        .or(z.literal('')),
-    seal_number: z.string().optional(),
+    lr_number: z.string().min(1),
+    date: z.string().optional(),
+    consignor_id: z.string().min(1, 'Consignor is required'),
+    consignee_id: z.string().min(1, 'Consignee is required'),
+    from: z.string().min(1, 'Origin is required'),
+    to: z.string().min(1, 'Destination is required'),
+    through: z.string().optional(),
+    through_id: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().optional()),
     delivery_at: z.string().optional(),
+    vehicle_number: z.string().optional(),
+    seal_number: z.string().optional(),
     booked_on_owners_risk: z.boolean().optional(),
+    surcharge: z.preprocess((v) => Number(v), z.number().optional()),
+    hamali_charges: z.preprocess((v) => Number(v), z.number().optional()),
+    st_charges: z.preprocess((v) => Number(v), z.number().optional()),
     loading_point_times: z.object({
         in_date: z.string().optional(),
         in_time: z.string().optional(),
         out_date: z.string().optional(),
         out_time: z.string().optional(),
     }).optional(),
-    surcharge: z.coerce.number().min(0).optional(),
-    hamali_charges: z.coerce.number().min(0).optional(),
-    st_charges: z.coerce.number().min(0).optional(),
 });
 
 // TypeScript type inferred from Zod schema
 type LRFormValues = z.infer<typeof lrSchema>;
-
-// AG Grid Theme
-const ctcTheme = themeQuartz.withParams({
-    accentColor: '#1e293b',
-    backgroundColor: '#ffffff',
-    borderColor: '#e2e8f0',
-    browserColorScheme: 'light',
-    chromeBackgroundColor: '#f8fafc',
-    foregroundColor: '#0f172a',
-    headerFontSize: 11,
-    headerFontWeight: 600,
-    fontSize: 11,
-    rowBorder: true,
-    wrapperBorderRadius: 8,
-    cellHorizontalPaddingScale: 0.7,
-    headerHeight: 32,
-    rowHeight: 32,
-});
 
 interface CreateLRProps {
     lrId?: string;
@@ -94,9 +74,12 @@ interface CreateLRProps {
 
 export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose, onSave }: CreateLRProps) {
     const { lrId: paramLrId } = useParams();
+    // Prioritize prop (modal mode), fallback to param (route mode)
     const lrId = propLrId || paramLrId;
-
-    // Goods Items State (Managed separately from RHF due to AG Grid complexity)
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [toastMessage, setToastMessage] = useState('');
+    const [citiesList, setCitiesList] = useState<string[]>([]);
+    const [vendors, setVendors] = useState<any[]>([]);
     const [goodsItems, setGoodsItems] = useState<GoodsLineItem[]>([{
         id: '1',
         articles_count: 0,
@@ -107,14 +90,22 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
         freight_rs: 0,
         freight_p: 0,
     }]);
-
     const [status, setStatus] = useState<string>('DRAFT');
+
     const gridRef = useRef<AgGridReact>(null);
 
-    // Initial Defaults
-    const defaultValues: Partial<LRFormValues> = {
-        lr_number: (Math.floor(40000 + Math.random() * 10000)).toString(),
-        date: format(new Date(), 'yyyy-MM-dd'),
+    const defaultValues = {
+        lr_number: initialData?.lr_number || `LR-${Date.now()}`,
+        date: initialData?.date || format(new Date(), 'yyyy-MM-dd'),
+        consignor_id: initialData?.consignor_id || '',
+        consignee_id: initialData?.consignee_id || '',
+        from: initialData?.from || '',
+        to: initialData?.to || '',
+        through: initialData?.through || '',
+        through_id: initialData?.through_id ? Number(initialData.through_id) : undefined,
+        delivery_at: '',
+        vehicle_number: '',
+        seal_number: '',
         booked_on_owners_risk: false,
         surcharge: 0,
         hamali_charges: 0,
@@ -128,9 +119,10 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
         handleSubmit,
         reset,
         watch,
-        formState: { errors }
+        formState: { errors },
+        setValue
     } = useForm<LRFormValues>({
-        resolver: zodResolver(lrSchema) as any, // Cast to avoid strict type mismatch with Zod 4.x/3.x
+        resolver: zodResolver(lrSchema) as any,
         defaultValues,
     });
 
@@ -140,28 +132,61 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
 
     // Load Data
     useEffect(() => {
-        const lrToLoad = initialData;
-        if (lrToLoad) {
+        let mounted = true;
+
+        // fetch cities master for origin/destination dropdowns
+        axios.get('/api/city/')
+            .then(res => {
+                const data = res.data;
+                if (!mounted) return;
+                if (Array.isArray(data)) {
+                    // backend returns objects with `name` field
+                    const names = data.map((c: any) => c.name || c.code).filter(Boolean);
+                    if (names.length) setCitiesList(names);
+                }
+            })
+            .catch(() => {
+                setCitiesList(CITIES);
+            });
+
+        // fetch vendors master for Through dropdowns
+        axios.get('/api/vendor/')
+            .then(res => {
+                const data = res.data;
+                if (!mounted) return;
+                if (Array.isArray(data)) {
+                    setVendors(data);
+                }
+            })
+            .catch(() => {
+                // keep empty vendorsList if fetch fails
+            });
+
+        if (initialData) {
             // Map existing LR to form values
             reset({
-                lr_number: lrToLoad.lr_number,
-                date: lrToLoad.date,
-                consignor_id: lrToLoad.consignor_id,
-                consignee_id: lrToLoad.consignee_id,
-                from: lrToLoad.from,
-                to: lrToLoad.to,
-                delivery_at: lrToLoad.delivery_at,
-                vehicle_number: lrToLoad.vehicle_number || '',
-                seal_number: lrToLoad.seal_number || '',
-                booked_on_owners_risk: lrToLoad.booked_on_owners_risk || false,
-                surcharge: lrToLoad.surcharge || 0,
-                hamali_charges: lrToLoad.hamali_charges || 0,
-                st_charges: lrToLoad.st_charges || 0,
-                loading_point_times: lrToLoad.loading_point_times || {},
+                lr_number: initialData.lr_number,
+                date: initialData.date,
+                consignor_id: initialData.consignor_id,
+                consignee_id: initialData.consignee_id,
+                from: initialData.from,
+                to: initialData.to,
+                through: (initialData as any).through || '',
+                through_id: (initialData as any).through_id ? Number((initialData as any).through_id) : undefined,
+                delivery_at: initialData.delivery_at,
+                vehicle_number: initialData.vehicle_number || '',
+                seal_number: initialData.seal_number || '',
+                booked_on_owners_risk: initialData.booked_on_owners_risk || false,
+                surcharge: initialData.surcharge || 0,
+                hamali_charges: initialData.hamali_charges || 0,
+                st_charges: initialData.st_charges || 0,
+                loading_point_times: initialData.loading_point_times || {},
             });
-            setGoodsItems(lrToLoad.goods_items || []);
-            setStatus(lrToLoad.status);
+            setGoodsItems(initialData.goods_items || []);
+            setStatus(initialData.status);
         }
+
+        return () => { mounted = false; };
     }, [initialData, reset]);
 
     const isReadOnly = !!(lrId && status !== 'DRAFT');
@@ -219,15 +244,16 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
 
     // --- Submit Handler ---
 
-    const onSubmit = (data: LRFormValues) => {
+    const onSubmit = async (data: LRFormValues) => {
         if (goodsItems.length === 0) {
             alert("Please add at least one line item.");
             return;
         }
 
         const fullLR: LR = {
-            id: lrId || Date.now().toString(), // Generate simplified ID for new LRs
+            id: lrId || initialData?.id || Date.now().toString(), // Generate simplified ID for new LRs
             ...data,
+            date: data.date || format(new Date(), 'yyyy-MM-dd'),
             // Explicitly cast or map optional fields
             loading_point_times: data.loading_point_times,
             booked_on_owners_risk: data.booked_on_owners_risk,
@@ -236,19 +262,104 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
             goods_items: goodsItems,
             // Computed fields for Dispatch Register
             articles_count: articlesCount,
-            weight: totalWeight, // In KG for consistency? grid says weight_kg and weight_qtl. This field is for DR summary.
+            weight: totalWeight,
             freight_amount: totalFreight,
             value_rs: goodsValue,
             total: total,
             status: (status as any) || 'DRAFT',
             // Default fields if new
             articles_description: goodsItems[0]?.description || '',
+            through: (data as any).through,
+            through_id: (data as any).through_id, // Keep as is, let validation handle it
         };
 
-        if (onSave) {
-            onSave(fullLR);
-        } else {
-            console.warn("No onSave handler provided", fullLR);
+        // Helper to parse number strictly or return null
+        const toIntOrNull = (val: any) => {
+            if (val === null || val === undefined || val === '') return null;
+            const n = Number(val);
+            return isNaN(n) ? null : n;
+        };
+
+        // Sanitize data for backend
+        const sanitizedData = {
+            lr_number: fullLR.lr_number,
+            date: fullLR.date,
+            consignor_id: fullLR.consignor_id,
+            consignee_id: fullLR.consignee_id,
+            origin: fullLR.from, // Map from -> origin
+            destination: fullLR.to, // Map to -> destination
+            delivery_at: fullLR.delivery_at,
+            through: fullLR.through,
+            through_id: toIntOrNull(fullLR.through_id),
+            surcharge: Number(fullLR.surcharge || 0),
+            hamali_charges: Number(fullLR.hamali_charges || 0),
+            st_charges: Number(fullLR.st_charges || 0),
+            weight: Number(fullLR.weight || 0),
+            freight_amount: Number(fullLR.freight_amount || 0),
+            value_rs: Number(fullLR.value_rs || 0),
+            total: Number(fullLR.total || 0),
+            articles_count: Number(fullLR.articles_count || 0),
+            articles_description: fullLR.articles_description,
+            vehicle_number: fullLR.vehicle_number,
+            seal_number: fullLR.seal_number,
+            booked_on_owners_risk: fullLR.booked_on_owners_risk,
+            loading_point_times: fullLR.loading_point_times,
+            status: fullLR.status,
+            // Ensure goods items numbers are numbers
+            goods_items: fullLR.goods_items?.map(item => ({
+                id: item.id,
+                description: item.description,
+                articles_count: Number(item.articles_count || 0),
+                weight_qtl: Number(item.weight_qtl || 0),
+                weight_kg: Number(item.weight_kg || 0),
+                rate_per_qtl: Number(item.rate_per_qtl || 0),
+                freight_rs: Number(item.freight_rs || 0),
+                freight_p: Number(item.freight_p || 0),
+                remarks: (item as any).remarks, // Include remarks if present
+            }))
+        };
+
+        // Standard submission handling
+        setIsSubmitting(true);
+        try {
+            // Always save to backend first
+            let savedLR: any = null;
+
+            if (lrId || (initialData?.id && initialData.id !== 'new')) {
+                const res = await axios.put(`/api/lr/${fullLR.id}`, sanitizedData);
+                // Use backend response which includes all fields
+                savedLR = res.data;
+            } else {
+                const res = await axios.post('/api/lr/', { ...fullLR, id: undefined });
+                // Backend returns full object including new ID
+                if (res.data) savedLR = res.data;
+            }
+
+            // Map backend fields to grid-compatible format
+            // Backend uses origin/destination, grid expects from/to
+            if (savedLR) {
+                savedLR = {
+                    ...savedLR,
+                    id: String(savedLR.id), // Ensure string ID for grid consistency
+                    from: savedLR.origin || savedLR.from || '',
+                    to: savedLR.destination || savedLR.to || '',
+                };
+            }
+
+            setToastMessage('LR saved successfully');
+
+            // If external onSave is provided, call it with the saved data
+            if (onSave && savedLR) {
+                onSave(savedLR as LR);
+                return;
+            }
+
+            setTimeout(() => setToastMessage(''), 3000);
+        } catch (err: any) {
+            console.error('Failed to save LR', err);
+            alert('Failed to save LR: ' + (err?.response?.data?.detail || err.message || err));
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -386,9 +497,10 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                         {!isReadOnly && (
                             <Button type="submit" className="gap-2">
                                 <Save size={16} />
-                                Save LR
+                                <span className='text-white'>{isSubmitting ? 'Saving...' : 'Save LR'}</span>
                             </Button>
                         )}
+                        {toastMessage && <div className="text-green-600 self-center">{toastMessage}</div>}
                     </div>
 
                     {/* Form Card */}
@@ -441,7 +553,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                                         className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
                                     >
                                         <option value="">Select Origin</option>
-                                        {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                        {citiesList.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
                                     {errors.from && <p className="text-red-500 text-xs mt-1">{errors.from.message}</p>}
                                 </div>
@@ -468,7 +580,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                                         className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
                                     >
                                         <option value="">Select Destination</option>
-                                        {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                        {citiesList.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
                                     {errors.to && <p className="text-red-500 text-xs mt-1">{errors.to.message}</p>}
                                 </div>
@@ -486,6 +598,28 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
 
                         <div className="h-px bg-slate-100" />
 
+                        {/* Carrier / Through */}
+                        <div className="grid grid-cols-2 gap-8">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Through (Carrier/Broker)</label>
+                                <select
+                                    {...register('through_id')}
+                                    disabled={isReadOnly}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setValue('through_id', Number(val));
+                                        const v = vendors.find(vv => String(vv.id) === val);
+                                        if (v) setValue('through', v.name);
+                                    }}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
+                                >
+                                    <option value="">Select Carrier / Broker</option>
+                                    {(vendors.length ? vendors : []).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+
                         {/* 3. Goods Grid */}
                         <div className="space-y-3">
                             <div className="flex justify-between items-end">
@@ -498,13 +632,13 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                                 )}
                             </div>
 
-                            <div className="h-64 rounded-md overflow-hidden border border-slate-200">
+                            <div className="h-64 rounded-md overflow-hidden border border-slate-200 ag-theme-alpine">
                                 <AgGridReact
                                     ref={gridRef}
                                     rowData={goodsItems}
                                     columnDefs={colDefs}
                                     defaultColDef={{ sortable: false, resizable: true }}
-                                    theme={ctcTheme}
+
                                     editType="fullRow"
                                     stopEditingWhenCellsLoseFocus={true}
                                     onCellValueChanged={onCellValueChanged}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { User } from '@/types';
+import type { User } from '@/types';
 
 export default function UserMaster() {
   const [users, setUsers] = useState<User[]>([]);

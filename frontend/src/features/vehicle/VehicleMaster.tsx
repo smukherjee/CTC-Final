@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Vehicle } from '@/types';
+import type { Vehicle } from '@/types';
 
 export default function VehicleMaster() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
