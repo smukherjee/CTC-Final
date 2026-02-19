@@ -719,20 +719,21 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                         {/* Carrier / Through */}
                         <div className="grid grid-cols-2 gap-8">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Through (Transit City)</label>
+                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Through (Carrier/Broker)</label>
                                 <select
-                                    {...register('through')}
+                                    {...register('through_id')}
                                     disabled={isReadOnly}
                                     onChange={(e) => {
                                         const val = e.target.value;
-                                        setValue('through', val);
-                                        // clear through_id when selecting city
-                                        setValue('through_id', undefined);
+                                        setValue('through_id', val ? Number(val) : undefined);
+                                        const v = (vendors.length ? vendors : []).find((vv: any) => String(vv.id) === String(val));
+                                        if (v) setValue('through', v.name);
+                                        else setValue('through', '');
                                     }}
                                     className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
                                 >
-                                    <option value="">Select Transit City</option>
-                                    {citiesList.map(c => <option key={c} value={c}>{c}</option>)}
+                                    <option value="">Select Carrier / Broker</option>
+                                    {(vendors.length ? vendors : []).map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
                                 </select>
                             </div>
                         </div>
