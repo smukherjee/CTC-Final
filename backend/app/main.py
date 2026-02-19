@@ -32,6 +32,7 @@ from .api.template import router as template_router
 from .api.city import router as city_router
 from .api.hirememo import router as hirememo_router
 from .api.lr import router as lr_router
+from .api.vehicle_location import router as vehicle_location_router
 
 
 app.include_router(party_router, prefix="/api")
@@ -43,3 +44,4 @@ app.include_router(template_router, prefix="/api")
 app.include_router(city_router, prefix="/api")
 app.include_router(hirememo_router, prefix="/api")
 app.include_router(lr_router, prefix="/api")
+app.include_router(vehicle_location_router, prefix="/api")

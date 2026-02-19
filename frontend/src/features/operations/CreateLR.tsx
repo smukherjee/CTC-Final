@@ -42,8 +42,8 @@ const lrSchema = z.object({
     date: z.string().optional(),
     consignor_id: z.string().min(1, 'Consignor is required'),
     consignee_id: z.string().min(1, 'Consignee is required'),
-    from: z.string().min(1, 'Origin is required'),
-    to: z.string().min(1, 'Destination is required'),
+    origin: z.string().min(1, 'Origin is required'),
+    destination: z.string().min(1, 'Destination is required'),
     through: z.string().optional(),
     through_id: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().optional()),
     delivery_at: z.string().optional(),
@@ -80,6 +80,8 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
     const [toastMessage, setToastMessage] = useState('');
     const [citiesList, setCitiesList] = useState<string[]>([]);
     const [vendors, setVendors] = useState<any[]>([]);
+    const [consignors, setConsignors] = useState<{ id: string; name: string }[]>([]);
+    const [consignees, setConsignees] = useState<{ id: string; name: string }[]>([]);
     const [goodsItems, setGoodsItems] = useState<GoodsLineItem[]>([{
         id: '1',
         articles_count: 0,
@@ -99,8 +101,8 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
         date: initialData?.date || format(new Date(), 'yyyy-MM-dd'),
         consignor_id: initialData?.consignor_id || '',
         consignee_id: initialData?.consignee_id || '',
-        from: initialData?.from || '',
-        to: initialData?.to || '',
+        origin: initialData?.origin || initialData?.from || '',
+        destination: initialData?.destination || initialData?.to || '',
         through: initialData?.through || '',
         through_id: initialData?.through_id ? Number(initialData.through_id) : undefined,
         delivery_at: '',
@@ -126,65 +128,123 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
         defaultValues,
     });
 
-    // Helper to find names
-    const getConsignorName = (id: string) => CONSIGNORS.find(c => c.id === id)?.name || '';
-    const getConsigneeName = (id: string) => CONSIGNEES.find(c => c.id === id)?.name || '';
+    const [vehiclesList, setVehiclesList] = useState<string[]>([]);
+
+    // Helper to find names (use fetched masters, fall back to static lists)
+    const getConsignorName = (id: string) => (consignors.find(c => String(c.id) === String(id)) || CONSIGNORS.find(c => String(c.id) === String(id)) || { name: '' }).name;
+    const getConsigneeName = (id: string) => (consignees.find(c => String(c.id) === String(id)) || CONSIGNEES.find(c => String(c.id) === String(id)) || { name: '' }).name;
 
     // Load Data
     useEffect(() => {
         let mounted = true;
 
-        // fetch cities master for origin/destination dropdowns
-        axios.get('/api/city/')
-            .then(res => {
-                const data = res.data;
-                if (!mounted) return;
-                if (Array.isArray(data)) {
-                    // backend returns objects with `name` field
-                    const names = data.map((c: any) => c.name || c.code).filter(Boolean);
-                    if (names.length) setCitiesList(names);
-                }
-            })
-            .catch(() => {
-                setCitiesList(CITIES);
-            });
+        const loadData = async () => {
+            try {
+                // 1. Load Master Lists in parallel
+                const [citiesRes, vendorsRes, partyRes, vehicleRes] = await Promise.all([
+                    axios.get('/api/city/').catch(() => ({ data: [] })),
+                    axios.get('/api/vendor/').catch(() => ({ data: [] })),
+                    axios.get('/api/party/').catch(() => ({ data: [] })),
+                    axios.get('/api/vehicle/').catch(() => ({ data: [] }))
+                ]);
 
-        // fetch vendors master for Through dropdowns
-        axios.get('/api/vendor/')
-            .then(res => {
-                const data = res.data;
                 if (!mounted) return;
-                if (Array.isArray(data)) {
-                    setVendors(data);
-                }
-            })
-            .catch(() => {
-                // keep empty vendorsList if fetch fails
-            });
 
-        if (initialData) {
-            // Map existing LR to form values
-            reset({
-                lr_number: initialData.lr_number,
-                date: initialData.date,
-                consignor_id: initialData.consignor_id,
-                consignee_id: initialData.consignee_id,
-                from: initialData.from,
-                to: initialData.to,
-                through: (initialData as any).through || '',
-                through_id: (initialData as any).through_id ? Number((initialData as any).through_id) : undefined,
-                delivery_at: initialData.delivery_at,
-                vehicle_number: initialData.vehicle_number || '',
-                seal_number: initialData.seal_number || '',
-                booked_on_owners_risk: initialData.booked_on_owners_risk || false,
-                surcharge: initialData.surcharge || 0,
-                hamali_charges: initialData.hamali_charges || 0,
-                st_charges: initialData.st_charges || 0,
-                loading_point_times: initialData.loading_point_times || {},
-            });
-            setGoodsItems(initialData.goods_items || []);
-            setStatus(initialData.status);
-        }
+                // Process Cities
+                let loadedCities: string[] = [];
+                if (Array.isArray(citiesRes.data)) {
+                    loadedCities = citiesRes.data.map((c: any) => c.name || c.code).filter(Boolean);
+                    if (loadedCities.length) setCitiesList(loadedCities);
+                } else {
+                    loadedCities = CITIES;
+                    setCitiesList(CITIES);
+                }
+
+                // Process Vendors
+                if (Array.isArray(vendorsRes.data)) {
+                    setVendors(vendorsRes.data);
+                }
+
+                // Process Vehicles
+                if (Array.isArray(vehicleRes.data)) {
+                    // Backend may return vehicle number under different keys depending on API version.
+                    const vList = vehicleRes.data.map((v: any) => v.number || v.vehicle_number || v.vehicleNo || v.vehicle_no).filter(Boolean);
+                    setVehiclesList(vList);
+                }
+
+                // Process Parties
+                let loadedConsignors: { id: string, name: string }[] = [];
+                let loadedConsignees: { id: string, name: string }[] = [];
+
+                if (Array.isArray(partyRes.data)) {
+                    loadedConsignors = partyRes.data.filter((p: any) => p.type?.toUpperCase() === 'CONSIGNOR').map((p: any) => ({ id: String(p.id), name: p.name }));
+                    loadedConsignees = partyRes.data.filter((p: any) => p.type?.toUpperCase() === 'CONSIGNEE').map((p: any) => ({ id: String(p.id), name: p.name }));
+
+                    setConsignors(loadedConsignors);
+                    setConsignees(loadedConsignees);
+                } else {
+                    loadedConsignors = CONSIGNORS;
+                    loadedConsignees = CONSIGNEES;
+                    setConsignors(CONSIGNORS);
+                    setConsignees(CONSIGNEES);
+                }
+
+                // 2. Map Initial Data AFTER lists are loaded
+                if (initialData) {
+                    console.log('Mapping initial data...', initialData);
+
+                    // Helper to find ID by Name if ID mismatch
+                    const findConsignorId = (id: string, name: string) => {
+                        const byId = loadedConsignors.find(c => String(c.id) === String(id));
+                        if (byId) return byId.id;
+                        const byName = loadedConsignors.find(c => c.name?.trim().toUpperCase() === name?.trim().toUpperCase());
+                        console.log(`Consignor lookup: ID=${id}, Name=${name} -> Found:`, byName);
+                        return byName ? byName.id : '';
+                    };
+
+                    const findConsigneeId = (id: string, name: string) => {
+                        const byId = loadedConsignees.find(c => String(c.id) === String(id));
+                        if (byId) return byId.id;
+                        const byName = loadedConsignees.find(c => c.name?.trim().toUpperCase() === name?.trim().toUpperCase());
+                        console.log(`Consignee lookup: ID=${id}, Name=${name} -> Found:`, byName);
+                        return byName ? byName.id : '';
+                    };
+
+                    // Normalize Origin/Destination (trim whitespace)
+                    const normalizeCity = (city: string) => {
+                        if (!city) return '';
+                        const match = loadedCities.find(c => c.trim().toUpperCase() === city.trim().toUpperCase());
+                        return match || city;
+                    };
+
+                    reset({
+                        lr_number: initialData.lr_number,
+                        date: initialData.date,
+                        consignor_id: findConsignorId(initialData.consignor_id, initialData.consignor_name),
+                        consignee_id: findConsigneeId(initialData.consignee_id, initialData.consignee_name),
+                        origin: normalizeCity(initialData.origin || initialData.from || ''),
+                        destination: normalizeCity(initialData.destination || initialData.to || ''),
+                        through: (initialData as any).through || '',
+                        through_id: (initialData as any).through_id ? Number((initialData as any).through_id) : undefined,
+                        delivery_at: initialData.delivery_at || '',
+                        vehicle_number: initialData.vehicle_number || '',
+                        seal_number: initialData.seal_number || '',
+                        booked_on_owners_risk: initialData.booked_on_owners_risk || false,
+                        surcharge: initialData.surcharge || 0,
+                        hamali_charges: initialData.hamali_charges || 0,
+                        st_charges: initialData.st_charges || 0,
+                        loading_point_times: initialData.loading_point_times || {},
+                    });
+                    setGoodsItems(initialData.goods_items || []);
+                    setStatus(initialData.status);
+                }
+
+            } catch (err) {
+                console.error('Failed to load CreateLR data', err);
+            }
+        };
+
+        loadData();
 
         return () => { mounted = false; };
     }, [initialData, reset]);
@@ -286,8 +346,8 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
             date: fullLR.date,
             consignor_id: fullLR.consignor_id,
             consignee_id: fullLR.consignee_id,
-            origin: fullLR.from, // Map from -> origin
-            destination: fullLR.to, // Map to -> destination
+            origin: fullLR.origin,
+            destination: fullLR.destination,
             delivery_at: fullLR.delivery_at,
             through: fullLR.through,
             through_id: toIntOrNull(fullLR.through_id),
@@ -341,8 +401,8 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                 savedLR = {
                     ...savedLR,
                     id: String(savedLR.id), // Ensure string ID for grid consistency
-                    from: savedLR.origin || savedLR.from || '',
-                    to: savedLR.destination || savedLR.to || '',
+                    origin: savedLR.origin || savedLR.from || '',
+                    destination: savedLR.destination || savedLR.to || '',
                 };
             }
 
@@ -541,21 +601,21 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                                         className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
                                     >
                                         <option value="">Select Consignor</option>
-                                        {CONSIGNORS.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        {(consignors.length ? consignors : CONSIGNORS).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
                                     {errors.consignor_id && <p className="text-red-500 text-xs mt-1">{errors.consignor_id.message}</p>}
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">From City <span className="text-red-500">*</span></label>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Origin <span className="text-red-500">*</span></label>
                                     <select
-                                        {...register('from')}
+                                        {...register('origin')}
                                         disabled={isReadOnly}
                                         className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
                                     >
                                         <option value="">Select Origin</option>
                                         {citiesList.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
-                                    {errors.from && <p className="text-red-500 text-xs mt-1">{errors.from.message}</p>}
+                                    {errors.origin && <p className="text-red-500 text-xs mt-1">{errors.origin.message}</p>}
                                 </div>
                             </div>
 
@@ -568,21 +628,21 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                                         className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
                                     >
                                         <option value="">Select Consignee</option>
-                                        {CONSIGNEES.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        {(consignees.length ? consignees : CONSIGNEES).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
                                     {errors.consignee_id && <p className="text-red-500 text-xs mt-1">{errors.consignee_id.message}</p>}
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">To City <span className="text-red-500">*</span></label>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Destination <span className="text-red-500">*</span></label>
                                     <select
-                                        {...register('to')}
+                                        {...register('destination')}
                                         disabled={isReadOnly}
                                         className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
                                     >
                                         <option value="">Select Destination</option>
                                         {citiesList.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
-                                    {errors.to && <p className="text-red-500 text-xs mt-1">{errors.to.message}</p>}
+                                    {errors.destination && <p className="text-red-500 text-xs mt-1">{errors.destination.message}</p>}
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Delivery At</label>
@@ -654,12 +714,16 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-xs font-medium text-slate-500 mb-1">Vehicle No.</label>
-                                        <input
+                                        <select
                                             {...register('vehicle_number')}
                                             disabled={isReadOnly}
-                                            placeholder="MH 04 AB 1234"
-                                            className="w-full px-3 py-2 border border-slate-200 rounded-md uppercase"
-                                        />
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-md uppercase focus:ring-2 focus:ring-slate-900"
+                                        >
+                                            <option value="">Select Vehicle</option>
+                                            {vehiclesList.map(v => (
+                                                <option key={v} value={v}>{v}</option>
+                                            ))}
+                                        </select>
                                         {errors.vehicle_number && <p className="text-red-500 text-xs mt-1">{errors.vehicle_number.message}</p>}
                                     </div>
                                     <div>

@@ -4,176 +4,18 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import axios from 'axios';
 import type { LR, LRStatus } from '@/types';
 import { format, isBefore, addHours, parseISO } from 'date-fns';
-import { Trash2, FileEdit, Truck } from 'lucide-react';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Trash2, Truck, MapPin } from 'lucide-react';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import CreateLR from './CreateLR';
 
 // Register AG Grid Modules (explicitly include useful community modules)
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-// ============ MOCK MASTER DATA ============
-const CONSIGNORS = [
-    { id: 'C001', name: 'HAVELLS INDIA LTD SRICITY' },
-    { id: 'C003', name: 'SURYA ELECTRICALS CHENNAI' },
-    { id: 'C005', name: 'FLYJAC LOGISTICS P LTD' },
-    { id: 'C007', name: 'VOLTAS LTD' },
-    { id: 'C009', name: 'BLUE STAR LIMITED' },
-    { id: 'C011', name: 'VIJAY SALES P LTD' }, // Added from new mock data
-];
-
-const CONSIGNEES = [
-    { id: 'C002', name: 'USHA ELECTROTRADE' },
-    { id: 'C004', name: 'METRO DISTRIBUTORS' },
-    { id: 'C006', name: 'PRIME AGENCIES PUNE' },
-    { id: 'C008', name: 'COOL ZONE HYDERABAD' },
-    { id: 'C010', name: 'SHARMA TRADERS DELHI' },
-    { id: 'C012', name: 'NATIONAL ELECTRONICS' }, // Added from new mock data
-];
-
+// STATUS_OPTIONS is an application-level enum, not a DB table
 const STATUS_OPTIONS: LRStatus[] = ['DRAFT', 'DISPATCHED', 'DELIVERED', 'POD_UPLOADED', 'POD_VERIFIED', 'BILLED'];
 
-const FOB_OPTIONS = ['SRICITY', 'CHENNAI', 'BANGALORE', 'HYDERABAD', 'MUMBAI', 'DELHI'];
-
-const THROUGH_OPTIONS = ['SBR', 'DIRECT', 'RKT', 'VRL', 'TCI', 'RADHEKRISHNA', 'MEENAKSHI']; // Fallback list for Through
-
-// Use CSS theme class `ag-theme-alpine` on the grid container
-
-// ============ MOCK DATA ============
-const INITIAL_DATA: LR[] = [
-    {
-        id: '1',
-        lr_number: '45610',
-        date: '2025-04-01',
-        dispatch_id: 'TRIP-25-001',
-        consignor_id: 'C001',
-        consignor_name: 'HAVELLS INDIA LTD SRICITY',
-        consignee_id: 'C002',
-        consignee_name: 'USHA ELECTROTRADE',
-        from: 'SRICITY',
-        to: 'CHENNAI',
-        goods_items: [{
-            id: '1-1',
-            articles_count: 150,
-            description: 'AS PER SYM, INVOICES EWAY BILL ATTACHED',
-            weight_qtl: 12,
-            weight_kg: 50,
-            rate_per_qtl: 850,
-            freight_rs: 10650,
-            freight_p: 0,
-            remarks: 'To Dec/Grand'
-        }],
-        articles_count: 150,
-        articles_description: 'AS PER SYM, INVOICES EWAY BILL ATTACHED',
-        weight: 1262.5,
-        freight_amount: 10650,
-        fob: 'SRICITY',
-        through: 'DIRECT',
-        status: 'DRAFT',
-        origin: 'SRICITY',
-        destination: 'CHENNAI',
-        vehicle_type: 'TAURUS ACE',
-        vehicle_number: 'MH 43 BX 3816',
-        bill_number: 'INV-2025-001',
-        remarks: 'To Dec/Grand',
-        eway_bill: {
-            id: 'ew-001',
-            number: 'EW123456789',
-            valid_from: '2025-04-01',
-            valid_upto: '2025-04-08',
-            status: 'ACTIVE',
-            alert_sent: false,
-        },
-    },
-    {
-        id: '2',
-        lr_number: '45611',
-        date: '2025-04-01',
-        dispatch_id: 'TRIP-25-001',
-        consignor_id: 'C003',
-        consignor_name: 'SURYA ELECTRICALS CHENNAI',
-        consignee_id: 'C004',
-        consignee_name: 'METRO DISTRIBUTORS',
-        from: 'CHENNAI',
-        to: 'BANGALORE',
-        goods_items: [{
-            id: '2-1',
-            articles_count: 75,
-            description: 'ELECTRICAL GOODS - INSURED',
-            weight_qtl: 8,
-            weight_kg: 0,
-            rate_per_qtl: 920,
-            freight_rs: 7360,
-            freight_p: 0,
-        }],
-        articles_count: 75,
-        articles_description: 'ELECTRICAL GOODS - INSURED',
-        weight: 800,
-        freight_amount: 7360,
-        fob: 'CHENNAI',
-        through: 'SBR',
-        status: 'DISPATCHED',
-        origin: 'CHENNAI',
-        destination: 'BANGALORE',
-        vehicle_type: 'TATA ACE',
-        vehicle_number: 'TN 01 AB 1234',
-        bill_number: 'INV-2025-002',
-        eway_bill: {
-            id: 'ew-002',
-            number: 'EW987654321',
-            valid_from: '2025-04-01',
-            valid_upto: '2025-04-08',
-            status: 'ACTIVE',
-            alert_sent: false,
-        },
-    },
-    {
-        id: '3',
-        lr_number: '45612',
-        date: '2025-04-02',
-        dispatch_id: 'TRIP-25-002',
-        consignor_id: 'C005',
-        consignor_name: 'FLYJAC LOGISTICS P LTD',
-        consignee_id: 'C006',
-        consignee_name: 'PRIME AGENCIES PUNE',
-        from: 'MUMBAI',
-        to: 'PUNE',
-        goods_items: [{
-            id: '3-1',
-            articles_count: 200,
-            description: 'GENERAL CARGO - FRAGILE',
-            weight_qtl: 15,
-            weight_kg: 0,
-            rate_per_qtl: 780,
-            freight_rs: 11700,
-            freight_p: 0,
-            remarks: 'Handle with care'
-        }],
-        articles_count: 200,
-        articles_description: 'GENERAL CARGO - FRAGILE',
-        weight: 1500,
-        freight_amount: 11700,
-        fob: 'MUMBAI',
-        through: 'VRL',
-        status: 'DELIVERED',
-        origin: 'MUMBAI',
-        destination: 'PUNE',
-        vehicle_type: 'EICHER 14FT',
-        vehicle_number: 'MH 02 CD 5678',
-        bill_number: 'INV-2025-003',
-        remarks: 'Handle with care',
-        eway_bill: {
-            id: 'ew-003',
-            number: 'EW111222333',
-            valid_from: '2025-04-02',
-            valid_upto: '2025-04-09',
-            status: 'ACTIVE',
-            alert_sent: false,
-        },
-    },
-];
-
-// Export for use in CreateLR
-export const MOCK_LRS = INITIAL_DATA;
+// Export for use in CreateLR — LRs now come from DB, this is empty
+export const MOCK_LRS: LR[] = [];
 
 // ============ STATUS COLORS ============
 const STATUS_COLORS: Record<LRStatus, { bg: string; text: string }> = {
@@ -264,9 +106,18 @@ export default function DispatchRegister() {
     }, []);
 
     // Cities master list (for Origin/Destination/FOB dropdowns)
-    const [citiesList, setCitiesList] = useState<string[]>(FOB_OPTIONS);
+    const [citiesList, setCitiesList] = useState<string[]>([]);
     // Vendors master list (for Through dropdown)
-    const [vendorsList, setVendorsList] = useState<string[]>(THROUGH_OPTIONS);
+    const [vendorsList, setVendorsList] = useState<string[]>([]);
+    // Consignors and Consignees from party master
+    const [consignorsList, setConsignorsList] = useState<{ id: number; name: string }[]>([]);
+    const [consigneesList, setConsigneesList] = useState<{ id: number; name: string }[]>([]);
+    // Vehicle master: number -> type map for auto-population
+    const [vehicleMap, setVehicleMap] = useState<Record<string, string>>({});
+    // Vehicle numbers list for dropdown
+    const [vehicleNumbers, setVehicleNumbers] = useState<string[]>([]);
+
+
 
     useEffect(() => {
         let mounted = true;
@@ -294,6 +145,40 @@ export default function DispatchRegister() {
             })
             .catch(err => {
                 console.debug('Failed to load vendors master', err);
+            });
+
+        axios.get('/api/vehicle/')
+            .then(res => {
+                const data = res.data;
+                if (!mounted) return;
+                if (Array.isArray(data)) {
+                    const map: Record<string, string> = {};
+                    const numbers: string[] = [];
+                    data.forEach((v: any) => {
+                        if (v.number) {
+                            map[v.number] = v.type || '';
+                            numbers.push(v.number);
+                        }
+                    });
+                    setVehicleMap(map);
+                    setVehicleNumbers(numbers);
+                }
+            })
+            .catch(err => {
+                console.debug('Failed to load vehicle master', err);
+            });
+
+        axios.get('/api/party/')
+            .then(res => {
+                const data = res.data;
+                if (!mounted) return;
+                if (Array.isArray(data)) {
+                    setConsignorsList(data.filter((p: any) => p.type?.toUpperCase() === 'CONSIGNOR').map((p: any) => ({ id: p.id, name: p.name })));
+                    setConsigneesList(data.filter((p: any) => p.type?.toUpperCase() === 'CONSIGNEE').map((p: any) => ({ id: p.id, name: p.name })));
+                }
+            })
+            .catch(err => {
+                console.debug('Failed to load party master', err);
             });
 
         return () => { mounted = false; };
@@ -336,12 +221,12 @@ export default function DispatchRegister() {
                     setRowData(mapped);
                     return;
                 }
-                // fallback to initial mock data if none persisted
-                setRowData(INITIAL_DATA);
+                // No LRs in DB yet — start empty
+                setRowData([]);
             })
             .catch(err => {
                 console.debug('Failed to load persisted LRs', err);
-                setRowData(INITIAL_DATA);
+                setRowData([]);
             });
 
         return () => { mounted = false; };
@@ -372,39 +257,44 @@ export default function DispatchRegister() {
 
     // Cell value changed handler
     const onCellValueChanged = useCallback((event: any) => {
-        console.log('Cell value changed:', event.colDef.field, event.newValue);
+        const updatedData = { ...event.data };
 
         // If consignor changed, update consignor_id too
         if (event.colDef.field === 'consignor_name') {
-            const consignor = CONSIGNORS.find(c => c.name === event.newValue);
-            if (consignor) {
-                event.data.consignor_id = consignor.id;
-            }
+            const consignor = consignorsList.find(c => c.name === event.newValue);
+            if (consignor) updatedData.consignor_id = String(consignor.id);
         }
 
         // If consignee changed, update consignee_id too
         if (event.colDef.field === 'consignee_name') {
-            const consignee = CONSIGNEES.find(c => c.name === event.newValue);
-            if (consignee) {
-                event.data.consignee_id = consignee.id;
-            }
+            const consignee = consigneesList.find(c => c.name === event.newValue);
+            if (consignee) updatedData.consignee_id = String(consignee.id);
         }
 
-        // If through changed, try to set through_id (vendor reference)
-        if (event.colDef.field === 'through') {
-            const vendor = (vendorsList || []).find(v => v === event.newValue);
-            if (vendor) {
-                // store human-readable name and also vendor id if available
-                event.data.through = vendor;
-                // attempt to set through_id if vendor list contained objects earlier
-                // (some parts of the app may expect through_id)
-                // we can map name -> id only if we have full vendor objects; otherwise keep name
-            }
-        }
+        // Update local state immediately for responsiveness
+        setRowData(prev => prev.map(row => row.id === updatedData.id ? updatedData : row));
 
-        // Update state
-        setRowData(prev => prev.map(row => row.id === event.data.id ? { ...event.data } : row));
-    }, []);
+        // Persist to backend
+        const lrId = updatedData.id;
+        const payload: Record<string, any> = {
+            consignor_name: updatedData.consignor_name,
+            consignee_name: updatedData.consignee_name,
+            origin: updatedData.origin,
+            destination: updatedData.destination,
+            fob: updatedData.fob,
+            through: updatedData.through,
+            vehicle_type: updatedData.vehicle_type,
+            vehicle_number: updatedData.vehicle_number,
+            bill_number: updatedData.bill_number,
+            remarks: updatedData.remarks,
+            status: updatedData.status,
+            date: updatedData.date,
+            articles_description: updatedData.articles_description,
+        };
+        axios.put(`/api/lr/${lrId}`, payload)
+            .then(() => console.log('LR saved:', lrId))
+            .catch(err => console.error('Failed to save LR:', err));
+    }, [consignorsList, consigneesList]);
 
     // Column Definitions with editable cells
     // Using any[] to bypass strict v32 typing which is fighting with "as const" assertions
@@ -427,30 +317,7 @@ export default function DispatchRegister() {
                 </button>
             ),
         },
-        // Action Column - Enter Details
-        {
-            headerName: '',
-            width: 50,
-            pinned: 'left',
-            filter: false,
-            sortable: false,
-            cellRenderer: (params: { data: LR }) => {
-                if (params.data.status === 'DRAFT') {
-                    return (
-                        <div className="flex items-center justify-center h-full">
-                            <button
-                                onClick={() => handleOpenLrModal(params.data)}
-                                className="text-slate-500 hover:text-slate-800"
-                                title="Enter Details"
-                            >
-                                <FileEdit size={16} />
-                            </button>
-                        </div>
-                    );
-                }
-                return null;
-            },
-        },
+
         // 2. DATE
         {
             field: 'date',
@@ -496,7 +363,7 @@ export default function DispatchRegister() {
             width: 180,
             editable: true,
             cellEditor: 'agSelectCellEditor',
-            cellEditorParams: { values: CONSIGNORS.map(c => c.name) },
+            cellEditorParams: { values: consignorsList.map(c => c.name) },
         },
         // 5. CONSIGNEE
         {
@@ -506,7 +373,7 @@ export default function DispatchRegister() {
             width: 180,
             editable: true,
             cellEditor: 'agSelectCellEditor',
-            cellEditorParams: { values: CONSIGNEES.map(c => c.name) },
+            cellEditorParams: { values: consigneesList.map(c => c.name) },
         },
         // 9. ARTICLES COUNT (Auto-calculated)
         {
@@ -519,39 +386,32 @@ export default function DispatchRegister() {
         },
         // 10. ARTICLES DESCRIPTION
         { field: 'articles_description', headerName: 'DESCRIPTION', filter: 'agTextColumnFilter', width: 200, editable: true },
-        // 11. WEIGHT (Auto-calculated)
-        {
-            field: 'weight',
-            headerName: 'WGT (KG)',
-            filter: 'agNumberColumnFilter',
-            width: 100,
-            editable: false,
-            cellStyle: { backgroundColor: '#f1f5f9', color: '#64748b' },
-            valueFormatter: (params: { value: number }) => params.value ? `${params.value} KG` : '',
-        },
-        // 12. FREIGHT AMOUNT (Auto-calculated)
-        {
-            field: 'freight_amount',
-            headerName: 'FREIGHT',
-            filter: 'agNumberColumnFilter',
-            width: 110,
-            editable: false,
-            cellStyle: { backgroundColor: '#f1f5f9', color: '#64748b', fontWeight: 600 },
-            valueFormatter: (params: { value: number }) => params.value ? `₹${params.value.toLocaleString()}` : '',
-        },
-        // 8. TYPE OF VEHICLE
+
+        // 8. TYPE OF VEHICLE (auto-populated from vehicle master, readonly)
         {
             field: 'vehicle_type',
             headerName: 'TYPE OF VEHICLE',
             width: 120,
-            editable: true,
+            editable: false,
+            cellStyle: { backgroundColor: '#f1f5f9', color: '#64748b', fontStyle: 'italic' },
+            tooltipValueGetter: () => 'Auto-populated from Vehicle Master',
         },
         // 9. VEHICLE NO.
         {
             field: 'vehicle_number',
             headerName: 'VEHICLE NO.',
-            width: 110,
+            width: 120,
             editable: true,
+            cellEditor: 'agSelectCellEditor',
+            cellEditorParams: { values: vehicleNumbers },
+            valueSetter: (params: any) => {
+                const vNum = params.newValue;
+                params.data.vehicle_number = vNum;
+                if (vNum && vehicleMap[vNum]) {
+                    params.data.vehicle_type = vehicleMap[vNum];
+                }
+                return true;
+            },
         },
         // 10. ORIGIN
         {
@@ -578,7 +438,7 @@ export default function DispatchRegister() {
             width: 90,
             editable: true,
             cellEditor: 'agSelectCellEditor',
-            cellEditorParams: { values: citiesList.length ? citiesList : FOB_OPTIONS },
+            cellEditorParams: { values: citiesList },
         },
         // 13. THROUGH
         {
@@ -587,7 +447,7 @@ export default function DispatchRegister() {
             width: 100,
             editable: true,
             cellEditor: 'agSelectCellEditor',
-            cellEditorParams: { values: vendorsList.length ? vendorsList : THROUGH_OPTIONS },
+            cellEditorParams: { values: vendorsList },
         },
         // 14. BILL NO
         {
@@ -625,13 +485,15 @@ export default function DispatchRegister() {
                 <div className="flex items-center justify-center h-full gap-1">
                     <button
                         onClick={() => {
-                            // Navigate to Hire Memo with pre-filled LR ID
-                            // We need access to router here, but AgGrid cell renderer might be tricky with hooks unless we pass context.
-                            // Better: use window.location or a callback passed to context.
-                            // Or use a simpler approach: define a handler outside and pass it if possible, 
-                            // but in functional comp with params usage, we can just use window.location for now 
-                            // or better, use the navigate function from hook if we lift this definition.
-                            // Since colDefs is useMemo'd, we can't easily capture navigate unless we add it to deps.
+                            window.location.href = `/operations/tracking?vehicle=${encodeURIComponent(params.data.vehicle_number || '')}`;
+                        }}
+                        className="p-1 rounded hover:bg-green-100 text-green-600 transition-colors"
+                        title="Track Vehicle"
+                    >
+                        <MapPin size={14} />
+                    </button>
+                    <button
+                        onClick={() => {
                             window.location.href = `/operations/hirememo?lr_id=${params.data.id}`;
                         }}
                         className="p-1 rounded hover:bg-blue-100 text-blue-600 transition-colors"
@@ -649,7 +511,7 @@ export default function DispatchRegister() {
                 </div>
             ),
         },
-    ], [handleDelete, citiesList]);
+    ], [handleDelete, citiesList, vendorsList, vehicleMap, vehicleNumbers, consignorsList, consigneesList]);
 
     // Default column settings
     const defaultColDef = useMemo(() => ({
@@ -713,8 +575,7 @@ export default function DispatchRegister() {
                     onCellValueChanged={onCellValueChanged}
                     // Excel-like features
                     animateRows={true}
-                    rowSelection="multiple"
-                    suppressRowClickSelection={true}
+                    rowSelection={{ mode: 'multiRow', checkboxLocation: 'autoGroupColumn', headerCheckbox: false }}
                     // Keyboard navigation
                     enableCellTextSelection={true}
                     ensureDomOrder={true}
@@ -742,6 +603,8 @@ export default function DispatchRegister() {
             {/* LR Modal */}
             <Dialog open={isLrModalOpen} onOpenChange={setIsLrModalOpen}>
                 <DialogContent className="max-w-[95vw] h-[90vh] overflow-hidden p-0">
+                    <DialogTitle className="sr-only">Edit Lorry Receipt</DialogTitle>
+                    <DialogDescription className="sr-only">Form to create or edit a Lorry Receipt</DialogDescription>
                     <CreateLR
                         key={selectedLR?.id || 'new'}
                         lrId={selectedLR?.id}

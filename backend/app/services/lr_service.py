@@ -70,6 +70,26 @@ def create_lr(payload: LRCreate) -> dict:
             weight=payload.weight,
             freight_amount=payload.freight_amount,
             status=payload.status or 'DRAFT',
+            # Vehicle
+            vehicle_id=payload.vehicle_id,
+            vehicle_number=payload.vehicle_number,
+            vehicle_type=payload.vehicle_type,
+            seal_number=payload.seal_number,
+            driver_name=payload.driver_name,
+            driver_mobile=payload.driver_mobile,
+            # Risk & Logistics
+            booked_on_owners_risk=payload.booked_on_owners_risk,
+            loading_point_times=payload.loading_point_times,
+            # Financials
+            value_rs=payload.value_rs,
+            surcharge=payload.surcharge,
+            hamali_charges=payload.hamali_charges,
+            st_charges=payload.st_charges,
+            total=payload.total,
+            # Dispatch Register
+            bill_number=payload.bill_number,
+            remarks=payload.remarks,
+            eway_bill=payload.eway_bill,
         )
         db.add(obj)
         db.commit()
@@ -107,7 +127,7 @@ def update_lr(lr_id: int, payload: dict) -> dict:
             return None
         
         for key, value in payload.items():
-            if hasattr(obj, key) and value is not None:
+            if hasattr(obj, key):
                 setattr(obj, key, value)
         
         db.commit()

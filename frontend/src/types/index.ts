@@ -112,8 +112,8 @@ export interface LR {
     consignee_name: string; // Denormalized
 
     // Locations
-    from: string; // Origin city
-    to: string; // Destination city
+    from?: string; // Origin city (deprecated)
+    to?: string; // Destination city (deprecated)
     delivery_at?: string; // Specific delivery point
 
     eway_bill?: EWayBill;
@@ -143,8 +143,8 @@ export interface LR {
     total?: number; // Auto-calculated
 
     // Origin/Destination (for dispatch register)
-    origin?: string;
-    destination?: string;
+    origin: string;
+    destination: string;
     bill_number?: string;
     remarks?: string;
 

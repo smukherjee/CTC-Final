@@ -3,6 +3,7 @@ import AppLayout from '@/layouts/AppLayout';
 import DispatchRegister from '@/features/operations/DispatchRegister';
 import CreateLR from '@/features/operations/CreateLR';
 import HireMemo from '@/features/hirememo/HireMemo';
+import VehicleTracking from '@/features/tracking/VehicleTracking';
 import PartyMaster from '@/features/party/PartyMaster';
 import VendorMaster from '@/features/vendor/VendorMaster';
 import VehicleMaster from '@/features/vehicle/VehicleMaster';
@@ -25,6 +26,7 @@ function App() {
             <Route path="create-lr" element={<CreateLR />} />
             <Route path="lr/:lrId" element={<CreateLR />} />
             <Route path="hirememo" element={<HireMemo />} />
+            <Route path="tracking" element={<VehicleTracking />} />
           </Route>
 
           <Route path="finance">
