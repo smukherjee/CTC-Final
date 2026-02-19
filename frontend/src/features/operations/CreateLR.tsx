@@ -48,6 +48,7 @@ const lrSchema = z.object({
     through_id: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().optional()),
     delivery_at: z.string().optional(),
     vehicle_number: z.string().optional(),
+    vehicle_id: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().optional()),
     seal_number: z.string().optional(),
     booked_on_owners_risk: z.boolean().optional(),
     surcharge: z.preprocess((v) => Number(v), z.number().optional()),
@@ -107,6 +108,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
         through_id: initialData?.through_id ? Number(initialData.through_id) : undefined,
         delivery_at: '',
         vehicle_number: '',
+        vehicle_id: undefined,
         seal_number: '',
         booked_on_owners_risk: false,
         surcharge: 0,
@@ -128,7 +130,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
         defaultValues,
     });
 
-    const [vehiclesList, setVehiclesList] = useState<string[]>([]);
+    const [vehiclesList, setVehiclesList] = useState<{id: string; number: string}[]>([]);
 
     // Helper to find names (use fetched masters, fall back to static lists)
     const getConsignorName = (id: string) => (consignors.find(c => String(c.id) === String(id)) || CONSIGNORS.find(c => String(c.id) === String(id)) || { name: '' }).name;
@@ -166,9 +168,11 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                 }
 
                 // Process Vehicles
+                let loadedVehicles: any[] = [];
                 if (Array.isArray(vehicleRes.data)) {
-                    // Backend may return vehicle number under different keys depending on API version.
-                    const vList = vehicleRes.data.map((v: any) => v.number || v.vehicle_number || v.vehicleNo || v.vehicle_no).filter(Boolean);
+                    // Map to id/number pairs for stable selection
+                    const vList = vehicleRes.data.map((v: any) => ({ id: String(v.id ?? v.vehicle_id ?? v._id ?? ''), number: (v.number || v.vehicle_number || v.vehicleNo || v.vehicle_no || '').toString() })).filter((x: any) => x.number);
+                    loadedVehicles = vList;
                     setVehiclesList(vList);
                 }
 
@@ -190,8 +194,19 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                 }
 
                 // 2. Map Initial Data AFTER lists are loaded
+                // Helper to resolve 'through' (vendor) by id or name
+                const findThroughVendor = (id: any, name: any) => {
+                    const vendorsList = Array.isArray(vendorsRes.data) ? vendorsRes.data : [];
+                    const byId = vendorsList.find((v: any) => String(v.id) === String(id));
+                    if (byId) return { id: byId.id, name: byId.name };
+                    const byName = vendorsList.find((v: any) => String(v.name || '').trim().toUpperCase() === String(name || '').trim().toUpperCase());
+                    if (byName) return { id: byName.id, name: byName.name };
+                    return { id: undefined, name: name || '' };
+                };
+
                 if (initialData) {
                     console.log('Mapping initial data...', initialData);
+                    console.log('Vehicle Number from Initial Data:', initialData.vehicle_number);
 
                     // Helper to find ID by Name if ID mismatch
                     const findConsignorId = (id: string, name: string) => {
@@ -217,6 +232,8 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                         return match || city;
                     };
 
+                    const throughMatch = findThroughVendor((initialData as any).through_id, (initialData as any).through);
+
                     reset({
                         lr_number: initialData.lr_number,
                         date: initialData.date,
@@ -224,10 +241,11 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                         consignee_id: findConsigneeId(initialData.consignee_id, initialData.consignee_name),
                         origin: normalizeCity(initialData.origin || initialData.from || ''),
                         destination: normalizeCity(initialData.destination || initialData.to || ''),
-                        through: (initialData as any).through || '',
-                        through_id: (initialData as any).through_id ? Number((initialData as any).through_id) : undefined,
+                        through: throughMatch.name || ((initialData as any).through || ''),
+                        through_id: throughMatch.id ? Number(throughMatch.id) : undefined,
                         delivery_at: initialData.delivery_at || '',
                         vehicle_number: initialData.vehicle_number || '',
+                        vehicle_id: initialData.vehicle_id ? String(initialData.vehicle_id) : (initialData.vehicle_number ? (loadedVehicles?.find((vv: any) => (vv.number || vv.vehicle_number || vv.vehicleNo || vv.vehicle_no) === initialData.vehicle_number) || {}).id : undefined),
                         seal_number: initialData.seal_number || '',
                         booked_on_owners_risk: initialData.booked_on_owners_risk || false,
                         surcharge: initialData.surcharge || 0,
@@ -237,6 +255,39 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                     });
                     setGoodsItems(initialData.goods_items || []);
                     setStatus(initialData.status);
+                } else if (!isModal && lrId) {
+                    // Fallback: Fetch LR by ID if not provided (e.g. direct link)
+                    console.log('Fetching LR by ID:', lrId);
+                    axios.get(`/api/lr/${lrId}`)
+                        .then(res => {
+                            const data = res.data;
+                            if (data) {
+                                console.log('Fetched LR Data:', data);
+                                const throughMatch2 = findThroughVendor(data.through_id, data.through);
+
+                                reset({
+                                    lr_number: data.lr_number,
+                                    date: data.date,
+                                    consignor_id: data.consignor_id, // Add lookup logic if needed
+                                    consignee_id: data.consignee_id,
+                                    origin: data.origin,
+                                    destination: data.destination,
+                                    through: throughMatch2.name || data.through,
+                                    through_id: throughMatch2.id ? Number(throughMatch2.id) : undefined,
+                                    delivery_at: data.delivery_at,
+                                    vehicle_number: data.vehicle_number,
+                                    seal_number: data.seal_number,
+                                    booked_on_owners_risk: data.booked_on_owners_risk,
+                                    surcharge: data.surcharge,
+                                    hamali_charges: data.hamali_charges,
+                                    st_charges: data.st_charges,
+                                    loading_point_times: data.loading_point_times || {},
+                                });
+                                setGoodsItems(data.goods_items || []);
+                                setStatus(data.status);
+                            }
+                        })
+                        .catch(err => console.error('Failed to fetch LR', err));
                 }
 
             } catch (err) {
@@ -360,6 +411,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
             total: Number(fullLR.total || 0),
             articles_count: Number(fullLR.articles_count || 0),
             articles_description: fullLR.articles_description,
+                vehicle_id: toIntOrNull(fullLR.vehicle_id as any),
             vehicle_number: fullLR.vehicle_number,
             seal_number: fullLR.seal_number,
             booked_on_owners_risk: fullLR.booked_on_owners_risk,
@@ -378,6 +430,12 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                 remarks: (item as any).remarks, // Include remarks if present
             }))
         };
+
+        console.log('--- DEBUG SUBMIT ---');
+        console.log('Vehicle No in Form:', fullLR.vehicle_number);
+        console.log('Full Payload:', sanitizedData);
+        console.log('Goods Items:', sanitizedData.goods_items);
+        console.log('--------------------');
 
         // Standard submission handling
         setIsSubmitting(true);
@@ -661,20 +719,20 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                         {/* Carrier / Through */}
                         <div className="grid grid-cols-2 gap-8">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Through (Carrier/Broker)</label>
+                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Through (Transit City)</label>
                                 <select
-                                    {...register('through_id')}
+                                    {...register('through')}
                                     disabled={isReadOnly}
                                     onChange={(e) => {
                                         const val = e.target.value;
-                                        setValue('through_id', Number(val));
-                                        const v = vendors.find(vv => String(vv.id) === val);
-                                        if (v) setValue('through', v.name);
+                                        setValue('through', val);
+                                        // clear through_id when selecting city
+                                        setValue('through_id', undefined);
                                     }}
                                     className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
                                 >
-                                    <option value="">Select Carrier / Broker</option>
-                                    {(vendors.length ? vendors : []).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                                    <option value="">Select Transit City</option>
+                                    {citiesList.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
                             </div>
                         </div>
@@ -715,16 +773,22 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                                     <div>
                                         <label className="block text-xs font-medium text-slate-500 mb-1">Vehicle No.</label>
                                         <select
-                                            {...register('vehicle_number')}
+                                            {...register('vehicle_id')}
                                             disabled={isReadOnly}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setValue('vehicle_id', val ? Number(val) : undefined);
+                                                const found = vehiclesList.find(v => String(v.id) === String(val));
+                                                setValue('vehicle_number', found ? found.number : '');
+                                            }}
                                             className="w-full px-3 py-2 border border-slate-200 rounded-md uppercase focus:ring-2 focus:ring-slate-900"
                                         >
                                             <option value="">Select Vehicle</option>
                                             {vehiclesList.map(v => (
-                                                <option key={v} value={v}>{v}</option>
+                                                <option key={v.id} value={v.id}>{v.number}</option>
                                             ))}
                                         </select>
-                                        {errors.vehicle_number && <p className="text-red-500 text-xs mt-1">{errors.vehicle_number.message}</p>}
+                                        {errors.vehicle_id && <p className="text-red-500 text-xs mt-1">{errors.vehicle_id.message}</p>}
                                     </div>
                                     <div>
                                         <label className="block text-xs font-medium text-slate-500 mb-1">Seal No.</label>

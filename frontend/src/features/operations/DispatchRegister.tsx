@@ -212,11 +212,25 @@ export default function DispatchRegister() {
                         freight_amount: it.freight_amount || 0,
                         fob: it.fob || '',
                         through: it.through || '',
+                        through_id: it.through_id,
                         vehicle_type: it.vehicle_type || '',
                         vehicle_number: it.vehicle_number || '',
+                        seal_number: it.seal_number || '',
+                        driver_name: it.driver_name || '',
+                        driver_mobile: it.driver_mobile || '',
                         bill_number: it.bill_number || '',
                         remarks: it.remarks || '',
                         status: it.status || 'DRAFT',
+                        // Financials
+                        value_rs: it.value_rs || 0,
+                        surcharge: it.surcharge || 0,
+                        hamali_charges: it.hamali_charges || 0,
+                        st_charges: it.st_charges || 0,
+                        total: it.total || 0,
+                        // Logistics
+                        delivery_at: it.delivery_at || '',
+                        booked_on_owners_risk: it.booked_on_owners_risk || false,
+                        loading_point_times: it.loading_point_times || {},
                     }));
                     setRowData(mapped);
                     return;
@@ -575,7 +589,7 @@ export default function DispatchRegister() {
                     onCellValueChanged={onCellValueChanged}
                     // Excel-like features
                     animateRows={true}
-                    rowSelection={{ mode: 'multiRow', checkboxLocation: 'autoGroupColumn', headerCheckbox: false }}
+                    rowSelection={{ mode: 'singleRow' }}
                     // Keyboard navigation
                     enableCellTextSelection={true}
                     ensureDomOrder={true}
