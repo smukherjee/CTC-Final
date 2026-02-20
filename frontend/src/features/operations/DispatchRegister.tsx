@@ -216,9 +216,19 @@ export default function DispatchRegister() {
     }, [isEwayExpiringSoon]);
 
     // Delete handler
-    const handleDelete = useCallback((id: string) => {
-        if (confirm('Are you sure you want to delete this LR?')) {
-            setRowData(prev => prev.filter(row => row.id !== id));
+    const handleDelete = useCallback(async (id: string) => {
+        if (!confirm('Are you sure you want to delete this LR?')) return;
+        const numericId = Number(id);
+        if (!Number.isFinite(numericId) || numericId <= 0) {
+            alert('Invalid LR id. Please refresh and try again.');
+            return;
+        }
+        try {
+            await axios.delete(`/api/lr/${numericId}`);
+            setRowData((prev) => prev.filter((row) => String(row.id) !== String(id)));
+        } catch (err: any) {
+            const detail = err?.response?.data?.detail || err?.message || 'Delete failed';
+            alert(`Failed to delete LR: ${detail}`);
         }
     }, []);
 

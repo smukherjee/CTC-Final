@@ -186,3 +186,13 @@ def update_lr(lr_id: int, payload: dict) -> dict:
         return _model_to_dict(obj)
     finally:
         db.close()
+
+
+def delete_lr(lr_id: int) -> bool:
+    db = SessionLocal()
+    try:
+        deleted = db.query(LRModel).filter(LRModel.id == lr_id).delete()
+        db.commit()
+        return bool(deleted)
+    finally:
+        db.close()

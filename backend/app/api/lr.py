@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from ..schemas.lr import LRCreate, LRUpdate
-from ..services.lr_service import create_lr, get_all_lrs, get_lr_by_id, get_lr_by_number, update_lr
+from ..services.lr_service import create_lr, get_all_lrs, get_lr_by_id, get_lr_by_number, update_lr, delete_lr
 
 router = APIRouter()
 
@@ -46,3 +46,11 @@ def put_lr(lr_id: int, payload: LRUpdate):
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete('/lr/{lr_id}')
+def remove_lr(lr_id: int):
+    deleted = delete_lr(lr_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="LR not found")
+    return {"ok": True}
