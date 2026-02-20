@@ -1,5 +1,5 @@
-from typing import List, Optional
-from ..models.hirememo import HireMemoModel, create_tables
+from typing import Optional
+from ..models.hirememo import HireMemoModel
 from ..db import SessionLocal
 
 
@@ -28,38 +28,70 @@ def get_hirememo_by_id(hm_id: int):
         session.close()
 
 
-def _apply_payload(hm: HireMemoModel, payload: dict):
-    hm.lr_id = payload.get("lr_id", hm.lr_id)
-    # Meta
-    hm.hire_memo_no = payload.get("hire_memo_no")
-    hm.hire_memo_date = payload.get("hire_memo_date")
-    hm.branch = payload.get("branch")
-    # Vehicle & Driver
-    hm.vehicle_id = payload.get("vehicle_id")
-    hm.vehicle_number = payload.get("vehicle_number")
-    hm.driver_name = payload.get("driver_name")
-    hm.driver_mobile = payload.get("driver_mobile")
-    hm.driver_license = payload.get("driver_license")
-    # Route
-    hm.from_location = payload.get("from_location")
-    hm.to_location = payload.get("to_location")
-    hm.payment_location = payload.get("payment_location")
-    # Financials
-    hm.rate_type = payload.get("rate_type")
-    hm.freight_rate = payload.get("freight_rate")
-    hm.freight_weight = payload.get("freight_weight")
-    hm.guaranteed_weight = payload.get("guaranteed_weight")
-    hm.total_amount = payload.get("total_amount", 0)
-    hm.advance_cash = payload.get("advance_cash", 0)
-    hm.advance_bank = payload.get("advance_bank", 0)
+def _apply_payload(hm: HireMemoModel, payload: dict, partial: bool = False):
+    if partial:
+        for field in (
+            "lr_id",
+            "hire_memo_no",
+            "hire_memo_date",
+            "branch",
+            "vehicle_id",
+            "vehicle_number",
+            "driver_name",
+            "driver_mobile",
+            "driver_license",
+            "from_location",
+            "to_location",
+            "payment_location",
+            "rate_type",
+            "freight_rate",
+            "freight_weight",
+            "guaranteed_weight",
+            "total_amount",
+            "advance_cash",
+            "advance_bank",
+            "commission",
+            "hamali",
+            "mamul",
+            "other_deductions",
+            "ack_status",
+            "notes",
+        ):
+            if field in payload:
+                setattr(hm, field, payload[field])
+    else:
+        hm.lr_id = payload.get("lr_id", hm.lr_id)
+        # Meta
+        hm.hire_memo_no = payload.get("hire_memo_no")
+        hm.hire_memo_date = payload.get("hire_memo_date")
+        hm.branch = payload.get("branch")
+        # Vehicle & Driver
+        hm.vehicle_id = payload.get("vehicle_id")
+        hm.vehicle_number = payload.get("vehicle_number")
+        hm.driver_name = payload.get("driver_name")
+        hm.driver_mobile = payload.get("driver_mobile")
+        hm.driver_license = payload.get("driver_license")
+        # Route
+        hm.from_location = payload.get("from_location")
+        hm.to_location = payload.get("to_location")
+        hm.payment_location = payload.get("payment_location")
+        # Financials
+        hm.rate_type = payload.get("rate_type")
+        hm.freight_rate = payload.get("freight_rate")
+        hm.freight_weight = payload.get("freight_weight")
+        hm.guaranteed_weight = payload.get("guaranteed_weight")
+        hm.total_amount = payload.get("total_amount", 0)
+        hm.advance_cash = payload.get("advance_cash", 0)
+        hm.advance_bank = payload.get("advance_bank", 0)
+        # Deductions
+        hm.commission = payload.get("commission", 0)
+        hm.hamali = payload.get("hamali", 0)
+        hm.mamul = payload.get("mamul", 0)
+        hm.other_deductions = payload.get("other_deductions", 0)
+        hm.ack_status = payload.get("ack_status", "PENDING")
+        hm.notes = payload.get("notes")
+
     hm.balance = calculate_balance(hm.total_amount, hm.advance_cash, hm.advance_bank)
-    # Deductions
-    hm.commission = payload.get("commission", 0)
-    hm.hamali = payload.get("hamali", 0)
-    hm.mamul = payload.get("mamul", 0)
-    hm.other_deductions = payload.get("other_deductions", 0)
-    hm.ack_status = payload.get("ack_status", "PENDING")
-    hm.notes = payload.get("notes")
 
 
 def create_hirememo(payload: dict):
@@ -72,11 +104,11 @@ def create_hirememo(payload: dict):
             existing = session.query(HireMemoModel).filter(HireMemoModel.lr_id == lr_id).first()
 
         if existing:
-            _apply_payload(existing, payload)
+            _apply_payload(existing, payload, partial=False)
             hm = existing
         else:
             hm = HireMemoModel(lr_id=lr_id)
-            _apply_payload(hm, payload)
+            _apply_payload(hm, payload, partial=False)
             session.add(hm)
 
         session.commit()
@@ -97,7 +129,7 @@ def update_hirememo(hm_id: int, payload: dict):
         hm = session.query(HireMemoModel).filter(HireMemoModel.id == hm_id).first()
         if not hm:
             return None
-        _apply_payload(hm, payload)
+        _apply_payload(hm, payload, partial=True)
         session.commit()
         session.refresh(hm)
         return hm

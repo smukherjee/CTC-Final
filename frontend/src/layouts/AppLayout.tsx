@@ -148,12 +148,6 @@ export default function AppLayout() {
 
             {/* Main Content */}
             <main className="flex-1 overflow-auto flex flex-col">
-                <header className="h-16 bg-white border-b border-slate-200 flex items-center px-6 sticky top-0 z-10">
-                    <h1 className="text-lg font-semibold text-slate-800">
-                        {/* Dynamic Header could go here */}
-                        Operations Output
-                    </h1>
-                </header>
                 <div className="flex-1 p-6">
                     <Outlet />
                 </div>

@@ -26,10 +26,15 @@ def create_new_city(payload: CityCreate):
 
 @router.put("/{city_id}", response_model=City)
 def update_existing_city(city_id: int, payload: CityUpdate):
-    return update_city(city_id, payload)
+    city = update_city(city_id, payload)
+    if not city:
+        raise HTTPException(status_code=404, detail="City not found")
+    return city
 
 
 @router.delete("/{city_id}")
 def delete_existing_city(city_id: int):
-    delete_city(city_id)
+    deleted = delete_city(city_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="City not found")
     return {"ok": True}

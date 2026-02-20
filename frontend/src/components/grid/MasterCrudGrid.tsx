@@ -65,10 +65,23 @@ export default function MasterCrudGrid<T extends { id?: RowId }>({
       const res = await axios.put(`${listEndpoint}${id}`, payload);
       const updated = mapItem ? mapItem(res.data) : (res.data as T);
       setData((prev) => prev.map((it) => (String(it.id) === String(id) ? updated : it)));
+    } catch (error) {
+      const changedField = event?.colDef?.field as string | undefined;
+      if (changedField) {
+        setData((prev) =>
+          prev.map((it) =>
+            String(it.id) === String(id)
+              ? ({ ...it, [changedField]: event.oldValue } as T)
+              : it
+          )
+        );
+      }
+      console.error(`Failed to update ${title}:`, error);
+      await refetch();
     } finally {
       setSaving(id, false);
     }
-  }, [listEndpoint, mapItem, setData, setSaving, toUpdatePayload]);
+  }, [listEndpoint, mapItem, refetch, setData, setSaving, title, toUpdatePayload]);
 
   const colDefs = useMemo(() => {
     return [

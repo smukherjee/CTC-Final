@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Trash2, Printer, Save, Lock, X } from 'lucide-react';
+import { Plus, Trash2, Printer, Save, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
@@ -50,11 +50,10 @@ interface CreateLRProps {
     lrId?: string;
     initialData?: LR;
     isModal?: boolean;
-    onClose?: () => void;
     onSave?: (lr: LR) => void;
 }
 
-export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose, onSave }: CreateLRProps) {
+export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave }: CreateLRProps) {
     const { lrId: paramLrId } = useParams();
     // Prioritize prop (modal mode), fallback to param (route mode)
     const lrId = propLrId || paramLrId;
@@ -168,8 +167,18 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                 let loadedConsignees: { id: string, name: string }[] = [];
 
                 if (Array.isArray(partyRes.data)) {
-                    loadedConsignors = partyRes.data.filter((p: any) => p.type?.toUpperCase() === 'CONSIGNOR').map((p: any) => ({ id: String(p.id), name: p.name }));
-                    loadedConsignees = partyRes.data.filter((p: any) => p.type?.toUpperCase() === 'CONSIGNEE').map((p: any) => ({ id: String(p.id), name: p.name }));
+                    loadedConsignors = partyRes.data
+                        .filter((p: any) => {
+                            const partyType = String(p.type || '').toUpperCase();
+                            return partyType === 'CONSIGNOR' || partyType === 'BOTH';
+                        })
+                        .map((p: any) => ({ id: String(p.id), name: p.name }));
+                    loadedConsignees = partyRes.data
+                        .filter((p: any) => {
+                            const partyType = String(p.type || '').toUpperCase();
+                            return partyType === 'CONSIGNEE' || partyType === 'BOTH';
+                        })
+                        .map((p: any) => ({ id: String(p.id), name: p.name }));
 
                     setConsignors(loadedConsignors);
                     setConsignees(loadedConsignees);
@@ -246,21 +255,15 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                     setResolvedLrId(dbId > 0 ? dbId : null);
                 };
 
-                const candidateToken = lrId || (initialData?.id ? String(initialData.id) : '') || (initialData?.lr_number || '');
-                const canTryFetch = !!candidateToken;
+                const candidateId = toNumber(lrId || (initialData?.id ? String(initialData.id) : ''));
+                const canTryFetchById = candidateId > 0;
 
-                if (canTryFetch) {
+                if (canTryFetchById) {
                     try {
-                        const isNumericId = Number.isFinite(Number(candidateToken)) && Number(candidateToken) > 0;
-                        const freshRes = isNumericId
-                            ? await axios.get(`/api/lr/${candidateToken}`, {
-                                params: { _ts: Date.now() },
-                                headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
-                            })
-                            : await axios.get(`/api/lr/by-number/${encodeURIComponent(String(candidateToken))}`, {
-                                params: { _ts: Date.now() },
-                                headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
-                            });
+                        const freshRes = await axios.get(`/api/lr/${candidateId}`, {
+                            params: { _ts: Date.now() },
+                            headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+                        });
                         if (!mounted) return;
                         applyLrToForm(freshRes.data);
                     } catch (err) {
@@ -357,7 +360,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
         }
 
         const fullLR: LR = {
-            id: lrId || initialData?.id || Date.now().toString(), // Generate simplified ID for new LRs
+            id: lrId || initialData?.id || '',
             ...data,
             date: data.date || format(new Date(), 'yyyy-MM-dd'),
             // Explicitly cast or map optional fields
@@ -391,7 +394,9 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
             lr_number: fullLR.lr_number,
             date: fullLR.date,
             consignor_id: fullLR.consignor_id,
+            consignor_name: fullLR.consignor_name,
             consignee_id: fullLR.consignee_id,
+            consignee_name: fullLR.consignee_name,
             origin: fullLR.origin,
             destination: fullLR.destination,
             delivery_at: fullLR.delivery_at,
@@ -426,12 +431,6 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
             }))
         };
 
-        console.log('--- DEBUG SUBMIT ---');
-        console.log('Vehicle No in Form:', fullLR.vehicle_number);
-        console.log('Full Payload:', sanitizedData);
-        console.log('Goods Items:', sanitizedData.goods_items);
-        console.log('--------------------');
-
         // Standard submission handling
         setIsSubmitting(true);
         try {
@@ -442,17 +441,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
             if (!updateId) {
                 const idFromInitial = toNumber(initialData?.id);
                 const idFromRoute = toNumber(lrId);
-                const idFromFull = toNumber(fullLR.id);
-                updateId = idFromInitial || idFromRoute || idFromFull || null;
-            }
-
-            if (!updateId && fullLR.lr_number) {
-                try {
-                    const lookup = await axios.get(`/api/lr/by-number/${encodeURIComponent(fullLR.lr_number)}`);
-                    updateId = toNumber(lookup.data?.id) || null;
-                } catch {
-                    updateId = null;
-                }
+                updateId = idFromInitial || idFromRoute || null;
             }
 
             if (updateId) {
@@ -597,9 +586,6 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                             </span>
                         )}
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-                        <X size={20} />
-                    </button>
                 </div>
             )}
 

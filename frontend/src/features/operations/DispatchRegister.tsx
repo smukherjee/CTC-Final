@@ -50,11 +50,6 @@ export default function DispatchRegister() {
         setIsLrModalOpen(true);
     };
 
-    const handleCloseLrModal = () => {
-        setIsLrModalOpen(false);
-        setSelectedLR(null);
-    };
-
     const handleSaveLR = (updatedLR: LR) => {
         setRowData(prev => {
             // Robustly find index by casting both to string
@@ -141,8 +136,22 @@ export default function DispatchRegister() {
                 const data = res.data;
                 if (!mounted) return;
                 if (Array.isArray(data)) {
-                    setConsignorsList(data.filter((p: any) => p.type?.toUpperCase() === 'CONSIGNOR').map((p: any) => ({ id: p.id, name: p.name })));
-                    setConsigneesList(data.filter((p: any) => p.type?.toUpperCase() === 'CONSIGNEE').map((p: any) => ({ id: p.id, name: p.name })));
+                    setConsignorsList(
+                        data
+                            .filter((p: any) => {
+                                const partyType = String(p.type || '').toUpperCase();
+                                return partyType === 'CONSIGNOR' || partyType === 'BOTH';
+                            })
+                            .map((p: any) => ({ id: p.id, name: p.name }))
+                    );
+                    setConsigneesList(
+                        data
+                            .filter((p: any) => {
+                                const partyType = String(p.type || '').toUpperCase();
+                                return partyType === 'CONSIGNEE' || partyType === 'BOTH';
+                            })
+                            .map((p: any) => ({ id: p.id, name: p.name }))
+                    );
                 }
             })
             .catch(err => {
@@ -520,9 +529,6 @@ export default function DispatchRegister() {
                     <p className="text-sm text-slate-500 mt-1">Track all LRs and dispatches • {rowData.length} records</p>
                 </div>
                 <div className="flex gap-2">
-                    <button className="bg-slate-100 text-slate-700 hover:bg-slate-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                        Export Excel
-                    </button>
                     <button
                         onClick={() => handleCreateLr()}
                         className="bg-slate-900 text-white hover:bg-slate-800 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
@@ -567,7 +573,6 @@ export default function DispatchRegister() {
                         lrId={selectedLR?.id}
                         initialData={selectedLR ?? undefined}
                         isModal={true}
-                        onClose={handleCloseLrModal}
                         onSave={handleSaveLR}
                     />
                 </DialogContent>

@@ -32,12 +32,12 @@ def create_city(data: dict) -> CityModel:
         db.close()
 
 
-def update_city(city_id: int, payload: CityUpdate) -> CityModel:
+def update_city(city_id: int, payload: CityUpdate) -> Optional[CityModel]:
     db = SessionLocal()
     try:
         row = db.query(CityModel).filter(CityModel.id == city_id).first()
         if not row:
-            raise KeyError("City not found")
+            return None
         for key, value in payload.dict().items():
             if value is not None:
                 setattr(row, key, value)
@@ -49,10 +49,11 @@ def update_city(city_id: int, payload: CityUpdate) -> CityModel:
         db.close()
 
 
-def delete_city(city_id: int) -> None:
+def delete_city(city_id: int) -> bool:
     db = SessionLocal()
     try:
-        db.query(CityModel).filter(CityModel.id == city_id).delete()
+        deleted = db.query(CityModel).filter(CityModel.id == city_id).delete()
         db.commit()
+        return bool(deleted)
     finally:
         db.close()

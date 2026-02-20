@@ -38,7 +38,7 @@ export default function BillBook() {
           return {
             id: Number(it.id),
             bill_number: it.bill_number || '',
-            bill_date: it.bill_date || format(new Date(), 'yyyy-MM-dd'),
+            bill_date: it.bill_date || '',
             lr_number: it.lr_number || '',
             date: it.date || '',
             origin: it.origin || '',
@@ -46,7 +46,7 @@ export default function BillBook() {
             customer_name: it.consignee_name || it.consignor_name || '',
             amount,
             amount_passed: Number(it.amount_passed ?? amount),
-            deductions: it.deductions || 'NIL',
+            deductions: it.deductions ?? '',
             remarks: it.remarks || '',
             cm_no: it.cm_no || '',
             cm_date: it.cm_date || '',
@@ -120,8 +120,7 @@ export default function BillBook() {
         return Number.isNaN(d.getTime()) ? '' : format(d, 'dd/MM/yyyy');
       },
       valueSetter: (params: any) => {
-        if (!params.newValue) return false;
-        params.data.bill_date = String(params.newValue);
+        params.data.bill_date = params.newValue ? String(params.newValue) : '';
         return true;
       },
     },
@@ -173,8 +172,7 @@ export default function BillBook() {
         return Number.isNaN(d.getTime()) ? '' : format(d, 'dd/MM/yyyy');
       },
       valueSetter: (params: any) => {
-        if (!params.newValue) return false;
-        params.data.cm_date = String(params.newValue);
+        params.data.cm_date = params.newValue ? String(params.newValue) : '';
         return true;
       },
     },

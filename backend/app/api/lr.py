@@ -42,5 +42,7 @@ def put_lr(lr_id: int, payload: LRUpdate):
         if not updated:
             raise HTTPException(status_code=404, detail="LR not found")
         return updated
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
