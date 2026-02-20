@@ -2,37 +2,38 @@
 
 | Field Name         | Entity         | Data Type   | Description/Notes |
 |--------------------|---------------|------------|-------------------|
-| lr_no              | LorryReceipt  | string     | Unique LR number  |
+| lr_number          | LorryReceipt  | string     | Unique LR number  |
 | date               | LorryReceipt  | date       | Date of LR        |
 | month              | LorryReceipt  | string     | Month (derived)   |
 | consignor_id       | Customer      | string/ref | Consignor party   |
 | consignee_id       | Customer      | string/ref | Consignee party   |
-| num_articles       | LorryReceipt  | integer    | Number of articles|
+| articles_count     | LorryReceipt  | integer    | Number of articles|
 | description        | LorryReceipt  | string     | Goods description |
 | vehicle_type       | Vehicle       | string     | Type of vehicle   |
-| vehicle_no         | Vehicle       | string     | Vehicle number    |
+| vehicle_number     | Vehicle       | string     | Vehicle number    |
 | origin             | LorryReceipt  | string     | Origin location   |
 | destination        | LorryReceipt  | string     | Destination       |
 | fob                | LorryReceipt  | string     | Free on board     |
-| through_bill_no    | LorryReceipt  | string     | Through bill no   |
+| through_id         | LorryReceipt  | integer/ref| Through vendor id |
+| through            | LorryReceipt  | string     | Through vendor name snapshot |
 | remarks            | LorryReceipt  | string     | Remarks           |
 | reported_on        | LorryReceipt  | date       | Reported on date  |
 | hire_memo_no       | HireMemo      | string     | Hire Memo number  |
 | branch             | HireMemo      | string     | Branch name       |
 | driver_name        | HireMemo      | string     | Driver name       |
-| rate               | HireMemo      | decimal    | Rate per unit     |
-| freight_to_be_paid | HireMemo      | decimal    | Freight to pay    |
-| for_weight         | HireMemo      | decimal    | Weight for calc   |
-| less_part_payment  | HireMemo      | decimal    | Less part payment |
+| freight_rate       | HireMemo      | decimal    | Rate per unit     |
+| total_amount       | HireMemo      | decimal    | Freight to pay    |
+| freight_weight     | HireMemo      | decimal    | Weight for calc   |
+| advance_cash       | HireMemo      | decimal    | Less part payment |
+| advance_bank       | HireMemo      | decimal    | Bank advance      |
 | balance            | HireMemo      | decimal    | Balance amount    |
-| total_amount       | HireMemo      | decimal    | Total amount      |
 | driver_signature   | HireMemo      | string     | Driver signature  |
-| license_no         | HireMemo      | string     | License number    |
+| driver_license     | HireMemo      | string     | License number    |
 | deduction_reason   | HireMemo      | string     | Deduction reason  |
 | invoice_no         | Invoice       | string     | Invoice number    |
 | invoice_date       | Invoice       | date       | Invoice date      |
 | bill_to_id         | Customer      | string/ref | Bill to party     |
-| gst_no             | Customer      | string     | GST number        |
+| gstin              | Party/Vendor  | string     | GST number        |
 | particulars        | Invoice       | string     | Invoice details   |
 | amount             | Invoice       | decimal    | Invoice amount    |
 | total              | Invoice       | decimal    | Invoice total     |
@@ -55,4 +56,4 @@
 | hamali_charges     | LorryReceipt  | decimal    | Hamali charges    |
 | st_charges         | LorryReceipt  | decimal    | St. charges       |
 | box                | LorryReceipt  | string     | Box info          |
-| seal_no            | LorryReceipt  | string     | Seal number       |
+| seal_number        | LorryReceipt  | string     | Seal number       |

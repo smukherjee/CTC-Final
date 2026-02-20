@@ -4,7 +4,7 @@ import axios from "axios";
 export interface Party {
   id: number;
   name: string;
-  type: "Customer" | "Consignor" | "Consignee";
+  type: "CUSTOMER" | "CONSIGNOR" | "CONSIGNEE" | "BOTH";
   gstin?: string;
   mobile?: string;
   address?: string;
@@ -21,9 +21,9 @@ export default function PartyMaster() {
       .then((res) => {
         const data = res.data;
         if (Array.isArray(data)) {
-          setParties(data);
+          setParties(data.map((party: Party) => ({ ...party, type: String(party.type || "").toUpperCase() as Party["type"] })));
         } else if (data && Array.isArray((data as any).results)) {
-          setParties((data as any).results);
+          setParties((data as any).results.map((party: Party) => ({ ...party, type: String(party.type || "").toUpperCase() as Party["type"] })));
         } else {
           console.warn("Unexpected party response shape:", data);
           setParties([]);

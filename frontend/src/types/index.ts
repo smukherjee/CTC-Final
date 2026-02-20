@@ -112,8 +112,6 @@ export interface LR {
     consignee_name: string; // Denormalized
 
     // Locations
-    from?: string; // Origin city (deprecated)
-    to?: string; // Destination city (deprecated)
     delivery_at?: string; // Specific delivery point
 
     eway_bill?: EWayBill;
@@ -129,8 +127,11 @@ export interface LR {
 
     // Logistics
     vehicle_type?: string;
+    vehicle_id?: string | number;
     vehicle_number?: string;
     seal_number?: string;
+    driver_name?: string;
+    driver_mobile?: string;
 
     // Loading Point Times
     loading_point_times?: LoadingPointTimes;
@@ -151,7 +152,7 @@ export interface LR {
     // New fields from Requirements
     fob?: string;
     through?: string; // Broker/Vendor Ref
-    through_id?: string; // Vendor id (foreign key)
+    through_id?: number; // Vendor id (foreign key)
 
     status: LRStatus;
 

@@ -2,34 +2,23 @@ import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import axios from 'axios';
-import type { LR, LRStatus } from '@/types';
+import type { LR } from '@/types';
 import { format, isBefore, addHours, parseISO } from 'date-fns';
 import { Trash2, Truck, MapPin } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import CreateLR from './CreateLR';
+import { fetchFormOptions } from '@/config/formOptions';
+import { DEFAULT_LR_STATUS_COLOR, LR_STATUS_COLORS } from '@/config/lrStatus';
 
 // Register AG Grid Modules (explicitly include useful community modules)
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-// STATUS_OPTIONS is an application-level enum, not a DB table
-const STATUS_OPTIONS: LRStatus[] = ['DRAFT', 'DISPATCHED', 'DELIVERED', 'POD_UPLOADED', 'POD_VERIFIED', 'BILLED'];
-
 // Export for use in CreateLR — LRs now come from DB, this is empty
 export const MOCK_LRS: LR[] = [];
 
-// ============ STATUS COLORS ============
-const STATUS_COLORS: Record<LRStatus, { bg: string; text: string }> = {
-    DRAFT: { bg: '#f1f5f9', text: '#475569' },
-    DISPATCHED: { bg: '#dbeafe', text: '#1e40af' },
-    DELIVERED: { bg: '#dcfce7', text: '#166534' },
-    POD_UPLOADED: { bg: '#fef3c7', text: '#92400e' },
-    POD_VERIFIED: { bg: '#d1fae5', text: '#065f46' },
-    BILLED: { bg: '#e0e7ff', text: '#3730a3' },
-};
-
 // ============ COMPONENTS ============
-function StatusBadge({ value }: { value: LRStatus }) {
-    const colors = STATUS_COLORS[value] || { bg: '#f1f5f9', text: '#475569' };
+function StatusBadge({ value }: { value: string }) {
+    const colors = LR_STATUS_COLORS[value] || DEFAULT_LR_STATUS_COLOR;
     return (
         <span
             style={{
@@ -108,14 +97,18 @@ export default function DispatchRegister() {
     // Cities master list (for Origin/Destination/FOB dropdowns)
     const [citiesList, setCitiesList] = useState<string[]>([]);
     // Vendors master list (for Through dropdown)
-    const [vendorsList, setVendorsList] = useState<string[]>([]);
+    const [vendorIds, setVendorIds] = useState<number[]>([]);
+    const [vendorNameById, setVendorNameById] = useState<Record<string, string>>({});
     // Consignors and Consignees from party master
     const [consignorsList, setConsignorsList] = useState<{ id: number; name: string }[]>([]);
     const [consigneesList, setConsigneesList] = useState<{ id: number; name: string }[]>([]);
     // Vehicle master: number -> type map for auto-population
     const [vehicleMap, setVehicleMap] = useState<Record<string, string>>({});
+    const [vehicleIdByNumber, setVehicleIdByNumber] = useState<Record<string, number>>({});
     // Vehicle numbers list for dropdown
     const [vehicleNumbers, setVehicleNumbers] = useState<string[]>([]);
+    const [statusOptions, setStatusOptions] = useState<string[]>([]);
+    const [defaultStatus, setDefaultStatus] = useState<string>('');
 
 
 
@@ -139,8 +132,16 @@ export default function DispatchRegister() {
                 const data = res.data;
                 if (!mounted) return;
                 if (Array.isArray(data)) {
-                    const names = data.map((v: any) => v.name).filter(Boolean);
-                    if (names.length) setVendorsList(names);
+                    const ids: number[] = [];
+                    const namesById: Record<string, string> = {};
+                    data.forEach((v: any) => {
+                        if (v.id === undefined || v.id === null) return;
+                        const id = Number(v.id);
+                        ids.push(id);
+                        namesById[String(id)] = v.name || '';
+                    });
+                    setVendorIds(ids);
+                    setVendorNameById(namesById);
                 }
             })
             .catch(err => {
@@ -153,14 +154,19 @@ export default function DispatchRegister() {
                 if (!mounted) return;
                 if (Array.isArray(data)) {
                     const map: Record<string, string> = {};
+                    const idByNumber: Record<string, number> = {};
                     const numbers: string[] = [];
                     data.forEach((v: any) => {
                         if (v.number) {
                             map[v.number] = v.type || '';
+                            if (v.id !== undefined && v.id !== null) {
+                                idByNumber[v.number] = Number(v.id);
+                            }
                             numbers.push(v.number);
                         }
                     });
                     setVehicleMap(map);
+                    setVehicleIdByNumber(idByNumber);
                     setVehicleNumbers(numbers);
                 }
             })
@@ -201,10 +207,8 @@ export default function DispatchRegister() {
                         consignor_name: it.consignor_name || '',
                         consignee_id: it.consignee_id || '',
                         consignee_name: it.consignee_name || '',
-                        from: it.origin || it.from || '',
-                        to: it.destination || it.to || '',
-                        origin: it.origin || it.from || '',
-                        destination: it.destination || it.to || '',
+                        origin: it.origin || '',
+                        destination: it.destination || '',
                         goods_items: it.goods_items || [],
                         articles_count: it.articles_count || 0,
                         articles_description: it.articles_description || '',
@@ -212,7 +216,7 @@ export default function DispatchRegister() {
                         freight_amount: it.freight_amount || 0,
                         fob: it.fob || '',
                         through: it.through || '',
-                        through_id: it.through_id,
+                        through_id: it.through_id ? Number(it.through_id) : undefined,
                         vehicle_type: it.vehicle_type || '',
                         vehicle_number: it.vehicle_number || '',
                         vehicle_id: it.vehicle_id, // Ensure vehicle_id is mapped
@@ -221,7 +225,7 @@ export default function DispatchRegister() {
                         driver_mobile: it.driver_mobile || '',
                         bill_number: it.bill_number || '',
                         remarks: it.remarks || '',
-                        status: it.status || 'DRAFT',
+                        status: it.status || defaultStatus,
                         // Financials
                         value_rs: it.value_rs || 0,
                         surcharge: it.surcharge || 0,
@@ -244,6 +248,22 @@ export default function DispatchRegister() {
                 setRowData([]);
             });
 
+        return () => { mounted = false; };
+    }, [defaultStatus]);
+
+    useEffect(() => {
+        let mounted = true;
+        fetchFormOptions()
+            .then((options) => {
+                if (!mounted) return;
+                setStatusOptions(options.lr_statuses || []);
+                setDefaultStatus(options.defaults?.lr_status || '');
+            })
+            .catch(() => {
+                if (!mounted) return;
+                setStatusOptions([]);
+                setDefaultStatus('');
+            });
         return () => { mounted = false; };
     }, []);
 
@@ -286,6 +306,21 @@ export default function DispatchRegister() {
             if (consignee) updatedData.consignee_id = String(consignee.id);
         }
 
+        if (event.colDef.field === 'through_id') {
+            const throughId = event.newValue === '' || event.newValue === null || event.newValue === undefined
+                ? undefined
+                : Number(event.newValue);
+            updatedData.through_id = throughId;
+            updatedData.through = throughId ? (vendorNameById[String(throughId)] || '') : '';
+        }
+
+        if (event.colDef.field === 'vehicle_number') {
+            const vehicleNo = event.newValue ? String(event.newValue) : '';
+            updatedData.vehicle_number = vehicleNo;
+            updatedData.vehicle_type = vehicleNo ? (vehicleMap[vehicleNo] || '') : '';
+            updatedData.vehicle_id = vehicleNo ? vehicleIdByNumber[vehicleNo] : undefined;
+        }
+
         // Update local state immediately for responsiveness
         setRowData(prev => prev.map(row => row.id === updatedData.id ? updatedData : row));
 
@@ -297,7 +332,7 @@ export default function DispatchRegister() {
         axios.put(`/api/lr/${lrId}`, payload)
             .then(() => console.log('LR saved:', lrId))
             .catch(err => console.error('Failed to save LR:', err));
-    }, [consignorsList, consigneesList]);
+    }, [consignorsList, consigneesList, vendorNameById, vehicleMap, vehicleIdByNumber]);
 
     // Column Definitions with editable cells
     // Using any[] to bypass strict v32 typing which is fighting with "as const" assertions
@@ -413,6 +448,7 @@ export default function DispatchRegister() {
                 if (vNum && vehicleMap[vNum]) {
                     params.data.vehicle_type = vehicleMap[vNum];
                 }
+                params.data.vehicle_id = vNum ? vehicleIdByNumber[vNum] : undefined;
                 return true;
             },
         },
@@ -445,12 +481,30 @@ export default function DispatchRegister() {
         },
         // 13. THROUGH
         {
-            field: 'through',
+            field: 'through_id',
             headerName: 'THROUGH',
-            width: 100,
+            width: 140,
             editable: true,
+            cellDataType: 'number',
             cellEditor: 'agSelectCellEditor',
-            cellEditorParams: { values: vendorsList },
+            cellEditorParams: { values: vendorIds },
+            valueParser: (params: any) => {
+                if (params.newValue === '' || params.newValue === null || params.newValue === undefined) return undefined;
+                const n = Number(params.newValue);
+                return Number.isNaN(n) ? undefined : n;
+            },
+            valueFormatter: (params: { value: string | number | undefined }) => {
+                if (params.value === undefined || params.value === null || params.value === '') return '';
+                return vendorNameById[String(params.value)] || String(params.value);
+            },
+            valueSetter: (params: any) => {
+                const throughId = params.newValue === '' || params.newValue === null || params.newValue === undefined
+                    ? undefined
+                    : Number(params.newValue);
+                params.data.through_id = throughId;
+                params.data.through = throughId ? (vendorNameById[String(throughId)] || '') : '';
+                return true;
+            },
         },
         // 14. BILL NO
         {
@@ -474,8 +528,8 @@ export default function DispatchRegister() {
             width: 120,
             editable: true,
             cellEditor: 'agSelectCellEditor',
-            cellEditorParams: { values: STATUS_OPTIONS },
-            cellRenderer: (params: { value: LRStatus }) => <StatusBadge value={params.value} />,
+            cellEditorParams: { values: statusOptions },
+            cellRenderer: (params: { value: string }) => <StatusBadge value={params.value} />,
         },
         // Actions
         {
@@ -514,7 +568,7 @@ export default function DispatchRegister() {
                 </div>
             ),
         },
-    ], [handleDelete, citiesList, vendorsList, vehicleMap, vehicleNumbers, consignorsList, consigneesList]);
+    ], [handleDelete, citiesList, vendorIds, vendorNameById, vehicleMap, vehicleIdByNumber, vehicleNumbers, consignorsList, consigneesList, statusOptions]);
 
     // Default column settings
     const defaultColDef = useMemo(() => ({

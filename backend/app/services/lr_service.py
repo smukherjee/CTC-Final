@@ -1,4 +1,5 @@
 from typing import List
+from datetime import date as dt_date
 from ..schemas.lr import LRCreate, LRResponse
 from ..models.lr import LRModel
 from ..db import SessionLocal
@@ -48,48 +49,74 @@ def _model_to_dict(m: LRModel) -> dict:
     }
 
 
+def _coerce_lr_payload(payload: dict) -> dict:
+    """Normalize payload values so DB columns receive stable types."""
+    normalized = dict(payload)
+
+    # Date column expects a python date (or None).
+    raw_date = normalized.get('date')
+    if isinstance(raw_date, str):
+        raw_date = raw_date.strip()
+        if not raw_date:
+            normalized['date'] = None
+        else:
+            try:
+                normalized['date'] = dt_date.fromisoformat(raw_date)
+            except ValueError:
+                # Keep original value; API validation will surface errors if any.
+                pass
+
+    # Ensure loading point times is dict/null.
+    lpt = normalized.get('loading_point_times')
+    if lpt is not None and not isinstance(lpt, dict):
+        normalized['loading_point_times'] = None
+
+    return normalized
+
+
 def create_lr(payload: LRCreate) -> dict:
     db = SessionLocal()
     try:
+        payload_dict = _coerce_lr_payload(payload.dict())
         obj = LRModel(
-            lr_number=payload.lr_number,
-            date=payload.date,
-            consignor_id=payload.consignor_id,
-            consignor_name=payload.consignor_name,
-            consignee_id=payload.consignee_id,
-            consignee_name=payload.consignee_name,
-            origin=payload.origin,
-            destination=payload.destination,
-            delivery_at=payload.delivery_at,
-            through=payload.through,
-            through_id=payload.through_id,
-            fob=payload.fob,
-            goods_items=payload.goods_items,
-            articles_count=payload.articles_count,
-            articles_description=payload.articles_description,
-            weight=payload.weight,
-            freight_amount=payload.freight_amount,
-            status=payload.status or 'DRAFT',
+            lr_number=payload_dict.get('lr_number'),
+            date=payload_dict.get('date'),
+            consignor_id=payload_dict.get('consignor_id'),
+            consignor_name=payload_dict.get('consignor_name'),
+            consignee_id=payload_dict.get('consignee_id'),
+            consignee_name=payload_dict.get('consignee_name'),
+            origin=payload_dict.get('origin'),
+            destination=payload_dict.get('destination'),
+            delivery_at=payload_dict.get('delivery_at'),
+            through=payload_dict.get('through'),
+            through_id=payload_dict.get('through_id'),
+            fob=payload_dict.get('fob'),
+            goods_items=payload_dict.get('goods_items'),
+            articles_count=payload_dict.get('articles_count'),
+            articles_description=payload_dict.get('articles_description'),
+            weight=payload_dict.get('weight'),
+            freight_amount=payload_dict.get('freight_amount'),
+            status=payload_dict.get('status') or 'DRAFT',
             # Vehicle
-            vehicle_id=payload.vehicle_id,
-            vehicle_number=payload.vehicle_number,
-            vehicle_type=payload.vehicle_type,
-            seal_number=payload.seal_number,
-            driver_name=payload.driver_name,
-            driver_mobile=payload.driver_mobile,
+            vehicle_id=payload_dict.get('vehicle_id'),
+            vehicle_number=payload_dict.get('vehicle_number'),
+            vehicle_type=payload_dict.get('vehicle_type'),
+            seal_number=payload_dict.get('seal_number'),
+            driver_name=payload_dict.get('driver_name'),
+            driver_mobile=payload_dict.get('driver_mobile'),
             # Risk & Logistics
-            booked_on_owners_risk=payload.booked_on_owners_risk,
-            loading_point_times=payload.loading_point_times,
+            booked_on_owners_risk=payload_dict.get('booked_on_owners_risk'),
+            loading_point_times=payload_dict.get('loading_point_times'),
             # Financials
-            value_rs=payload.value_rs,
-            surcharge=payload.surcharge,
-            hamali_charges=payload.hamali_charges,
-            st_charges=payload.st_charges,
-            total=payload.total,
+            value_rs=payload_dict.get('value_rs'),
+            surcharge=payload_dict.get('surcharge'),
+            hamali_charges=payload_dict.get('hamali_charges'),
+            st_charges=payload_dict.get('st_charges'),
+            total=payload_dict.get('total'),
             # Dispatch Register
-            bill_number=payload.bill_number,
-            remarks=payload.remarks,
-            eway_bill=payload.eway_bill,
+            bill_number=payload_dict.get('bill_number'),
+            remarks=payload_dict.get('remarks'),
+            eway_bill=payload_dict.get('eway_bill'),
         )
         db.add(obj)
         db.commit()
@@ -125,8 +152,10 @@ def update_lr(lr_id: int, payload: dict) -> dict:
         obj = db.query(LRModel).filter(LRModel.id == lr_id).first()
         if not obj:
             return None
-        
-        for key, value in payload.items():
+
+        normalized = _coerce_lr_payload(payload)
+
+        for key, value in normalized.items():
             if hasattr(obj, key):
                 setattr(obj, key, value)
         

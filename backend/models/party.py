@@ -11,8 +11,8 @@ class PartyModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(256), nullable=False)
     type = Column(String(64), nullable=False)
-    gst_no = Column(String(64), nullable=True)
-    contact = Column(String(64), nullable=True)
+    gstin = Column(String(64), nullable=True)
+    mobile = Column(String(64), nullable=True)
     address = Column(Text, nullable=True)
 
 

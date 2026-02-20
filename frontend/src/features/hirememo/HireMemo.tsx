@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
+import { EMPTY_FORM_OPTIONS, fetchFormOptions, type FormOptions } from '@/config/formOptions';
 
 // Define the full interface matching backend schema
 export interface HireMemo {
@@ -50,13 +51,12 @@ export default function HireMemo() {
 
   const [hms, setHms] = useState<HireMemo[]>([]);
   const [loading, setLoading] = useState(false);
+  const [formOptions, setFormOptions] = useState<FormOptions>(EMPTY_FORM_OPTIONS);
   const [form, setForm] = useState<Partial<HireMemo>>({
     lr_id: queryLrId && queryLrId !== 'undefined' && !isNaN(parseInt(queryLrId))
       ? parseInt(queryLrId)
       : undefined,
     hire_memo_date: format(new Date(), 'yyyy-MM-dd'),
-    ack_status: 'PENDING',
-    rate_type: 'FIXED',
     commission: 0,
     hamali: 0,
     mamul: 0,
@@ -71,6 +71,25 @@ export default function HireMemo() {
       loadLRDetails(queryLrId);
     }
   }, [queryLrId]);
+
+  useEffect(() => {
+    let mounted = true;
+    fetchFormOptions()
+      .then((options) => {
+        if (!mounted) return;
+        setFormOptions(options);
+        setForm((prev) => ({
+          ...prev,
+          ack_status: prev.ack_status || options.defaults.hirememo_ack_status,
+          rate_type: prev.rate_type || options.defaults.hirememo_rate_type,
+        }));
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setFormOptions(EMPTY_FORM_OPTIONS);
+      });
+    return () => { mounted = false; };
+  }, []);
 
   function loadMemos() {
     setLoading(true);
@@ -206,9 +225,11 @@ export default function HireMemo() {
         {/* Row 4: Freight Calculation */}
         <div className="col-span-1">
           <label className="block text-sm font-medium">Rate Type</label>
-          <select name="rate_type" value={form.rate_type || 'FIXED'} onChange={updateField} className="w-full border p-2 rounded">
-            <option value="FIXED">FIXED</option>
-            <option value="PER_TON">PER_TON</option>
+          <select name="rate_type" value={form.rate_type || ''} onChange={updateField} className="w-full border p-2 rounded">
+            <option value="">Select Rate Type</option>
+            {formOptions.hirememo_rate_types.map((rateType) => (
+              <option key={rateType} value={rateType}>{rateType}</option>
+            ))}
           </select>
         </div>
         <div className="col-span-1">

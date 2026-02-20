@@ -11,30 +11,10 @@ import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import type { LR, GoodsLineItem } from '@/types';
 import { Button } from '@/components/ui/button';
 import { printLR } from '@/utils/printLR';
+import { EMPTY_FORM_OPTIONS, fetchFormOptions, type FormOptions } from '@/config/formOptions';
 
 // Register AG Grid Modules (explicitly include useful community modules)
 ModuleRegistry.registerModules([AllCommunityModule]);
-
-// Mock data for dropdowns (used when masters fail to load)
-const CONSIGNORS = [
-    { id: 'C001', name: 'HAVELLS INDIA LTD SRICITY' },
-    { id: 'C003', name: 'SURYA ELECTRICALS CHENNAI' },
-    { id: 'C005', name: 'FLYJAC LOGISTICS P LTD' },
-    { id: 'C007', name: 'VOLTAS LTD' },
-    { id: 'C009', name: 'BLUE STAR LIMITED' },
-    { id: 'C011', name: 'VIJAY SALES P LTD' },
-];
-
-const CONSIGNEES = [
-    { id: 'C002', name: 'USHA ELECTROTRADE' },
-    { id: 'C004', name: 'METRO DISTRIBUTORS' },
-    { id: 'C006', name: 'PRIME AGENCIES PUNE' },
-    { id: 'C008', name: 'COOL ZONE HYDERABAD' },
-    { id: 'C010', name: 'SHARMA TRADERS DELHI' },
-    { id: 'C012', name: 'NATIONAL ELECTRONICS' },
-];
-
-const CITIES = ['SRICITY', 'CHENNAI', 'BANGALORE', 'HYDERABAD', 'MUMBAI', 'DELHI', 'PUNE', 'BHIWANDI', 'KANNUR'];
 
 // Zod Schema for Validation
 const lrSchema = z.object({
@@ -93,7 +73,8 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
         freight_rs: 0,
         freight_p: 0,
     }]);
-    const [status, setStatus] = useState<string>('DRAFT');
+    const [status, setStatus] = useState<string>('');
+    const [formOptions, setFormOptions] = useState<FormOptions>(EMPTY_FORM_OPTIONS);
 
     const gridRef = useRef<AgGridReact>(null);
 
@@ -102,8 +83,8 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
         date: initialData?.date || format(new Date(), 'yyyy-MM-dd'),
         consignor_id: initialData?.consignor_id || '',
         consignee_id: initialData?.consignee_id || '',
-        origin: initialData?.origin || initialData?.from || '',
-        destination: initialData?.destination || initialData?.to || '',
+        origin: initialData?.origin || '',
+        destination: initialData?.destination || '',
         through: initialData?.through || '',
         through_id: initialData?.through_id ? Number(initialData.through_id) : undefined,
         delivery_at: '',
@@ -132,9 +113,8 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
 
     const [vehiclesList, setVehiclesList] = useState<{id: string; number: string}[]>([]);
 
-    // Helper to find names (use fetched masters, fall back to static lists)
-    const getConsignorName = (id: string) => (consignors.find(c => String(c.id) === String(id)) || CONSIGNORS.find(c => String(c.id) === String(id)) || { name: '' }).name;
-    const getConsigneeName = (id: string) => (consignees.find(c => String(c.id) === String(id)) || CONSIGNEES.find(c => String(c.id) === String(id)) || { name: '' }).name;
+    const getConsignorName = (id: string) => (consignors.find(c => String(c.id) === String(id)) || { name: '' }).name;
+    const getConsigneeName = (id: string) => (consignees.find(c => String(c.id) === String(id)) || { name: '' }).name;
 
     // Load Data
     useEffect(() => {
@@ -143,24 +123,25 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
         const loadData = async () => {
             try {
                 // 1. Load Master Lists in parallel
-                const [citiesRes, vendorsRes, partyRes, vehicleRes] = await Promise.all([
+                const [citiesRes, vendorsRes, partyRes, vehicleRes, optionsRes] = await Promise.all([
                     axios.get('/api/city/').catch(() => ({ data: [] })),
                     axios.get('/api/vendor/').catch(() => ({ data: [] })),
                     axios.get('/api/party/').catch(() => ({ data: [] })),
-                    axios.get('/api/vehicle/').catch(() => ({ data: [] }))
+                    axios.get('/api/vehicle/').catch(() => ({ data: [] })),
+                    fetchFormOptions().catch(() => EMPTY_FORM_OPTIONS),
                 ]);
 
                 if (!mounted) return;
+
+                setFormOptions(optionsRes);
+                const draftStatus = optionsRes.defaults.lr_status || '';
 
                 // Process Cities
                 let loadedCities: string[] = [];
                 if (Array.isArray(citiesRes.data)) {
                     loadedCities = citiesRes.data.map((c: any) => c.name || c.code).filter(Boolean);
-                    if (loadedCities.length) setCitiesList(loadedCities);
-                } else {
-                    loadedCities = CITIES;
-                    setCitiesList(CITIES);
                 }
+                setCitiesList(loadedCities);
 
                 // Process Vendors
                 if (Array.isArray(vendorsRes.data)) {
@@ -186,11 +167,6 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
 
                     setConsignors(loadedConsignors);
                     setConsignees(loadedConsignees);
-                } else {
-                    loadedConsignors = CONSIGNORS;
-                    loadedConsignees = CONSIGNEES;
-                    setConsignors(CONSIGNORS);
-                    setConsignees(CONSIGNEES);
                 }
 
                 // 2. Map Initial Data AFTER lists are loaded
@@ -239,8 +215,8 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                         date: initialData.date,
                         consignor_id: findConsignorId(initialData.consignor_id, initialData.consignor_name),
                         consignee_id: findConsigneeId(initialData.consignee_id, initialData.consignee_name),
-                        origin: normalizeCity(initialData.origin || initialData.from || ''),
-                        destination: normalizeCity(initialData.destination || initialData.to || ''),
+                        origin: normalizeCity(initialData.origin || ''),
+                        destination: normalizeCity(initialData.destination || ''),
                         through: throughMatch.name || ((initialData as any).through || ''),
                         through_id: throughMatch.id ? Number(throughMatch.id) : undefined,
                         delivery_at: initialData.delivery_at || '',
@@ -254,7 +230,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                         loading_point_times: initialData.loading_point_times || {},
                     });
                     setGoodsItems(initialData.goods_items || []);
-                    setStatus(initialData.status);
+                    setStatus(initialData.status || draftStatus);
                 } else if (!isModal && lrId) {
                     // Fallback: Fetch LR by ID if not provided (e.g. direct link)
                     console.log('Fetching LR by ID:', lrId);
@@ -284,10 +260,12 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                                     loading_point_times: data.loading_point_times || {},
                                 });
                                 setGoodsItems(data.goods_items || []);
-                                setStatus(data.status);
+                                setStatus(data.status || draftStatus);
                             }
                         })
                         .catch(err => console.error('Failed to fetch LR', err));
+                } else {
+                    setStatus(draftStatus);
                 }
 
             } catch (err) {
@@ -300,7 +278,8 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
         return () => { mounted = false; };
     }, [initialData, reset]);
 
-    const isReadOnly = !!(lrId && status !== 'DRAFT');
+    const draftStatus = formOptions.defaults.lr_status || '';
+    const isReadOnly = !!(lrId && draftStatus && status !== draftStatus);
 
     // --- AG Grid Handlers ---
 
@@ -377,7 +356,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
             freight_amount: totalFreight,
             value_rs: goodsValue,
             total: total,
-            status: (status as any) || 'DRAFT',
+            status: (status as any) || draftStatus || undefined,
             // Default fields if new
             articles_description: goodsItems[0]?.description || '',
             through: (data as any).through,
@@ -448,19 +427,18 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                 // Use backend response which includes all fields
                 savedLR = res.data;
             } else {
-                const res = await axios.post('/api/lr/', { ...fullLR, id: undefined });
+                const res = await axios.post('/api/lr/', sanitizedData);
                 // Backend returns full object including new ID
                 if (res.data) savedLR = res.data;
             }
 
             // Map backend fields to grid-compatible format
-            // Backend uses origin/destination, grid expects from/to
             if (savedLR) {
                 savedLR = {
                     ...savedLR,
                     id: String(savedLR.id), // Ensure string ID for grid consistency
-                    origin: savedLR.origin || savedLR.from || '',
-                    destination: savedLR.destination || savedLR.to || '',
+                    origin: savedLR.origin || '',
+                    destination: savedLR.destination || '',
                 };
             }
 
@@ -659,7 +637,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                                         className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
                                     >
                                         <option value="">Select Consignor</option>
-                                        {(consignors.length ? consignors : CONSIGNORS).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        {consignors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
                                     {errors.consignor_id && <p className="text-red-500 text-xs mt-1">{errors.consignor_id.message}</p>}
                                 </div>
@@ -686,7 +664,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                                         className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
                                     >
                                         <option value="">Select Consignee</option>
-                                        {(consignees.length ? consignees : CONSIGNEES).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        {consignees.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
                                     {errors.consignee_id && <p className="text-red-500 text-xs mt-1">{errors.consignee_id.message}</p>}
                                 </div>
@@ -757,11 +735,11 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                                     rowData={goodsItems}
                                     columnDefs={colDefs}
                                     defaultColDef={{ sortable: false, resizable: true }}
+                                    rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
 
                                     editType="fullRow"
                                     stopEditingWhenCellsLoseFocus={true}
                                     onCellValueChanged={onCellValueChanged}
-                                    suppressRowClickSelection={true}
                                 />
                             </div>
                         </div>
