@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
+import MasterCrudGrid from '@/components/grid/MasterCrudGrid';
 
-export interface Vendor {
-  id: number;
+interface Vendor {
+  id?: number;
   name: string;
-  type: "Vendor" | "Supplier" | "Broker" | "Driver";
+  type: string;
   gstin?: string;
   mobile?: string;
   pan?: string;
@@ -13,70 +12,47 @@ export interface Vendor {
 }
 
 export default function VendorMaster() {
-  const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    setLoading(true);
-    axios
-      .get("/api/vendor/")
-      .then((res) => {
-        const data = res.data;
-        if (Array.isArray(data)) {
-          setVendors(data);
-        } else if (data && Array.isArray((data as any).results)) {
-          setVendors((data as any).results);
-        } else {
-          console.warn("Unexpected vendor response shape:", data);
-          setVendors([]);
-        }
-      })
-      .catch((err) => {
-        console.error("Failed to load vendors:", err);
-        setVendors([]);
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
   return (
-    <div>
-      <h2>Vendor Master</h2>
-      {loading ? (
-        <div>Loading...</div>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Type</th>
-              <th>GST No</th>
-              <th>Contact</th>
-              <th>Address</th>
-              <th>TDS Certificate</th>
-            </tr>
-          </thead>
-          <tbody>
-            {vendors.map((vendor) => (
-              <tr key={vendor.id}>
-                <td>{vendor.id}</td>
-                <td>{vendor.name}</td>
-                <td>{vendor.type}</td>
-                <td>{vendor.gstin}</td>
-                <td>{vendor.mobile}</td>
-                <td>{vendor.address}</td>
-                <td>
-                  {vendor.tds_certificate_url ? (
-                    <a href={vendor.tds_certificate_url} target="_blank" rel="noopener noreferrer">View</a>
-                  ) : (
-                    "-"
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+    <MasterCrudGrid<Vendor>
+      title="Vendor Master"
+      endpoint="/api/vendor/"
+      createDraft={() => ({
+        name: 'New Vendor',
+        type: 'VENDOR',
+        gstin: '',
+        mobile: '',
+        pan: '',
+        address: '',
+        tds_certificate_url: '',
+      })}
+      toCreatePayload={(row) => ({
+        name: row.name,
+        type: row.type,
+        gstin: row.gstin || null,
+        mobile: row.mobile || null,
+        pan: row.pan || null,
+        address: row.address || null,
+        tds_certificate_url: row.tds_certificate_url || null,
+      })}
+      toUpdatePayload={(row) => ({
+        name: row.name,
+        type: row.type,
+        gstin: row.gstin || null,
+        mobile: row.mobile || null,
+        pan: row.pan || null,
+        address: row.address || null,
+        tds_certificate_url: row.tds_certificate_url || null,
+      })}
+      columns={[
+        { field: 'id', headerName: 'ID', width: 90, editable: false, pinned: 'left' },
+        { field: 'name', headerName: 'NAME', width: 220, editable: true },
+        { field: 'type', headerName: 'TYPE', width: 140, editable: true },
+        { field: 'gstin', headerName: 'GSTIN', width: 180, editable: true },
+        { field: 'mobile', headerName: 'MOBILE', width: 140, editable: true },
+        { field: 'pan', headerName: 'PAN', width: 140, editable: true },
+        { field: 'address', headerName: 'ADDRESS', width: 260, editable: true },
+        { field: 'tds_certificate_url', headerName: 'TDS CERT URL', width: 220, editable: true },
+      ]}
+    />
   );
 }

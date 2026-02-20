@@ -51,6 +51,11 @@ class LRModel(Base):
 
     # Dispatch Register & Compliance
     bill_number = Column(String(64), nullable=True)
+    bill_date = Column(Date, nullable=True)
+    amount_passed = Column(Numeric(12, 2), nullable=True)
+    deductions = Column(String(256), nullable=True)
+    cm_no = Column(String(64), nullable=True)
+    cm_date = Column(Date, nullable=True)
     remarks = Column(Text, nullable=True)
     eway_bill = Column(JSONB, nullable=True) # expiry, no, status
 

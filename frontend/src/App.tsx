@@ -11,10 +11,9 @@ import ContractMaster from '@/features/contract/ContractMaster';
 import UserMaster from '@/features/user/UserMaster';
 import TemplateMaster from '@/features/template/TemplateMaster';
 import CityMaster from '@/features/city/CityMaster';
+import BillBook from '@/features/finance/BillBook';
 
 function App() {
-  console.log("App component rendering!"); // Debug log
-
   return (
     <BrowserRouter>
       <Routes>
@@ -31,7 +30,7 @@ function App() {
 
           <Route path="finance">
             <Route path="pod-verify" element={<div>POD Verify</div>} />
-            <Route path="invoices" element={<div>Invoices</div>} />
+            <Route path="invoices" element={<BillBook />} />
           </Route>
 
           <Route path="masters">

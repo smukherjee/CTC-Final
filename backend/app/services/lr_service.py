@@ -44,6 +44,11 @@ def _model_to_dict(m: LRModel) -> dict:
         'total': float(m.total) if m.total is not None else None,
         # Dispatch Register
         'bill_number': m.bill_number,
+        'bill_date': m.bill_date.isoformat() if m.bill_date else None,
+        'amount_passed': float(m.amount_passed) if m.amount_passed is not None else None,
+        'deductions': m.deductions,
+        'cm_no': m.cm_no,
+        'cm_date': m.cm_date.isoformat() if m.cm_date else None,
         'remarks': m.remarks,
         'eway_bill': m.eway_bill,
     }
@@ -53,18 +58,19 @@ def _coerce_lr_payload(payload: dict) -> dict:
     """Normalize payload values so DB columns receive stable types."""
     normalized = dict(payload)
 
-    # Date column expects a python date (or None).
-    raw_date = normalized.get('date')
-    if isinstance(raw_date, str):
-        raw_date = raw_date.strip()
-        if not raw_date:
-            normalized['date'] = None
-        else:
-            try:
-                normalized['date'] = dt_date.fromisoformat(raw_date)
-            except ValueError:
-                # Keep original value; API validation will surface errors if any.
-                pass
+    # Date columns expect python date values (or None).
+    for date_key in ('date', 'bill_date', 'cm_date'):
+        raw_date = normalized.get(date_key)
+        if isinstance(raw_date, str):
+            raw_date = raw_date.strip()
+            if not raw_date:
+                normalized[date_key] = None
+            else:
+                try:
+                    normalized[date_key] = dt_date.fromisoformat(raw_date)
+                except ValueError:
+                    # Keep original value; API validation will surface errors if any.
+                    pass
 
     # Ensure loading point times is dict/null.
     lpt = normalized.get('loading_point_times')
@@ -115,6 +121,11 @@ def create_lr(payload: LRCreate) -> dict:
             total=payload_dict.get('total'),
             # Dispatch Register
             bill_number=payload_dict.get('bill_number'),
+            bill_date=payload_dict.get('bill_date'),
+            amount_passed=payload_dict.get('amount_passed'),
+            deductions=payload_dict.get('deductions'),
+            cm_no=payload_dict.get('cm_no'),
+            cm_date=payload_dict.get('cm_date'),
             remarks=payload_dict.get('remarks'),
             eway_bill=payload_dict.get('eway_bill'),
         )
@@ -139,6 +150,17 @@ def get_lr_by_id(lr_id: int) -> dict:
     db = SessionLocal()
     try:
         obj = db.query(LRModel).filter(LRModel.id == lr_id).first()
+        if not obj:
+            return None
+        return _model_to_dict(obj)
+    finally:
+        db.close()
+
+
+def get_lr_by_number(lr_number: str) -> dict:
+    db = SessionLocal()
+    try:
+        obj = db.query(LRModel).filter(LRModel.lr_number == lr_number).first()
         if not obj:
             return None
         return _model_to_dict(obj)

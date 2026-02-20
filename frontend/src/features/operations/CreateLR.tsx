@@ -12,6 +12,7 @@ import type { LR, GoodsLineItem } from '@/types';
 import { Button } from '@/components/ui/button';
 import { printLR } from '@/utils/printLR';
 import { EMPTY_FORM_OPTIONS, fetchFormOptions, type FormOptions } from '@/config/formOptions';
+import { mapApiLrToUi } from './lrMappings';
 
 // Register AG Grid Modules (explicitly include useful community modules)
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -75,6 +76,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
     }]);
     const [status, setStatus] = useState<string>('');
     const [formOptions, setFormOptions] = useState<FormOptions>(EMPTY_FORM_OPTIONS);
+    const [resolvedLrId, setResolvedLrId] = useState<number | null>(null);
 
     const gridRef = useRef<AgGridReact>(null);
 
@@ -112,6 +114,10 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
     });
 
     const [vehiclesList, setVehiclesList] = useState<{id: string; number: string}[]>([]);
+    const toNumber = useCallback((value: unknown): number => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }, []);
 
     const getConsignorName = (id: string) => (consignors.find(c => String(c.id) === String(id)) || { name: '' }).name;
     const getConsigneeName = (id: string) => (consignees.find(c => String(c.id) === String(id)) || { name: '' }).name;
@@ -180,90 +186,91 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                     return { id: undefined, name: name || '' };
                 };
 
-                if (initialData) {
-                    console.log('Mapping initial data...', initialData);
-                    console.log('Vehicle Number from Initial Data:', initialData.vehicle_number);
+                const findConsignorId = (id: string, name: string) => {
+                    const byId = loadedConsignors.find(c => String(c.id) === String(id));
+                    if (byId) return byId.id;
+                    const byName = loadedConsignors.find(c => c.name?.trim().toUpperCase() === name?.trim().toUpperCase());
+                    return byName ? byName.id : '';
+                };
 
-                    // Helper to find ID by Name if ID mismatch
-                    const findConsignorId = (id: string, name: string) => {
-                        const byId = loadedConsignors.find(c => String(c.id) === String(id));
-                        if (byId) return byId.id;
-                        const byName = loadedConsignors.find(c => c.name?.trim().toUpperCase() === name?.trim().toUpperCase());
-                        console.log(`Consignor lookup: ID=${id}, Name=${name} -> Found:`, byName);
-                        return byName ? byName.id : '';
-                    };
+                const findConsigneeId = (id: string, name: string) => {
+                    const byId = loadedConsignees.find(c => String(c.id) === String(id));
+                    if (byId) return byId.id;
+                    const byName = loadedConsignees.find(c => c.name?.trim().toUpperCase() === name?.trim().toUpperCase());
+                    return byName ? byName.id : '';
+                };
 
-                    const findConsigneeId = (id: string, name: string) => {
-                        const byId = loadedConsignees.find(c => String(c.id) === String(id));
-                        if (byId) return byId.id;
-                        const byName = loadedConsignees.find(c => c.name?.trim().toUpperCase() === name?.trim().toUpperCase());
-                        console.log(`Consignee lookup: ID=${id}, Name=${name} -> Found:`, byName);
-                        return byName ? byName.id : '';
-                    };
+                const normalizeCity = (city: string) => {
+                    if (!city) return '';
+                    const match = loadedCities.find(c => c.trim().toUpperCase() === city.trim().toUpperCase());
+                    return match || city;
+                };
 
-                    // Normalize Origin/Destination (trim whitespace)
-                    const normalizeCity = (city: string) => {
-                        if (!city) return '';
-                        const match = loadedCities.find(c => c.trim().toUpperCase() === city.trim().toUpperCase());
-                        return match || city;
-                    };
-
-                    const throughMatch = findThroughVendor((initialData as any).through_id, (initialData as any).through);
-
+                const applyLrToForm = (lrData: any) => {
+                    const throughMatch = findThroughVendor(lrData?.through_id, lrData?.through);
                     reset({
-                        lr_number: initialData.lr_number,
-                        date: initialData.date,
-                        consignor_id: findConsignorId(initialData.consignor_id, initialData.consignor_name),
-                        consignee_id: findConsigneeId(initialData.consignee_id, initialData.consignee_name),
-                        origin: normalizeCity(initialData.origin || ''),
-                        destination: normalizeCity(initialData.destination || ''),
-                        through: throughMatch.name || ((initialData as any).through || ''),
+                        lr_number: lrData?.lr_number || `LR-${Date.now()}`,
+                        date: lrData?.date || format(new Date(), 'yyyy-MM-dd'),
+                        consignor_id: findConsignorId(lrData?.consignor_id, lrData?.consignor_name),
+                        consignee_id: findConsigneeId(lrData?.consignee_id, lrData?.consignee_name),
+                        origin: normalizeCity(lrData?.origin || ''),
+                        destination: normalizeCity(lrData?.destination || ''),
+                        through: throughMatch.name || (lrData?.through || ''),
                         through_id: throughMatch.id ? Number(throughMatch.id) : undefined,
-                        delivery_at: initialData.delivery_at || '',
-                        vehicle_number: initialData.vehicle_number || '',
-                        vehicle_id: initialData.vehicle_id ? String(initialData.vehicle_id) : (initialData.vehicle_number ? (loadedVehicles?.find((vv: any) => (vv.number || vv.vehicle_number || vv.vehicleNo || vv.vehicle_no) === initialData.vehicle_number) || {}).id : undefined),
-                        seal_number: initialData.seal_number || '',
-                        booked_on_owners_risk: initialData.booked_on_owners_risk || false,
-                        surcharge: initialData.surcharge || 0,
-                        hamali_charges: initialData.hamali_charges || 0,
-                        st_charges: initialData.st_charges || 0,
-                        loading_point_times: initialData.loading_point_times || {},
+                        delivery_at: lrData?.delivery_at || '',
+                        vehicle_number: lrData?.vehicle_number || '',
+                        vehicle_id: lrData?.vehicle_id
+                            ? Number(lrData.vehicle_id)
+                            : (lrData?.vehicle_number
+                                ? (loadedVehicles?.find((vv: any) => (vv.number || vv.vehicle_number || vv.vehicleNo || vv.vehicle_no) === lrData.vehicle_number) || {}).id
+                                : undefined),
+                        seal_number: lrData?.seal_number || '',
+                        booked_on_owners_risk: !!lrData?.booked_on_owners_risk,
+                        surcharge: toNumber(lrData?.surcharge),
+                        hamali_charges: toNumber(lrData?.hamali_charges),
+                        st_charges: toNumber(lrData?.st_charges),
+                        loading_point_times: lrData?.loading_point_times || {},
                     });
-                    setGoodsItems(initialData.goods_items || []);
-                    setStatus(initialData.status || draftStatus);
-                } else if (!isModal && lrId) {
-                    // Fallback: Fetch LR by ID if not provided (e.g. direct link)
-                    console.log('Fetching LR by ID:', lrId);
-                    axios.get(`/api/lr/${lrId}`)
-                        .then(res => {
-                            const data = res.data;
-                            if (data) {
-                                console.log('Fetched LR Data:', data);
-                                const throughMatch2 = findThroughVendor(data.through_id, data.through);
+                    setGoodsItems(Array.isArray(lrData?.goods_items) && lrData.goods_items.length > 0 ? lrData.goods_items : [{
+                        id: '1',
+                        articles_count: 0,
+                        description: '',
+                        weight_qtl: 0,
+                        weight_kg: 0,
+                        rate_per_qtl: 0,
+                        freight_rs: 0,
+                        freight_p: 0,
+                    }]);
+                    setStatus(lrData?.status || draftStatus);
+                    const dbId = toNumber(lrData?.id);
+                    setResolvedLrId(dbId > 0 ? dbId : null);
+                };
 
-                                reset({
-                                    lr_number: data.lr_number,
-                                    date: data.date,
-                                    consignor_id: data.consignor_id, // Add lookup logic if needed
-                                    consignee_id: data.consignee_id,
-                                    origin: data.origin,
-                                    destination: data.destination,
-                                    through: throughMatch2.name || data.through,
-                                    through_id: throughMatch2.id ? Number(throughMatch2.id) : undefined,
-                                    delivery_at: data.delivery_at,
-                                    vehicle_number: data.vehicle_number,
-                                    seal_number: data.seal_number,
-                                    booked_on_owners_risk: data.booked_on_owners_risk,
-                                    surcharge: data.surcharge,
-                                    hamali_charges: data.hamali_charges,
-                                    st_charges: data.st_charges,
-                                    loading_point_times: data.loading_point_times || {},
-                                });
-                                setGoodsItems(data.goods_items || []);
-                                setStatus(data.status || draftStatus);
-                            }
-                        })
-                        .catch(err => console.error('Failed to fetch LR', err));
+                const candidateToken = lrId || (initialData?.id ? String(initialData.id) : '') || (initialData?.lr_number || '');
+                const canTryFetch = !!candidateToken;
+
+                if (canTryFetch) {
+                    try {
+                        const isNumericId = Number.isFinite(Number(candidateToken)) && Number(candidateToken) > 0;
+                        const freshRes = isNumericId
+                            ? await axios.get(`/api/lr/${candidateToken}`, {
+                                params: { _ts: Date.now() },
+                                headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+                            })
+                            : await axios.get(`/api/lr/by-number/${encodeURIComponent(String(candidateToken))}`, {
+                                params: { _ts: Date.now() },
+                                headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+                            });
+                        if (!mounted) return;
+                        applyLrToForm(freshRes.data);
+                    } catch (err) {
+                        console.error('Failed to fetch latest LR from DB; using initial data fallback', err);
+                        if (initialData) {
+                            applyLrToForm(initialData);
+                        } else {
+                            setStatus(draftStatus);
+                        }
+                    }
                 } else {
                     setStatus(draftStatus);
                 }
@@ -276,7 +283,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
         loadData();
 
         return () => { mounted = false; };
-    }, [initialData, reset]);
+    }, [initialData, isModal, lrId, reset, toNumber]);
 
     const draftStatus = formOptions.defaults.lr_status || '';
     const isReadOnly = !!(lrId && draftStatus && status !== draftStatus);
@@ -306,31 +313,40 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
 
     const onCellValueChanged = useCallback((event: any) => {
         const item = event.data as GoodsLineItem;
+        const weightQtl = toNumber(item.weight_qtl);
+        const weightKg = toNumber(item.weight_kg);
+        const ratePerQtl = toNumber(item.rate_per_qtl);
         // Recalculate freight
-        const totalQtl = item.weight_qtl + (item.weight_kg / 100);
-        const freightTotal = totalQtl * item.rate_per_qtl;
+        const totalQtl = weightQtl + (weightKg / 100);
+        const freightTotal = totalQtl * ratePerQtl;
         item.freight_rs = Math.floor(freightTotal);
         item.freight_p = Math.round((freightTotal - item.freight_rs) * 100);
+        item.articles_count = toNumber(item.articles_count);
+        item.weight_qtl = weightQtl;
+        item.weight_kg = weightKg;
+        item.rate_per_qtl = ratePerQtl;
 
         setGoodsItems(prev => prev.map(g => g.id === item.id ? { ...item } : g));
-    }, []);
+    }, [toNumber]);
 
     // --- Calculations ---
 
     const { goodsValue, total, articlesCount, totalWeight, totalFreight } = useMemo(() => {
-        const goodsVal = goodsItems.reduce((sum, item) => sum + item.freight_rs + (item.freight_p / 100), 0);
-        const sur = watch('surcharge') || 0;
-        const ham = watch('hamali_charges') || 0;
-        const st = watch('st_charges') || 0;
+        const goodsVal = goodsItems.reduce((sum, item) => {
+            return sum + toNumber(item.freight_rs) + (toNumber(item.freight_p) / 100);
+        }, 0);
+        const sur = toNumber(watch('surcharge'));
+        const ham = toNumber(watch('hamali_charges'));
+        const st = toNumber(watch('st_charges'));
 
         return {
             goodsValue: goodsVal,
             total: goodsVal + sur + ham + st,
-            articlesCount: goodsItems.reduce((sum, item) => sum + item.articles_count, 0),
-            totalWeight: goodsItems.reduce((sum, item) => sum + item.weight_kg + (item.weight_qtl * 100), 0),
+            articlesCount: goodsItems.reduce((sum, item) => sum + toNumber(item.articles_count), 0),
+            totalWeight: goodsItems.reduce((sum, item) => sum + toNumber(item.weight_kg) + (toNumber(item.weight_qtl) * 100), 0),
             totalFreight: goodsVal
         };
-    }, [goodsItems, watch('surcharge'), watch('hamali_charges'), watch('st_charges')]);
+    }, [goodsItems, toNumber, watch('surcharge'), watch('hamali_charges'), watch('st_charges')]);
 
     // --- Submit Handler ---
 
@@ -422,24 +438,41 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
             // Always save to backend first
             let savedLR: any = null;
 
-            if (lrId || (initialData?.id && initialData.id !== 'new')) {
-                const res = await axios.put(`/api/lr/${fullLR.id}`, sanitizedData);
+            let updateId = resolvedLrId;
+            if (!updateId) {
+                const idFromInitial = toNumber(initialData?.id);
+                const idFromRoute = toNumber(lrId);
+                const idFromFull = toNumber(fullLR.id);
+                updateId = idFromInitial || idFromRoute || idFromFull || null;
+            }
+
+            if (!updateId && fullLR.lr_number) {
+                try {
+                    const lookup = await axios.get(`/api/lr/by-number/${encodeURIComponent(fullLR.lr_number)}`);
+                    updateId = toNumber(lookup.data?.id) || null;
+                } catch {
+                    updateId = null;
+                }
+            }
+
+            if (updateId) {
+                const res = await axios.put(`/api/lr/${updateId}`, sanitizedData);
                 // Use backend response which includes all fields
                 savedLR = res.data;
+                setResolvedLrId(updateId);
             } else {
                 const res = await axios.post('/api/lr/', sanitizedData);
                 // Backend returns full object including new ID
-                if (res.data) savedLR = res.data;
+                if (res.data) {
+                    savedLR = res.data;
+                    const createdId = toNumber(res.data.id);
+                    setResolvedLrId(createdId > 0 ? createdId : null);
+                }
             }
 
             // Map backend fields to grid-compatible format
             if (savedLR) {
-                savedLR = {
-                    ...savedLR,
-                    id: String(savedLR.id), // Ensure string ID for grid consistency
-                    origin: savedLR.origin || '',
-                    destination: savedLR.destination || '',
-                };
+                savedLR = mapApiLrToUi(savedLR, draftStatus);
             }
 
             setToastMessage('LR saved successfully');
@@ -732,6 +765,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                             <div className="h-64 rounded-md overflow-hidden border border-slate-200 ag-theme-alpine">
                                 <AgGridReact
                                     ref={gridRef}
+                                    theme="legacy"
                                     rowData={goodsItems}
                                     columnDefs={colDefs}
                                     defaultColDef={{ sortable: false, resizable: true }}

@@ -1,57 +1,45 @@
-import { useEffect, useState } from 'react';
-import axios from 'axios';
-import type { User } from '@/types';
+import MasterCrudGrid from '@/components/grid/MasterCrudGrid';
+
+interface User {
+  id?: number;
+  name: string;
+  role: string;
+  branch_id?: string;
+}
 
 export default function UserMaster() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    axios
-      .get('/api/user/')
-      .then((r) => {
-        const data = r.data;
-        if (Array.isArray(data)) setUsers(data);
-        else if ((data as any).results) setUsers((data as any).results);
-        else {
-          console.warn('Unexpected user response shape:', data);
-          setUsers([]);
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to load users:', err);
-        setUsers([]);
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
   return (
-    <div>
-      <h2>User Master</h2>
-      {loading ? (
-        <div>Loading...</div>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Role</th>
-              <th>Branch</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id}>
-                <td>{u.id}</td>
-                <td>{u.name}</td>
-                <td>{u.role}</td>
-                <td>{u.branch_id}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+    <MasterCrudGrid<User>
+      title="User Master"
+      endpoint="/api/user/"
+      createDraft={() => ({
+        name: 'New User',
+        role: 'OPERATIONS',
+        branch_id: '',
+      })}
+      toCreatePayload={(row) => ({
+        name: row.name,
+        role: row.role,
+        branch_id: row.branch_id || null,
+      })}
+      toUpdatePayload={(row) => ({
+        name: row.name,
+        role: row.role,
+        branch_id: row.branch_id || null,
+      })}
+      columns={[
+        { field: 'id', headerName: 'ID', width: 90, editable: false, pinned: 'left' },
+        { field: 'name', headerName: 'NAME', width: 220, editable: true },
+        {
+          field: 'role',
+          headerName: 'ROLE',
+          width: 160,
+          editable: true,
+          cellEditor: 'agSelectCellEditor',
+          cellEditorParams: { values: ['ADMIN', 'OPERATIONS', 'ACCOUNTS', 'TRACKING'] },
+        },
+        { field: 'branch_id', headerName: 'BRANCH', width: 180, editable: true },
+      ]}
+    />
   );
 }

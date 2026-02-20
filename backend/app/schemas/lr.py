@@ -53,6 +53,11 @@ class LRCreate(BaseModel):
 
     # Dispatch Register
     bill_number: Optional[str] = None
+    bill_date: Optional[str] = None
+    amount_passed: Optional[float] = None
+    deductions: Optional[str] = None
+    cm_no: Optional[str] = None
+    cm_date: Optional[str] = None
     remarks: Optional[str] = None
     eway_bill: Optional[Any] = None # JSON
 
@@ -95,6 +100,11 @@ class LRUpdate(BaseModel):
     total: Optional[float] = None
     # Dispatch Register
     bill_number: Optional[str] = None
+    bill_date: Optional[str] = None
+    amount_passed: Optional[float] = None
+    deductions: Optional[str] = None
+    cm_no: Optional[str] = None
+    cm_date: Optional[str] = None
     remarks: Optional[str] = None
     eway_bill: Optional[Any] = None
     status: Optional[str] = None

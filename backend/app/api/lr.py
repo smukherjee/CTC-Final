@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from ..schemas.lr import LRCreate, LRUpdate
-from ..services.lr_service import create_lr, get_all_lrs, get_lr_by_id, update_lr
+from ..services.lr_service import create_lr, get_all_lrs, get_lr_by_id, get_lr_by_number, update_lr
 
 router = APIRouter()
 
@@ -13,6 +13,14 @@ def list_lrs():
 @router.get('/lr/{lr_id}')
 def get_lr(lr_id: int):
     lr = get_lr_by_id(lr_id)
+    if not lr:
+        raise HTTPException(status_code=404, detail="LR not found")
+    return lr
+
+
+@router.get('/lr/by-number/{lr_number}')
+def get_lr_by_lr_number(lr_number: str):
+    lr = get_lr_by_number(lr_number)
     if not lr:
         raise HTTPException(status_code=404, detail="LR not found")
     return lr

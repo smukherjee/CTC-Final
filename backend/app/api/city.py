@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
 from ..schemas.city import City, CityCreate, CityUpdate
-from ..services.city_service import get_all_cities, get_city_by_id, create_city
+from ..services.city_service import get_all_cities, get_city_by_id, create_city, update_city, delete_city
 
 router = APIRouter(prefix="/city", tags=["city"])
 
@@ -22,3 +22,14 @@ def get_city(city_id: int):
 @router.post("/", response_model=City)
 def create_new_city(payload: CityCreate):
     return create_city(payload.dict())
+
+
+@router.put("/{city_id}", response_model=City)
+def update_existing_city(city_id: int, payload: CityUpdate):
+    return update_city(city_id, payload)
+
+
+@router.delete("/{city_id}")
+def delete_existing_city(city_id: int):
+    delete_city(city_id)
+    return {"ok": True}

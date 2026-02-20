@@ -1,2 +1,3 @@
 # README for backend/db
-This directory will contain database connection logic and Alembic migration scripts for the FastAPI backend.
+This directory contains database connection/session wiring only.
+Migrations are maintained under `backend/alembic`.

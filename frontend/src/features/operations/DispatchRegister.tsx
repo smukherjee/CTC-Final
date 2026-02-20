@@ -1,6 +1,4 @@
-import { AgGridReact } from 'ag-grid-react';
-import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import axios from 'axios';
 import type { LR } from '@/types';
 import { format, isBefore, addHours, parseISO } from 'date-fns';
@@ -9,9 +7,8 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/compone
 import CreateLR from './CreateLR';
 import { fetchFormOptions } from '@/config/formOptions';
 import { DEFAULT_LR_STATUS_COLOR, LR_STATUS_COLORS } from '@/config/lrStatus';
-
-// Register AG Grid Modules (explicitly include useful community modules)
-ModuleRegistry.registerModules([AllCommunityModule]);
+import { mapApiLrsToUi, mapVendorOptions, mapVehicleOptions } from './lrMappings';
+import AppAgGrid from '@/components/grid/AppAgGrid';
 
 // Export for use in CreateLR — LRs now come from DB, this is empty
 export const MOCK_LRS: LR[] = [];
@@ -42,8 +39,6 @@ export default function DispatchRegister() {
     const [rowData, setRowData] = useState<LR[]>([]);
     const [selectedLR, setSelectedLR] = useState<LR | null>(null);
     const [isLrModalOpen, setIsLrModalOpen] = useState(false);
-    const gridRef = useRef<AgGridReact>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
 
     const handleOpenLrModal = (lr: LR) => {
         setSelectedLR(lr);
@@ -78,21 +73,6 @@ export default function DispatchRegister() {
         setIsLrModalOpen(false);
         setSelectedLR(null);
     };
-
-    // Handle resizing when sidebar toggles
-    useEffect(() => {
-        if (!containerRef.current || !gridRef.current) return;
-
-        const resizeObserver = new ResizeObserver(() => {
-            if (gridRef.current?.api) {
-                gridRef.current.api.sizeColumnsToFit();
-            }
-        });
-
-        resizeObserver.observe(containerRef.current);
-
-        return () => resizeObserver.disconnect();
-    }, []);
 
     // Cities master list (for Origin/Destination/FOB dropdowns)
     const [citiesList, setCitiesList] = useState<string[]>([]);
@@ -132,16 +112,9 @@ export default function DispatchRegister() {
                 const data = res.data;
                 if (!mounted) return;
                 if (Array.isArray(data)) {
-                    const ids: number[] = [];
-                    const namesById: Record<string, string> = {};
-                    data.forEach((v: any) => {
-                        if (v.id === undefined || v.id === null) return;
-                        const id = Number(v.id);
-                        ids.push(id);
-                        namesById[String(id)] = v.name || '';
-                    });
-                    setVendorIds(ids);
-                    setVendorNameById(namesById);
+                    const mapped = mapVendorOptions(data);
+                    setVendorIds(mapped.vendorIds);
+                    setVendorNameById(mapped.vendorNameById);
                 }
             })
             .catch(err => {
@@ -153,21 +126,10 @@ export default function DispatchRegister() {
                 const data = res.data;
                 if (!mounted) return;
                 if (Array.isArray(data)) {
-                    const map: Record<string, string> = {};
-                    const idByNumber: Record<string, number> = {};
-                    const numbers: string[] = [];
-                    data.forEach((v: any) => {
-                        if (v.number) {
-                            map[v.number] = v.type || '';
-                            if (v.id !== undefined && v.id !== null) {
-                                idByNumber[v.number] = Number(v.id);
-                            }
-                            numbers.push(v.number);
-                        }
-                    });
-                    setVehicleMap(map);
-                    setVehicleIdByNumber(idByNumber);
-                    setVehicleNumbers(numbers);
+                    const mapped = mapVehicleOptions(data);
+                    setVehicleMap(mapped.vehicleTypeByNumber);
+                    setVehicleIdByNumber(mapped.vehicleIdByNumber);
+                    setVehicleNumbers(mapped.vehicleNumbers);
                 }
             })
             .catch(err => {
@@ -198,46 +160,7 @@ export default function DispatchRegister() {
                 if (!mounted) return;
                 const data = res.data;
                 if (Array.isArray(data) && data.length > 0) {
-                    const mapped: LR[] = data.map((it: any) => ({
-                        id: String(it.id),
-                        lr_number: it.lr_number,
-                        date: it.date || it.created_at || '',
-                        dispatch_id: it.dispatch_id,
-                        consignor_id: it.consignor_id || '',
-                        consignor_name: it.consignor_name || '',
-                        consignee_id: it.consignee_id || '',
-                        consignee_name: it.consignee_name || '',
-                        origin: it.origin || '',
-                        destination: it.destination || '',
-                        goods_items: it.goods_items || [],
-                        articles_count: it.articles_count || 0,
-                        articles_description: it.articles_description || '',
-                        weight: it.weight || 0,
-                        freight_amount: it.freight_amount || 0,
-                        fob: it.fob || '',
-                        through: it.through || '',
-                        through_id: it.through_id ? Number(it.through_id) : undefined,
-                        vehicle_type: it.vehicle_type || '',
-                        vehicle_number: it.vehicle_number || '',
-                        vehicle_id: it.vehicle_id, // Ensure vehicle_id is mapped
-                        seal_number: it.seal_number || '',
-                        driver_name: it.driver_name || '',
-                        driver_mobile: it.driver_mobile || '',
-                        bill_number: it.bill_number || '',
-                        remarks: it.remarks || '',
-                        status: it.status || defaultStatus,
-                        // Financials
-                        value_rs: it.value_rs || 0,
-                        surcharge: it.surcharge || 0,
-                        hamali_charges: it.hamali_charges || 0,
-                        st_charges: it.st_charges || 0,
-                        total: it.total || 0,
-                        // Logistics
-                        delivery_at: it.delivery_at || '',
-                        booked_on_owners_risk: it.booked_on_owners_risk || false,
-                        loading_point_times: it.loading_point_times || {},
-                    }));
-                    setRowData(mapped);
+                    setRowData(mapApiLrsToUi(data, defaultStatus));
                     return;
                 }
                 // No LRs in DB yet — start empty
@@ -551,7 +474,12 @@ export default function DispatchRegister() {
                     </button>
                     <button
                         onClick={() => {
-                            window.location.href = `/operations/hirememo?lr_id=${params.data.id}`;
+                            const lrId = Number(params.data.id);
+                            if (!Number.isFinite(lrId) || lrId <= 0) {
+                                alert('Please save the LR before creating a Hire Memo.');
+                                return;
+                            }
+                            window.location.href = `/operations/hirememo?lr_id=${lrId}`;
                         }}
                         className="p-1 rounded hover:bg-blue-100 text-blue-600 transition-colors"
                         title="Create Hire Memo"
@@ -577,7 +505,7 @@ export default function DispatchRegister() {
         filter: true,
         floatingFilter: false,
         unSortIcon: true,
-        sortingOrder: ['asc', 'desc', null] as any,
+        sortingOrder: ['asc', 'desc', null] as const,
     }), []);
 
     // Get unique row ID
@@ -604,52 +532,24 @@ export default function DispatchRegister() {
                 </div>
             </div>
 
-            {/* AG Grid */}
-            <div ref={containerRef} className="flex-1 min-h-[500px] rounded-lg overflow-hidden border border-slate-200 ag-theme-alpine">
-                <style>{`
-                    .eway-expiry-warning {
-                        background-color: #fef2f2 !important;
-                    }
-                    .eway-expiry-warning:hover {
-                        background-color: #fee2e2 !important;
-                    }
-                    .ag-cell-edit-wrapper {
-                        padding: 0 !important;
-                    }
-                    /* Headers uppercase key style if needed, but headerName set manually */
-                `}</style>
-                <AgGridReact
-                    ref={gridRef}
-                    rowData={rowData}
-                    columnDefs={colDefs}
-                    defaultColDef={defaultColDef}
-                    getRowId={getRowId}
-                    getRowClass={getRowClass}
-
-                    // Editing
-                    editType="fullRow"
-                    stopEditingWhenCellsLoseFocus={true}
-                    onCellValueChanged={onCellValueChanged}
-                    // Excel-like features
-                    animateRows={true}
-
-                    // Keyboard navigation
-                    enableCellTextSelection={true}
-                    ensureDomOrder={true}
-                    // Pagination
-                    pagination={true}
-                    paginationPageSize={20}
-                    paginationPageSizeSelector={[10, 20, 50, 100]}
-                    // Row grouping
-                    groupDisplayType="groupRows"
-                    // Multi-column sorting
-                    multiSortKey="ctrl"
-                    // Auto-size columns
-                    onFirstDataRendered={(params) => {
-                        params.api.sizeColumnsToFit();
-                    }}
-                />
-            </div>
+            <AppAgGrid<LR>
+                rowData={rowData}
+                columnDefs={colDefs}
+                defaultColDef={defaultColDef}
+                getRowId={getRowId}
+                getRowClass={getRowClass}
+                onCellValueChanged={onCellValueChanged}
+                editType="fullRow"
+                paginationPageSize={20}
+                paginationPageSizeSelector={[10, 20, 50, 100]}
+                rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
+                animateRows={true}
+                groupDisplayType="groupRows"
+                multiSortKey="ctrl"
+                enableCellTextSelection={true}
+                ensureDomOrder={true}
+                stopEditingWhenCellsLoseFocus={true}
+            />
 
             {/* Hints */}
             <div className="text-xs text-slate-400 text-center space-x-4">

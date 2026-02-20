@@ -1,61 +1,67 @@
-import { useEffect, useState } from 'react';
-import axios from 'axios';
-import type { Contract } from '@/types';
+import MasterCrudGrid from '@/components/grid/MasterCrudGrid';
+
+interface Contract {
+  id?: number;
+  name: string;
+  party_id?: number | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  expiry_alert_days?: number | null;
+  notes?: string | null;
+}
 
 export default function ContractMaster() {
-  const [contracts, setContracts] = useState<Contract[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    axios
-      .get('/api/contract/')
-      .then((r) => {
-        const data = r.data;
-        if (Array.isArray(data)) setContracts(data);
-        else if ((data as any).results) setContracts((data as any).results);
-        else {
-          console.warn('Unexpected contract response shape:', data);
-          setContracts([]);
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to load contracts:', err);
-        setContracts([]);
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
   return (
-    <div>
-      <h2>Contract Master</h2>
-      {loading ? (
-        <div>Loading...</div>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Party</th>
-              <th>Start</th>
-              <th>End</th>
-              <th>Expiry Alert (days)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {contracts.map((c) => (
-              <tr key={c.id}>
-                <td>{c.id}</td>
-                <td>{c.name}</td>
-                <td>{c.party_id}</td>
-                <td>{c.start_date}</td>
-                <td>{c.end_date}</td>
-                <td>{c.expiry_alert_days}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+    <MasterCrudGrid<Contract>
+      title="Contract Master"
+      endpoint="/api/contract/"
+      createDraft={() => ({
+        name: 'New Contract',
+        party_id: null,
+        start_date: null,
+        end_date: null,
+        expiry_alert_days: null,
+        notes: '',
+      })}
+      toCreatePayload={(row) => ({
+        name: row.name,
+        party_id: row.party_id ? Number(row.party_id) : null,
+        start_date: row.start_date || null,
+        end_date: row.end_date || null,
+        expiry_alert_days: row.expiry_alert_days ? Number(row.expiry_alert_days) : null,
+        notes: row.notes || null,
+      })}
+      toUpdatePayload={(row) => ({
+        name: row.name,
+        party_id: row.party_id ? Number(row.party_id) : null,
+        start_date: row.start_date || null,
+        end_date: row.end_date || null,
+        expiry_alert_days: row.expiry_alert_days ? Number(row.expiry_alert_days) : null,
+        notes: row.notes || null,
+      })}
+      columns={[
+        { field: 'id', headerName: 'ID', width: 90, editable: false, pinned: 'left' },
+        { field: 'name', headerName: 'NAME', width: 220, editable: true },
+        {
+          field: 'party_id',
+          headerName: 'PARTY ID',
+          width: 120,
+          editable: true,
+          cellDataType: 'number',
+          valueParser: (params: any) => (params.newValue ? Number(params.newValue) : null),
+        },
+        { field: 'start_date', headerName: 'START DATE', width: 130, editable: true, cellEditor: 'agDateStringCellEditor' },
+        { field: 'end_date', headerName: 'END DATE', width: 130, editable: true, cellEditor: 'agDateStringCellEditor' },
+        {
+          field: 'expiry_alert_days',
+          headerName: 'EXPIRY ALERT (DAYS)',
+          width: 180,
+          editable: true,
+          cellDataType: 'number',
+          valueParser: (params: any) => (params.newValue ? Number(params.newValue) : null),
+        },
+        { field: 'notes', headerName: 'NOTES', width: 260, editable: true },
+      ]}
+    />
   );
 }

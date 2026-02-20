@@ -1,57 +1,38 @@
-import { useEffect, useState } from 'react';
-import axios from 'axios';
-import type { Template } from '@/types';
+import MasterCrudGrid from '@/components/grid/MasterCrudGrid';
+
+interface Template {
+  id?: number;
+  name: string;
+  description?: string;
+  file_url?: string;
+}
 
 export default function TemplateMaster() {
-  const [templates, setTemplates] = useState<Template[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    axios
-      .get('/api/template/')
-      .then((r) => {
-        const data = r.data;
-        if (Array.isArray(data)) setTemplates(data);
-        else if ((data as any).results) setTemplates((data as any).results);
-        else {
-          console.warn('Unexpected template response shape:', data);
-          setTemplates([]);
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to load templates:', err);
-        setTemplates([]);
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
   return (
-    <div>
-      <h2>Document Template Master</h2>
-      {loading ? (
-        <div>Loading...</div>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Description</th>
-              <th>File</th>
-            </tr>
-          </thead>
-          <tbody>
-            {templates.map((t) => (
-              <tr key={t.id}>
-                <td>{t.id}</td>
-                <td>{t.name}</td>
-                <td>{t.description}</td>
-                <td>{t.file_url ? (<a href={t.file_url} target="_blank" rel="noreferrer">View</a>) : null}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+    <MasterCrudGrid<Template>
+      title="Document Template Master"
+      endpoint="/api/template/"
+      createDraft={() => ({
+        name: 'New Template',
+        description: '',
+        file_url: '',
+      })}
+      toCreatePayload={(row) => ({
+        name: row.name,
+        description: row.description || null,
+        file_url: row.file_url || null,
+      })}
+      toUpdatePayload={(row) => ({
+        name: row.name,
+        description: row.description || null,
+        file_url: row.file_url || null,
+      })}
+      columns={[
+        { field: 'id', headerName: 'ID', width: 90, editable: false, pinned: 'left' },
+        { field: 'name', headerName: 'NAME', width: 220, editable: true },
+        { field: 'description', headerName: 'DESCRIPTION', width: 280, editable: true },
+        { field: 'file_url', headerName: 'FILE URL', width: 320, editable: true },
+      ]}
+    />
   );
 }

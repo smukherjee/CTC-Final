@@ -39,7 +39,7 @@ export default function AppLayout() {
             ]
         },
         { label: 'POD Verification', icon: CheckSquare, path: '/finance/pod-verify' },
-        { label: 'Invoices', icon: Banknote, path: '/finance/invoices' },
+        { label: 'Bill Notebook', icon: Banknote, path: '/finance/invoices' },
         { label: 'Settings', icon: Settings, path: '/admin/settings' },
     ];
 

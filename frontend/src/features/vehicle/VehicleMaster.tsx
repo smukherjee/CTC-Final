@@ -1,61 +1,62 @@
-import { useEffect, useState } from 'react';
-import axios from 'axios';
-import type { Vehicle } from '@/types';
+import MasterCrudGrid from '@/components/grid/MasterCrudGrid';
+
+interface Vehicle {
+  id?: number;
+  number: string;
+  type?: string;
+  capacity?: string;
+  owner_id?: number | null;
+  status?: string;
+}
 
 export default function VehicleMaster() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    axios
-      .get('/api/vehicle/')
-      .then((r) => {
-        const data = r.data;
-        if (Array.isArray(data)) setVehicles(data);
-        else if ((data as any).results) setVehicles((data as any).results);
-        else {
-          console.warn('Unexpected vehicle response shape:', data);
-          setVehicles([]);
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to load vehicles:', err);
-        setVehicles([]);
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
   return (
-    <div>
-      <h2>Vehicle Master</h2>
-      {loading ? (
-        <div>Loading...</div>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Number</th>
-              <th>Type</th>
-              <th>Capacity</th>
-              <th>Owner</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {vehicles.map((v) => (
-              <tr key={v.id}>
-                <td>{v.id}</td>
-                <td>{v.number}</td>
-                <td>{v.type}</td>
-                <td>{v.capacity}</td>
-                <td>{v.owner_id}</td>
-                <td>{v.status}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+    <MasterCrudGrid<Vehicle>
+      title="Vehicle Master"
+      endpoint="/api/vehicle/"
+      createDraft={() => ({
+        number: 'NEW-VEHICLE',
+        type: '',
+        capacity: '',
+        owner_id: null,
+        status: 'AVAILABLE',
+      })}
+      toCreatePayload={(row) => ({
+        number: row.number,
+        type: row.type || null,
+        capacity: row.capacity || null,
+        owner_id: row.owner_id ? Number(row.owner_id) : null,
+        status: row.status || null,
+      })}
+      toUpdatePayload={(row) => ({
+        number: row.number,
+        type: row.type || null,
+        capacity: row.capacity || null,
+        owner_id: row.owner_id ? Number(row.owner_id) : null,
+        status: row.status || null,
+      })}
+      columns={[
+        { field: 'id', headerName: 'ID', width: 90, editable: false, pinned: 'left' },
+        { field: 'number', headerName: 'NUMBER', width: 180, editable: true },
+        { field: 'type', headerName: 'TYPE', width: 170, editable: true },
+        { field: 'capacity', headerName: 'CAPACITY', width: 140, editable: true },
+        {
+          field: 'owner_id',
+          headerName: 'OWNER ID',
+          width: 120,
+          editable: true,
+          cellDataType: 'number',
+          valueParser: (params: any) => (params.newValue ? Number(params.newValue) : null),
+        },
+        {
+          field: 'status',
+          headerName: 'STATUS',
+          width: 140,
+          editable: true,
+          cellEditor: 'agSelectCellEditor',
+          cellEditorParams: { values: ['AVAILABLE', 'IN_TRANSIT', 'MAINTENANCE'] },
+        },
+      ]}
+    />
   );
 }
