@@ -215,6 +215,7 @@ export default function DispatchRegister() {
                         through_id: it.through_id,
                         vehicle_type: it.vehicle_type || '',
                         vehicle_number: it.vehicle_number || '',
+                        vehicle_id: it.vehicle_id, // Ensure vehicle_id is mapped
                         seal_number: it.seal_number || '',
                         driver_name: it.driver_name || '',
                         driver_mobile: it.driver_mobile || '',
@@ -288,23 +289,11 @@ export default function DispatchRegister() {
         // Update local state immediately for responsiveness
         setRowData(prev => prev.map(row => row.id === updatedData.id ? updatedData : row));
 
-        // Persist to backend
+        // Persist to backend - Send FULL payload to avoid losing data
         const lrId = updatedData.id;
-        const payload: Record<string, any> = {
-            consignor_name: updatedData.consignor_name,
-            consignee_name: updatedData.consignee_name,
-            origin: updatedData.origin,
-            destination: updatedData.destination,
-            fob: updatedData.fob,
-            through: updatedData.through,
-            vehicle_type: updatedData.vehicle_type,
-            vehicle_number: updatedData.vehicle_number,
-            bill_number: updatedData.bill_number,
-            remarks: updatedData.remarks,
-            status: updatedData.status,
-            date: updatedData.date,
-            articles_description: updatedData.articles_description,
-        };
+        // Exclude UI-only fields or circular refs if any (none in LR type currently)
+        const payload = { ...updatedData };
+
         axios.put(`/api/lr/${lrId}`, payload)
             .then(() => console.log('LR saved:', lrId))
             .catch(err => console.error('Failed to save LR:', err));
@@ -589,7 +578,7 @@ export default function DispatchRegister() {
                     onCellValueChanged={onCellValueChanged}
                     // Excel-like features
                     animateRows={true}
-                    rowSelection={{ mode: 'singleRow' }}
+
                     // Keyboard navigation
                     enableCellTextSelection={true}
                     ensureDomOrder={true}
