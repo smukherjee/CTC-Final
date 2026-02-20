@@ -7,6 +7,7 @@ class VehicleLocationBase(BaseModel):
     lr_id: Optional[int] = None
     vehicle_number: str = Field(..., min_length=1)
     location: str = Field(..., min_length=1)
+    status: Optional[str] = None
     reported_by: Optional[str] = None
     notes: Optional[str] = None
 
@@ -17,6 +18,7 @@ class VehicleLocationCreate(VehicleLocationBase):
 
 class VehicleLocationUpdate(BaseModel):
     location: Optional[str] = None
+    status: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -37,5 +39,6 @@ class VehicleLatestLocation(BaseModel):
     origin: Optional[str]
     destination: Optional[str]
     location: Optional[str]
+    status: Optional[str]
     reported_at: Optional[datetime]
     date: Optional[str]  # LR date

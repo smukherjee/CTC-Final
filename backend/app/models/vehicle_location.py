@@ -9,7 +9,8 @@ class VehicleLocationModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     lr_id = Column(Integer, ForeignKey("lrs.id"), nullable=True, index=True)
     vehicle_number = Column(String, nullable=False, index=True)
-    location = Column(String, nullable=False)  # Current location or status
+    location = Column(String, nullable=False)  # Current city/location
+    status = Column(String, nullable=True)  # Transit status (IN_TRANSIT/LOADING/etc.)
     reported_by = Column(String, nullable=True)  # User who reported
     reported_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     notes = Column(Text, nullable=True)

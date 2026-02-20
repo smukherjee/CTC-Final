@@ -21,5 +21,4 @@ docker compose exec backend python app/scripts/seed_cities.py
 Location of important files:
 - Backend: `backend/`
 - Frontend: `frontend/`
-- Migrations: `backend/db/migrations/`
-- Feature docs: this folder
+- Migrations: `backend/alembic/versions/`

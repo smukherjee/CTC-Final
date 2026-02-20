@@ -41,7 +41,11 @@ export default function AppAgGrid<T>({
   paginationPageSize = 20,
   loading = false,
   className,
-  rowSelection = { mode: 'singleRow', enableClickSelection: false },
+  rowSelection = {
+    mode: 'singleRow',
+    enableClickSelection: false,
+    checkboxes: false,
+  },
   animateRows = true,
   groupDisplayType = 'groupRows',
   multiSortKey = 'ctrl',

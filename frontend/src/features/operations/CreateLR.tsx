@@ -755,7 +755,11 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                                     rowData={goodsItems}
                                     columnDefs={colDefs}
                                     defaultColDef={{ sortable: false, resizable: true }}
-                                    rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
+                                    rowSelection={{
+                                        mode: 'singleRow',
+                                        enableClickSelection: false,
+                                        checkboxes: false,
+                                    }}
 
                                     editType="fullRow"
                                     stopEditingWhenCellsLoseFocus={true}

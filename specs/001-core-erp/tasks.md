@@ -27,7 +27,7 @@
 
 **Independent Test**: Start backend + frontend, POST `POST /api/lr/` with LR payload and verify `GET /api/lr/` returns created LR; create LR in UI and verify it appears in Dispatch Register grid.
 
-- [ ] T011 [P] [US1] Create `LR` SQLAlchemy model and migration (backend/app/models/lr.py, backend/db/migrations/versions/0005_create_lrs.py)
+ - [ ] T011 [P] [US1] Create `LR` SQLAlchemy model and migration (backend/app/models/lr.py, backend/alembic/versions/0005_create_lrs.py)
 - [ ] T012 [US1] Implement `LRCreate` and `LRResponse` schemas (backend/app/schemas/lr.py)
 - [ ] T013 [US1] Implement `lr_service.py` with `create_lr` and `get_all_lrs` (backend/app/services/lr_service.py)
 - [ ] T014 [US1] Add LR API router with `GET /api/lr/` and `POST /api/lr/` (backend/app/api/lr.py)
@@ -44,7 +44,7 @@
 
 **Independent Test**: POST `POST /api/hirememo/` with required fields and verify `GET /api/hirememo/` returns that memo and it links to an LR id.
 
-- [ ] T019 [P] [US2] Create `HireMemo` SQLAlchemy model and migration (backend/app/models/hirememo.py, backend/db/migrations/versions/0004_create_hirememos.py)
+ - [ ] T019 [P] [US2] Create `HireMemo` SQLAlchemy model and migration (backend/app/models/hirememo.py, backend/alembic/versions/0004_create_hirememos.py)
 - [ ] T020 [US2] Implement `HireMemo` schemas (backend/app/schemas/hirememo.py)
 - [ ] T021 [US2] Implement `hirememo_service.py` (advances calculation and LR linking) (backend/app/services/hirememo_service.py)
 - [ ] T022 [US2] Add Hire Memo API router with create/list endpoints (backend/app/api/hirememo.py)
@@ -58,7 +58,7 @@
 
 **Independent Test**: `GET /api/city/` returns seeded list; CreateLR origin/destination/through dropdowns load these lists.
 
-- [ ] T024 [P] [US3] Implement `City` model, migration and API (backend/app/models/city.py, backend/db/migrations/versions/000X_create_cities.py, backend/app/api/city.py)
+ - [ ] T024 [P] [US3] Implement `City` model, migration and API (backend/app/models/city.py, backend/alembic/versions/000X_create_cities.py, backend/app/api/city.py)
 - [ ] T025 [P] [US3] Create idempotent cities seed script (backend/app/scripts/seed_cities.py)
 - [ ] T026 [P] [US3] Implement Vendor model/api if not present (backend/app/models/vendor.py, backend/app/api/vendor.py)
 - [ ] T027 [US3] Wire CreateLR origin/destination/fob selects to `GET /api/city/` (frontend/src/features/operations/CreateLR.tsx)
@@ -138,7 +138,7 @@
 - backend/app/schemas/*.py
 - backend/app/services/*.py
 - backend/app/api/*.py
-- backend/db/migrations/versions/*.py
+- backend/alembic/versions/*.py
 - backend/app/scripts/seed_cities.py
 - frontend/src/features/operations/CreateLR.tsx
 - frontend/src/features/operations/DispatchRegister.tsx

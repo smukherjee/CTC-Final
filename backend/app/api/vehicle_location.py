@@ -28,13 +28,13 @@ def get_latest_locations(limit: int = 100):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/history/{vehicle_number}", response_model=List[VehicleLocation])
-def get_vehicle_history(vehicle_number: str):
-    """Get the complete location history for a specific vehicle."""
+@router.get("/history/lr/{lr_id}", response_model=List[VehicleLocation])
+def get_lr_history(lr_id: int):
+    """Get location history for a specific LR."""
     try:
-        history = vehicle_location_service.get_location_history(vehicle_number)
+        history = vehicle_location_service.get_location_history_by_lr_id(lr_id)
         if not history:
-            raise HTTPException(status_code=404, detail="No history found for this vehicle")
+            raise HTTPException(status_code=404, detail="No history found for this LR")
         return history
     except HTTPException:
         raise

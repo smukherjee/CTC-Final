@@ -207,7 +207,11 @@ export default function BillBook() {
         loading={loading}
         onCellValueChanged={onCellValueChanged}
         getRowId={(params: any) => String(params.data.id)}
-        rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
+        rowSelection={{
+          mode: 'singleRow',
+          enableClickSelection: false,
+          checkboxes: false,
+        }}
       />
     </div>
   );
