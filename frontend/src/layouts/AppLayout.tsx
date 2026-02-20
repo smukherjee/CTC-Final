@@ -34,7 +34,6 @@ export default function AppLayout() {
                 { label: 'Vehicles', path: '/masters/vehicles' },
                 { label: 'Contracts', path: '/masters/contracts' },
                 { label: 'Users', path: '/masters/users' },
-                { label: 'Templates', path: '/masters/templates' },
                 { label: 'Cities', path: '/masters/cities' },
             ]
         },

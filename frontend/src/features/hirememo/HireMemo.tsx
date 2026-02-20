@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { EMPTY_FORM_OPTIONS, fetchFormOptions, type FormOptions } from '@/config/formOptions';
+import { printHireMemo } from '@/utils/printHireMemo';
 
 export interface HireMemo {
   id: number;
@@ -47,6 +48,8 @@ export default function HireMemo() {
   const [existingMemoId, setExistingMemoId] = useState<number | undefined>(undefined);
   const [formOptions, setFormOptions] = useState<FormOptions>(EMPTY_FORM_OPTIONS);
   const [linkedLrNumber, setLinkedLrNumber] = useState<string>('');
+  const [linkedLrDate, setLinkedLrDate] = useState<string>('');
+  const [linkedArticlesCount, setLinkedArticlesCount] = useState<number | undefined>(undefined);
   const [form, setForm] = useState<Partial<HireMemo>>({
     lr_id: activeLrId,
     hire_memo_date: format(new Date(), 'yyyy-MM-dd'),
@@ -83,6 +86,8 @@ export default function HireMemo() {
     if (!activeLrId) {
       setExistingMemoId(undefined);
       setLinkedLrNumber('');
+      setLinkedLrDate('');
+      setLinkedArticlesCount(undefined);
       setForm((prev) => ({ ...prev, lr_id: undefined }));
       return;
     }
@@ -101,6 +106,10 @@ export default function HireMemo() {
         const existing = memos[0];
 
         setLinkedLrNumber(lr?.lr_number || '');
+        setLinkedLrDate(lr?.date || '');
+        setLinkedArticlesCount(
+          Number.isFinite(Number(lr?.articles_count)) ? Number(lr.articles_count) : undefined,
+        );
         setExistingMemoId(existing?.id);
 
         if (existing) {
@@ -175,6 +184,22 @@ export default function HireMemo() {
         alert('Failed to save hire memo: ' + (err.response?.data?.detail || err.message));
       })
       .finally(() => setIsSaving(false));
+  }
+
+  function handlePrint() {
+    printHireMemo({
+      ...form,
+      lr_number: linkedLrNumber,
+      lr_date: linkedLrDate,
+      articles_count: linkedArticlesCount,
+      total_amount: Number(form.total_amount || 0),
+      advance_cash: Number(form.advance_cash || 0),
+      advance_bank: Number(form.advance_bank || 0),
+      balance: Number(form.balance || 0),
+      freight_weight: form.freight_weight,
+      other_deductions: form.other_deductions,
+      notes: form.notes,
+    });
   }
 
   return (
@@ -280,6 +305,14 @@ export default function HireMemo() {
         <div className="col-span-3 mt-4 flex justify-end gap-2">
           <button type="button" onClick={() => navigate('/operations/dispatch')} className="px-4 py-2 border rounded">Cancel</button>
           <button
+            type="button"
+            onClick={handlePrint}
+            disabled={!canSave}
+            className="px-4 py-2 border rounded bg-white disabled:opacity-60"
+          >
+            Print
+          </button>
+          <button
             type="submit"
             disabled={!canSave || loading || isSaving}
             className="px-6 py-2 bg-blue-900 text-white rounded hover:bg-blue-800 disabled:opacity-60"
@@ -291,4 +324,3 @@ export default function HireMemo() {
     </div>
   );
 }
-

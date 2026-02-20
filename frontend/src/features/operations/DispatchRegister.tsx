@@ -555,6 +555,7 @@ export default function DispatchRegister() {
                 getRowId={getRowId}
                 getRowClass={getRowClass}
                 onCellValueChanged={onCellValueChanged}
+                className="dispatch-grid"
                 editType="fullRow"
                 paginationPageSize={20}
                 paginationPageSizeSelector={[10, 20, 50, 100]}
@@ -565,14 +566,9 @@ export default function DispatchRegister() {
                 enableCellTextSelection={true}
                 ensureDomOrder={true}
                 stopEditingWhenCellsLoseFocus={true}
+                fitColumns={false}
+                alwaysShowHorizontalScroll={true}
             />
-
-            {/* Hints */}
-            <div className="text-xs text-slate-400 text-center space-x-4">
-                <span>💡 Layout aligned with Excel requirements</span>
-                <span>•</span>
-                <span>Double-click to edit</span>
-            </div>
             {/* LR Modal */}
             <Dialog open={isLrModalOpen} onOpenChange={setIsLrModalOpen}>
                 <DialogContent className="max-w-[95vw] h-[90vh] overflow-hidden p-0">

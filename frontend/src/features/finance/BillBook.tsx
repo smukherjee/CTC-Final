@@ -113,14 +113,21 @@ export default function BillBook() {
       headerName: 'BILL DATE',
       width: 120,
       editable: true,
-      cellEditor: 'agDateStringCellEditor',
+      cellEditor: 'agDateCellEditor',
       valueFormatter: (params: any) => {
         if (!params.value) return '';
-        const d = parseISO(params.value);
+        const d = params.value instanceof Date ? params.value : parseISO(String(params.value));
         return Number.isNaN(d.getTime()) ? '' : format(d, 'dd/MM/yyyy');
       },
+      valueGetter: (params: any) => (params.data.bill_date ? parseISO(params.data.bill_date) : null),
       valueSetter: (params: any) => {
-        params.data.bill_date = params.newValue ? String(params.newValue) : '';
+        if (!params.newValue) {
+          params.data.bill_date = '';
+          return true;
+        }
+        const d = params.newValue instanceof Date ? params.newValue : new Date(params.newValue);
+        if (Number.isNaN(d.getTime())) return false;
+        params.data.bill_date = format(d, 'yyyy-MM-dd');
         return true;
       },
     },
@@ -165,14 +172,21 @@ export default function BillBook() {
       headerName: 'CM DATE',
       width: 120,
       editable: true,
-      cellEditor: 'agDateStringCellEditor',
+      cellEditor: 'agDateCellEditor',
       valueFormatter: (params: any) => {
         if (!params.value) return '';
-        const d = parseISO(params.value);
+        const d = params.value instanceof Date ? params.value : parseISO(String(params.value));
         return Number.isNaN(d.getTime()) ? '' : format(d, 'dd/MM/yyyy');
       },
+      valueGetter: (params: any) => (params.data.cm_date ? parseISO(params.data.cm_date) : null),
       valueSetter: (params: any) => {
-        params.data.cm_date = params.newValue ? String(params.newValue) : '';
+        if (!params.newValue) {
+          params.data.cm_date = '';
+          return true;
+        }
+        const d = params.newValue instanceof Date ? params.newValue : new Date(params.newValue);
+        if (Number.isNaN(d.getTime())) return false;
+        params.data.cm_date = format(d, 'yyyy-MM-dd');
         return true;
       },
     },
@@ -204,6 +218,7 @@ export default function BillBook() {
       <AppAgGrid<BillBookRow>
         rowData={filteredRows}
         columnDefs={colDefs}
+        className="dispatch-grid"
         loading={loading}
         onCellValueChanged={onCellValueChanged}
         getRowId={(params: any) => String(params.data.id)}
@@ -212,6 +227,8 @@ export default function BillBook() {
           enableClickSelection: false,
           checkboxes: false,
         }}
+        fitColumns={false}
+        alwaysShowHorizontalScroll={true}
       />
     </div>
   );

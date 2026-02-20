@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import axios from 'axios';
 import { useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -6,16 +6,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Plus, Trash2, Printer, Save, Lock } from 'lucide-react';
 import { format } from 'date-fns';
-import { AgGridReact } from 'ag-grid-react';
-import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import type { LR, GoodsLineItem } from '@/types';
 import { Button } from '@/components/ui/button';
 import { printLR } from '@/utils/printLR';
 import { EMPTY_FORM_OPTIONS, fetchFormOptions, type FormOptions } from '@/config/formOptions';
 import { mapApiLrToUi } from './lrMappings';
-
-// Register AG Grid Modules (explicitly include useful community modules)
-ModuleRegistry.registerModules([AllCommunityModule]);
+import AppAgGrid from '@/components/grid/AppAgGrid';
 
 // Zod Schema for Validation
 const lrSchema = z.object({
@@ -76,8 +72,6 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
     const [status, setStatus] = useState<string>('');
     const [formOptions, setFormOptions] = useState<FormOptions>(EMPTY_FORM_OPTIONS);
     const [resolvedLrId, setResolvedLrId] = useState<number | null>(null);
-
-    const gridRef = useRef<AgGridReact>(null);
 
     const defaultValues = {
         lr_number: initialData?.lr_number || `LR-${Date.now()}`,
@@ -748,10 +742,8 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                                 )}
                             </div>
 
-                            <div className="h-64 rounded-md overflow-hidden border border-slate-200 ag-theme-alpine">
-                                <AgGridReact
-                                    ref={gridRef}
-                                    theme="legacy"
+                            <div className="h-64">
+                                <AppAgGrid<GoodsLineItem>
                                     rowData={goodsItems}
                                     columnDefs={colDefs}
                                     defaultColDef={{ sortable: false, resizable: true }}
@@ -764,6 +756,10 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                                     editType="fullRow"
                                     stopEditingWhenCellsLoseFocus={true}
                                     onCellValueChanged={onCellValueChanged}
+                                    pagination={false}
+                                    fitColumns={false}
+                                    alwaysShowHorizontalScroll={true}
+                                    className="h-full !min-h-0 rounded-md"
                                 />
                             </div>
                         </div>

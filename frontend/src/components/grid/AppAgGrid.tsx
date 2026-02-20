@@ -27,6 +27,9 @@ interface AppAgGridProps<T> {
   ensureDomOrder?: boolean;
   stopEditingWhenCellsLoseFocus?: boolean;
   paginationPageSizeSelector?: number[];
+  fitColumns?: boolean;
+  alwaysShowHorizontalScroll?: boolean;
+  pagination?: boolean;
 }
 
 export default function AppAgGrid<T>({
@@ -53,18 +56,22 @@ export default function AppAgGrid<T>({
   ensureDomOrder = true,
   stopEditingWhenCellsLoseFocus = true,
   paginationPageSizeSelector = [10, 20, 50, 100],
+  fitColumns = false,
+  alwaysShowHorizontalScroll = true,
+  pagination = true,
 }: AppAgGridProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<AgGridReact<T>>(null);
 
   useEffect(() => {
+    if (!fitColumns) return;
     if (!containerRef.current || !gridRef.current) return;
     const observer = new ResizeObserver(() => {
       gridRef.current?.api?.sizeColumnsToFit();
     });
     observer.observe(containerRef.current);
     return () => observer.disconnect();
-  }, []);
+  }, [fitColumns]);
 
   const mergedDefaultColDef = useMemo(
     () => ({
@@ -80,7 +87,7 @@ export default function AppAgGrid<T>({
   );
 
   return (
-    <div ref={containerRef} className={`flex-1 min-h-[500px] rounded-lg overflow-hidden border border-slate-200 ag-theme-alpine ${className || ''}`}>
+    <div ref={containerRef} className={`flex-1 min-h-[500px] rounded-lg overflow-hidden border border-slate-200 ag-theme-alpine dispatch-grid ${className || ''}`}>
       <style>{`
         .eway-expiry-warning {
           background-color: #fef2f2 !important;
@@ -90,6 +97,16 @@ export default function AppAgGrid<T>({
         }
         .ag-cell-edit-wrapper {
           padding: 0 !important;
+        }
+        .dispatch-grid.ag-theme-alpine {
+          --ag-font-size: 12px;
+          --ag-header-font-size: 11px;
+          --ag-row-height: 42px;
+          --ag-header-height: 42px;
+        }
+        .dispatch-grid .ag-header-cell-text {
+          font-weight: 700;
+          letter-spacing: 0.2px;
         }
       `}</style>
       <AgGridReact<T>
@@ -107,14 +124,17 @@ export default function AppAgGrid<T>({
         animateRows={animateRows}
         enableCellTextSelection={enableCellTextSelection}
         ensureDomOrder={ensureDomOrder}
-        pagination={true}
+        pagination={pagination}
         paginationPageSize={paginationPageSize}
-        paginationPageSizeSelector={paginationPageSizeSelector}
+        paginationPageSizeSelector={pagination ? paginationPageSizeSelector : undefined}
+        alwaysShowHorizontalScroll={alwaysShowHorizontalScroll}
         rowSelection={rowSelection}
         groupDisplayType={groupDisplayType}
         multiSortKey={multiSortKey}
         onFirstDataRendered={(params) => {
-          params.api.sizeColumnsToFit();
+          if (fitColumns) {
+            params.api.sizeColumnsToFit();
+          }
           onFirstDataRendered?.(params);
         }}
       />
