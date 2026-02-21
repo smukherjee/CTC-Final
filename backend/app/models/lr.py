@@ -58,6 +58,8 @@ class LRModel(Base):
     cm_date = Column(Date, nullable=True)
     remarks = Column(Text, nullable=True)
     eway_bill = Column(JSONB, nullable=True) # expiry, no, status
+    pod_url = Column(String(1024), nullable=True)
+    pod_verified_at = Column(DateTime(timezone=True), nullable=True)
 
     created_at = Column(DateTime(timezone=True), nullable=True)
     updated_at = Column(DateTime(timezone=True), nullable=True)

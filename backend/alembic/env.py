@@ -31,6 +31,7 @@ from app.models import (
     template,
     contract,
     vehicle_location,
+    file_upload,
 )
 target_metadata = Base.metadata
 

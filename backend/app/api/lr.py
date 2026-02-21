@@ -1,6 +1,14 @@
 from fastapi import APIRouter, HTTPException
 from ..schemas.lr import LRCreate, LRUpdate
-from ..services.lr_service import create_lr, get_all_lrs, get_lr_by_id, get_lr_by_number, update_lr, delete_lr
+from ..services.lr_service import (
+    create_lr,
+    get_all_lrs,
+    get_lr_by_id,
+    get_lr_by_number,
+    update_lr,
+    delete_lr,
+    verify_lr_pod,
+)
 
 router = APIRouter()
 
@@ -54,3 +62,14 @@ def remove_lr(lr_id: int):
     if not deleted:
         raise HTTPException(status_code=404, detail="LR not found")
     return {"ok": True}
+
+
+@router.post('/lr/{lr_id}/pod/verify')
+def verify_pod(lr_id: int):
+    try:
+        updated = verify_lr_pod(lr_id)
+        if not updated:
+            raise HTTPException(status_code=404, detail="LR not found")
+        return updated
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))

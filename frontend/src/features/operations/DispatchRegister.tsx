@@ -83,6 +83,8 @@ export default function DispatchRegister() {
     const [vehicleNumbers, setVehicleNumbers] = useState<string[]>([]);
     const [statusOptions, setStatusOptions] = useState<string[]>([]);
     const [defaultStatus, setDefaultStatus] = useState<string>('');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [podFilter, setPodFilter] = useState<'ALL' | 'UPLOADED' | 'VERIFIED' | 'MISSING'>('ALL');
 
 
 
@@ -275,6 +277,41 @@ export default function DispatchRegister() {
             .catch(err => console.error('Failed to save LR:', err));
     }, [consignorsList, consigneesList, vendorNameById, vehicleMap, vehicleIdByNumber]);
 
+    const filteredRowData = useMemo(() => {
+        const normalizedQuery = searchQuery.trim().toLowerCase();
+
+        return rowData.filter((row) => {
+            const matchesPod =
+                podFilter === 'ALL'
+                    ? true
+                    : podFilter === 'UPLOADED'
+                        ? Boolean(row.pod_url)
+                        : podFilter === 'VERIFIED'
+                            ? Boolean(row.pod_verified_at)
+                            : !row.pod_url;
+
+            if (!matchesPod) return false;
+            if (!normalizedQuery) return true;
+
+            const searchText = [
+                row.lr_number,
+                row.consignor_name,
+                row.consignee_name,
+                row.origin,
+                row.destination,
+                row.vehicle_number,
+                row.bill_number,
+                row.pod_url ? 'pod uploaded' : 'pod pending',
+                row.pod_verified_at ? 'pod verified' : '',
+            ]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase();
+
+            return searchText.includes(normalizedQuery);
+        });
+    }, [rowData, searchQuery, podFilter]);
+
     // Column Definitions with editable cells
     // Using any[] to bypass strict v32 typing which is fighting with "as const" assertions
     const colDefs = useMemo<any[]>(() => [
@@ -461,6 +498,36 @@ export default function DispatchRegister() {
             width: 120,
             editable: true,
         },
+        {
+            field: 'pod_url',
+            headerName: 'POD',
+            width: 120,
+            editable: false,
+            filter: 'agTextColumnFilter',
+            cellRenderer: (params: { value?: string }) => {
+                if (!params.value) {
+                    return <span className="text-amber-700 font-medium">Pending</span>;
+                }
+                return (
+                    <a href={params.value} target="_blank" rel="noreferrer" className="text-emerald-700 hover:underline font-medium">
+                        Uploaded
+                    </a>
+                );
+            },
+        },
+        {
+            field: 'pod_verified_at',
+            headerName: 'POD VERIFIED',
+            width: 150,
+            editable: false,
+            filter: 'agDateColumnFilter',
+            valueFormatter: (params: any) => {
+                if (!params.value) return '';
+                const date = parseISO(String(params.value));
+                if (Number.isNaN(date.getTime())) return '';
+                return format(date, 'dd/MM/yyyy HH:mm');
+            },
+        },
         // Status
         {
             field: 'status',
@@ -535,9 +602,28 @@ export default function DispatchRegister() {
             <div className="flex justify-between items-center">
                 <div>
                     <h2 className="text-2xl font-bold tracking-tight text-slate-900">Dispatch Register</h2>
-                    <p className="text-sm text-slate-500 mt-1">Track all LRs and dispatches • {rowData.length} records</p>
+                    <p className="text-sm text-slate-500 mt-1">
+                        Track all LRs and dispatches • {filteredRowData.length} of {rowData.length} records
+                    </p>
                 </div>
                 <div className="flex gap-2">
+                    <input
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search LR / Party / POD..."
+                        className="w-64 px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                    />
+                    <select
+                        value={podFilter}
+                        onChange={(e) => setPodFilter(e.target.value as 'ALL' | 'UPLOADED' | 'VERIFIED' | 'MISSING')}
+                        className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+                        aria-label="Filter by POD status"
+                    >
+                        <option value="ALL">All POD</option>
+                        <option value="UPLOADED">POD Uploaded</option>
+                        <option value="VERIFIED">POD Verified</option>
+                        <option value="MISSING">POD Missing</option>
+                    </select>
                     <button
                         onClick={() => handleCreateLr()}
                         className="bg-slate-900 text-white hover:bg-slate-800 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
@@ -548,7 +634,7 @@ export default function DispatchRegister() {
             </div>
 
             <AppAgGrid<LR>
-                rowData={rowData}
+                rowData={filteredRowData}
                 columnDefs={colDefs}
                 defaultColDef={defaultColDef}
                 getRowId={getRowId}

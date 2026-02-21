@@ -1,5 +1,5 @@
 from typing import List
-from datetime import date as dt_date
+from datetime import date as dt_date, datetime as dt_datetime, timezone
 from ..schemas.lr import LRCreate, LRResponse
 from ..models.lr import LRModel
 from ..db import SessionLocal
@@ -51,6 +51,8 @@ def _model_to_dict(m: LRModel) -> dict:
         'cm_date': m.cm_date.isoformat() if m.cm_date else None,
         'remarks': m.remarks,
         'eway_bill': m.eway_bill,
+        'pod_url': m.pod_url,
+        'pod_verified_at': m.pod_verified_at.isoformat() if m.pod_verified_at else None,
     }
 
 
@@ -71,6 +73,17 @@ def _coerce_lr_payload(payload: dict) -> dict:
                 except ValueError:
                     # Keep original value; API validation will surface errors if any.
                     pass
+
+    raw_pod_verified_at = normalized.get('pod_verified_at')
+    if isinstance(raw_pod_verified_at, str):
+        raw = raw_pod_verified_at.strip()
+        if not raw:
+            normalized['pod_verified_at'] = None
+        else:
+            try:
+                normalized['pod_verified_at'] = dt_datetime.fromisoformat(raw.replace('Z', '+00:00'))
+            except ValueError:
+                pass
 
     # Ensure loading point times is dict/null.
     lpt = normalized.get('loading_point_times')
@@ -128,6 +141,8 @@ def create_lr(payload: LRCreate) -> dict:
             cm_date=payload_dict.get('cm_date'),
             remarks=payload_dict.get('remarks'),
             eway_bill=payload_dict.get('eway_bill'),
+            pod_url=payload_dict.get('pod_url'),
+            pod_verified_at=payload_dict.get('pod_verified_at'),
         )
         db.add(obj)
         db.commit()
@@ -194,5 +209,22 @@ def delete_lr(lr_id: int) -> bool:
         deleted = db.query(LRModel).filter(LRModel.id == lr_id).delete()
         db.commit()
         return bool(deleted)
+    finally:
+        db.close()
+
+
+def verify_lr_pod(lr_id: int) -> dict:
+    db = SessionLocal()
+    try:
+        obj = db.query(LRModel).filter(LRModel.id == lr_id).first()
+        if not obj:
+            return None
+        if not obj.pod_url:
+            raise ValueError("Cannot verify POD because no POD file is uploaded")
+        obj.pod_verified_at = dt_datetime.now(timezone.utc)
+        obj.status = 'POD_VERIFIED'
+        db.commit()
+        db.refresh(obj)
+        return _model_to_dict(obj)
     finally:
         db.close()

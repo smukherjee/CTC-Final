@@ -34,6 +34,7 @@ from app.api.hirememo import router as hirememo_router
 from app.api.lr import router as lr_router
 from app.api.vehicle_location import router as vehicle_location_router
 from app.api.config import router as config_router
+from app.api.files import router as files_router
 
 
 app.include_router(party_router, prefix="/api")
@@ -47,3 +48,4 @@ app.include_router(hirememo_router, prefix="/api")
 app.include_router(lr_router, prefix="/api")
 app.include_router(vehicle_location_router, prefix="/api")
 app.include_router(config_router, prefix="/api")
+app.include_router(files_router, prefix="/api")

@@ -9,6 +9,7 @@ import { Plus, Trash2, Printer, Save, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import type { LR, GoodsLineItem } from '@/types';
 import { Button } from '@/components/ui/button';
+import FileUpload from '@/components/FileUpload';
 import { printLR } from '@/utils/printLR';
 import { EMPTY_FORM_OPTIONS, fetchFormOptions, type FormOptions } from '@/config/formOptions';
 import { mapApiLrToUi } from './lrMappings';
@@ -895,6 +896,15 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                                     </div>
                                 </div>
                             </div>
+                        </div>
+
+                        {/* 6. File Uploads */}
+                        <div className="border-t border-slate-200 pt-6">
+                            <FileUpload
+                                title="LR / Invoice / E-Way / POD Uploads"
+                                lrId={resolvedLrId || undefined}
+                                allowedDocumentTypes={['LR', 'INVOICE', 'EWAY_BILL', 'POD']}
+                            />
                         </div>
 
                     </div>

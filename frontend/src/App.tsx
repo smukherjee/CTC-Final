@@ -12,6 +12,7 @@ import UserMaster from '@/features/user/UserMaster';
 import TemplateMaster from '@/features/template/TemplateMaster';
 import CityMaster from '@/features/city/CityMaster';
 import BillBook from '@/features/finance/BillBook';
+import PODVerification from '@/features/finance/PODVerification';
 
 function App() {
   return (
@@ -29,7 +30,7 @@ function App() {
           </Route>
 
           <Route path="finance">
-            <Route path="pod-verify" element={<div>POD Verify</div>} />
+            <Route path="pod-verify" element={<PODVerification />} />
             <Route path="invoices" element={<BillBook />} />
           </Route>
 

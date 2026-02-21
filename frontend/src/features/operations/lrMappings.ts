@@ -37,6 +37,8 @@ export function mapApiLrToUi(it: any, defaultStatus = ''): LR {
     delivery_at: it.delivery_at || '',
     booked_on_owners_risk: it.booked_on_owners_risk || false,
     loading_point_times: it.loading_point_times || {},
+    pod_url: it.pod_url || '',
+    pod_verified_at: it.pod_verified_at || '',
   };
 }
 
@@ -75,4 +77,3 @@ export function mapVehicleOptions(vehicles: any[]) {
 
   return { vehicleNumbers, vehicleTypeByNumber, vehicleIdByNumber };
 }
-

@@ -4,6 +4,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { EMPTY_FORM_OPTIONS, fetchFormOptions, type FormOptions } from '@/config/formOptions';
 import { printHireMemo } from '@/utils/printHireMemo';
+import FileUpload from '@/components/FileUpload';
 
 export interface HireMemo {
   id: number;
@@ -305,6 +306,15 @@ export default function HireMemo() {
         <div className="col-span-3">
           <label htmlFor="notes" className="block text-sm font-medium">Notes</label>
           <textarea id="notes" name="notes" value={form.notes || ''} onChange={updateField} className="w-full border p-2 rounded" rows={3} />
+        </div>
+
+        <div className="col-span-3 border-t border-slate-200 pt-4">
+          <FileUpload
+            title="Hire Memo Related Uploads"
+            lrId={activeLrId}
+            hirememoId={existingMemoId}
+            allowedDocumentTypes={['INVOICE', 'POD', 'EWAY_BILL']}
+          />
         </div>
 
         <div className="col-span-3 mt-4 flex justify-end gap-2">
