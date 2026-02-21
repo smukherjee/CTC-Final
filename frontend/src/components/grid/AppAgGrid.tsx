@@ -44,11 +44,7 @@ export default function AppAgGrid<T>({
   paginationPageSize = 20,
   loading = false,
   className,
-  rowSelection = {
-    mode: 'singleRow',
-    enableClickSelection: false,
-    checkboxes: false,
-  },
+  rowSelection,
   animateRows = true,
   groupDisplayType = 'groupRows',
   multiSortKey = 'ctrl',
@@ -72,6 +68,17 @@ export default function AppAgGrid<T>({
     observer.observe(containerRef.current);
     return () => observer.disconnect();
   }, [fitColumns]);
+
+  const mergedRowSelection = useMemo(
+    () => ({
+      mode: 'singleRow',
+      enableClickSelection: false,
+      checkboxes: false,
+      headerCheckbox: false,
+      ...(rowSelection || {}),
+    }),
+    [rowSelection],
+  );
 
   const mergedDefaultColDef = useMemo(
     () => ({
@@ -128,7 +135,7 @@ export default function AppAgGrid<T>({
         paginationPageSize={paginationPageSize}
         paginationPageSizeSelector={pagination ? paginationPageSizeSelector : undefined}
         alwaysShowHorizontalScroll={alwaysShowHorizontalScroll}
-        rowSelection={rowSelection}
+        rowSelection={mergedRowSelection}
         groupDisplayType={groupDisplayType}
         multiSortKey={multiSortKey}
         onFirstDataRendered={(params) => {
