@@ -201,20 +201,30 @@ export default function DispatchRegister() {
     }, []);
 
     // Check if E-Way is expiring soon (within 8 hours) - Kept for potential future use or if other parts of the app use it
-    const isEwayExpiringSoon = useCallback((ewayExpiry: string | undefined): boolean => {
-        if (!ewayExpiry) return false;
-        const expiryDate = parseISO(ewayExpiry); // Use parseISO for consistent parsing
+    const isEwayExpiringSoon = useCallback((expiryAt: string | undefined): boolean => {
+        if (!expiryAt) return false;
+        const expiryDate = parseISO(expiryAt);
+        if (Number.isNaN(expiryDate.getTime())) return false;
         const warningThreshold = addHours(new Date(), 8);
         return isBefore(expiryDate, warningThreshold);
     }, []);
 
     // Row styling for alerts
     const getRowClass = useCallback((params: { data?: LR }): string | undefined => {
-        if (params.data?.eway_bill && isEwayExpiringSoon(params.data.eway_bill.valid_upto)) {
+        const activeEway =
+            params.data?.eway_bill ||
+            (Array.isArray(params.data?.eway_bills) ? params.data?.eway_bills[0] : undefined);
+        const expiry = activeEway?.expires_at || activeEway?.valid_upto;
+        if (activeEway && isEwayExpiringSoon(expiry)) {
             return 'eway-expiry-warning';
         }
         return undefined;
     }, [isEwayExpiringSoon]);
+
+    const getActiveEway = useCallback((row?: LR) => {
+        if (!row) return undefined;
+        return row.eway_bill || (Array.isArray(row.eway_bills) ? row.eway_bills[0] : undefined);
+    }, []);
 
     // Delete handler
     const handleDelete = useCallback(async (id: string) => {
@@ -491,6 +501,27 @@ export default function DispatchRegister() {
             width: 80,
             editable: true,
         },
+        {
+            headerName: 'EWAY NO',
+            width: 140,
+            editable: false,
+            valueGetter: (params: any) => getActiveEway(params.data)?.number || '',
+        },
+        {
+            headerName: 'EWAY EXPIRY',
+            width: 170,
+            editable: false,
+            valueGetter: (params: any) => {
+                const activeEway = getActiveEway(params.data);
+                return activeEway?.expires_at || activeEway?.valid_upto || '';
+            },
+            valueFormatter: (params: any) => {
+                if (!params.value) return '';
+                const date = parseISO(String(params.value));
+                if (Number.isNaN(date.getTime())) return '';
+                return format(date, 'dd/MM/yyyy HH:mm');
+            },
+        },
         // 15. REMARKS
         {
             field: 'remarks',
@@ -581,7 +612,7 @@ export default function DispatchRegister() {
                 </div>
             ),
         },
-    ], [handleDelete, citiesList, vendorIds, vendorNameById, vehicleMap, vehicleIdByNumber, vehicleNumbers, consignorsList, consigneesList, statusOptions]);
+    ], [handleDelete, citiesList, vendorIds, vendorNameById, vehicleMap, vehicleIdByNumber, vehicleNumbers, consignorsList, consigneesList, statusOptions, getActiveEway]);
 
     // Default column settings
     const defaultColDef = useMemo(() => ({

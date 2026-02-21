@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import type { LR, GoodsLineItem } from '@/types';
 import { Button } from '@/components/ui/button';
 import FileUpload from '@/components/FileUpload';
+import EWayBillManager from '@/components/EWayBillManager';
 import { printLR } from '@/utils/printLR';
 import { EMPTY_FORM_OPTIONS, fetchFormOptions, type FormOptions } from '@/config/formOptions';
 import { mapApiLrToUi } from './lrMappings';
@@ -899,6 +900,11 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                         </div>
 
                         {/* 6. File Uploads */}
+                        <div className="border-t border-slate-200 pt-6">
+                            <EWayBillManager lrId={resolvedLrId || undefined} />
+                        </div>
+
+                        {/* 7. File Uploads */}
                         <div className="border-t border-slate-200 pt-6">
                             <FileUpload
                                 title="LR / Invoice / E-Way / POD Uploads"

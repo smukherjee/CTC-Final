@@ -37,6 +37,8 @@ export function mapApiLrToUi(it: any, defaultStatus = ''): LR {
     delivery_at: it.delivery_at || '',
     booked_on_owners_risk: it.booked_on_owners_risk || false,
     loading_point_times: it.loading_point_times || {},
+    eway_bill: it.eway_bill || null,
+    eway_bills: Array.isArray(it.eway_bills) ? it.eway_bills : [],
     pod_url: it.pod_url || '',
     pod_verified_at: it.pod_verified_at || '',
   };

@@ -18,6 +18,7 @@ ALLOWED_DOCUMENT_TYPES = {"LR", "INVOICE", "EWAY_BILL", "POD"}
 ALLOWED_CONTENT_TYPES = {"application/pdf", "image/jpeg", "image/png"}
 ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png"}
 MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024
+EWAY_BILL_MAX_UPLOAD_SIZE_BYTES = 1 * 1024 * 1024
 RETENTION_DAYS = 365
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -64,11 +65,19 @@ def _to_document_dict(doc: FileUploadModel, lr: Optional[LRModel] = None) -> Dic
     }
 
 
-def _save_upload(file_obj, filename: str, document_type: str) -> Tuple[Path, int, str, str]:
+def _save_upload(
+    file_obj,
+    filename: str,
+    document_type: str,
+    *,
+    allowed_extensions: set[str],
+    max_upload_size_bytes: int,
+) -> Tuple[Path, int, str, str]:
     safe_name = _safe_filename(filename)
     ext = Path(safe_name).suffix.lower()
-    if ext and ext not in ALLOWED_EXTENSIONS:
-        raise ValueError("Unsupported file extension. Allowed: PDF/JPG/JPEG/PNG")
+    if ext and ext not in allowed_extensions:
+        allowed = ", ".join(sorted(allowed_extensions))
+        raise ValueError(f"Unsupported file extension. Allowed: {allowed}")
 
     target_dir = UPLOAD_ROOT / document_type.lower() / _now_utc().strftime("%Y/%m")
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -84,8 +93,9 @@ def _save_upload(file_obj, filename: str, document_type: str) -> Tuple[Path, int
                 if not chunk:
                     break
                 size += len(chunk)
-                if size > MAX_UPLOAD_SIZE_BYTES:
-                    raise ValueError("File too large. Max size is 10 MB")
+                if size > max_upload_size_bytes:
+                    max_mb = max_upload_size_bytes // (1024 * 1024)
+                    raise ValueError(f"File too large. Max size is {max_mb} MB")
                 digest.update(chunk)
                 output.write(chunk)
     except Exception:
@@ -159,7 +169,21 @@ def upload_document(
         raise ValueError("POD upload requires lr_id")
 
     content_type = (upload_file.content_type or "").lower().strip()
-    if content_type and content_type not in ALLOWED_CONTENT_TYPES:
+    allowed_content_types = ALLOWED_CONTENT_TYPES
+    allowed_extensions = ALLOWED_EXTENSIONS
+    max_upload_size_bytes = MAX_UPLOAD_SIZE_BYTES
+
+    if normalized_type == "EWAY_BILL":
+        allowed_content_types = {"application/pdf"}
+        allowed_extensions = {".pdf"}
+        max_upload_size_bytes = EWAY_BILL_MAX_UPLOAD_SIZE_BYTES
+        filename = (upload_file.filename or "").lower().strip()
+        if not filename.endswith(".pdf"):
+            raise ValueError("E-Way Bill upload must be a PDF file")
+
+    if content_type and content_type not in allowed_content_types:
+        if normalized_type == "EWAY_BILL":
+            raise ValueError("E-Way Bill upload must be a PDF file")
         raise ValueError("Unsupported content type. Allowed: PDF/JPEG/PNG")
 
     db = SessionLocal()
@@ -178,6 +202,8 @@ def upload_document(
             upload_file.file,
             upload_file.filename or "document",
             normalized_type,
+            allowed_extensions=allowed_extensions,
+            max_upload_size_bytes=max_upload_size_bytes,
         )
 
         expires_at = _now_utc() + timedelta(days=RETENTION_DAYS)

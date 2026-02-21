@@ -2,6 +2,7 @@ from typing import List
 from datetime import date as dt_date, datetime as dt_datetime, timezone
 from ..schemas.lr import LRCreate, LRResponse
 from ..models.lr import LRModel
+from ..models.ewaybill import EWayBillModel
 from ..db import SessionLocal
 
 
@@ -51,9 +52,65 @@ def _model_to_dict(m: LRModel) -> dict:
         'cm_date': m.cm_date.isoformat() if m.cm_date else None,
         'remarks': m.remarks,
         'eway_bill': m.eway_bill,
+        'eway_bills': [],
         'pod_url': m.pod_url,
         'pod_verified_at': m.pod_verified_at.isoformat() if m.pod_verified_at else None,
     }
+
+
+def _map_eway_model(e: EWayBillModel) -> dict:
+    return {
+        'id': e.id,
+        'lr_id': e.lr_id,
+        'number': e.number,
+        'valid_from': e.valid_from.isoformat() if e.valid_from else None,
+        'valid_upto': e.valid_upto.isoformat() if e.valid_upto else None,
+        'expires_at': e.expires_at.isoformat() if e.expires_at else None,
+        'status': e.status,
+        'alert_sent': bool(e.alert_sent),
+        'file_url': e.file_url,
+        'extension_count': int(e.extension_count or 0),
+        'last_extended_at': e.last_extended_at.isoformat() if e.last_extended_at else None,
+        'meta': e.meta,
+    }
+
+
+def _attach_eway_bills(db, lr_payloads: List[dict]) -> List[dict]:
+    if not lr_payloads:
+        return lr_payloads
+
+    lr_ids = [int(row['id']) for row in lr_payloads if row.get('id') is not None]
+    if not lr_ids:
+        return lr_payloads
+
+    try:
+        rows = (
+            db.query(EWayBillModel)
+            .filter(EWayBillModel.lr_id.in_(lr_ids))
+            .order_by(EWayBillModel.valid_upto.desc().nullslast(), EWayBillModel.id.desc())
+            .all()
+        )
+    except Exception:
+        # If eway_bills table is not migrated yet, keep LR API functional.
+        for lr_data in lr_payloads:
+            if 'eway_bills' not in lr_data:
+                lr_data['eway_bills'] = []
+        return lr_payloads
+
+    grouped: dict[int, list[dict]] = {}
+    for item in rows:
+        grouped.setdefault(int(item.lr_id), []).append(_map_eway_model(item))
+
+    for lr_data in lr_payloads:
+        lr_id = int(lr_data['id'])
+        eway_list = grouped.get(lr_id, [])
+        lr_data['eway_bills'] = eway_list
+        # Keep backward compatibility for old UI fields.
+        if eway_list:
+            lr_data['eway_bill'] = eway_list[0]
+        elif not lr_data.get('eway_bill'):
+            lr_data['eway_bill'] = None
+    return lr_payloads
 
 
 def _coerce_lr_payload(payload: dict) -> dict:
@@ -147,7 +204,8 @@ def create_lr(payload: LRCreate) -> dict:
         db.add(obj)
         db.commit()
         db.refresh(obj)
-        return _model_to_dict(obj)
+        data = _model_to_dict(obj)
+        return _attach_eway_bills(db, [data])[0]
     finally:
         db.close()
 
@@ -156,7 +214,8 @@ def get_all_lrs() -> List[dict]:
     db = SessionLocal()
     try:
         rows = db.query(LRModel).order_by(LRModel.id.desc()).all()
-        return [_model_to_dict(r) for r in rows]
+        payloads = [_model_to_dict(r) for r in rows]
+        return _attach_eway_bills(db, payloads)
     finally:
         db.close()
 
@@ -167,7 +226,8 @@ def get_lr_by_id(lr_id: int) -> dict:
         obj = db.query(LRModel).filter(LRModel.id == lr_id).first()
         if not obj:
             return None
-        return _model_to_dict(obj)
+        data = _model_to_dict(obj)
+        return _attach_eway_bills(db, [data])[0]
     finally:
         db.close()
 
@@ -178,7 +238,8 @@ def get_lr_by_number(lr_number: str) -> dict:
         obj = db.query(LRModel).filter(LRModel.lr_number == lr_number).first()
         if not obj:
             return None
-        return _model_to_dict(obj)
+        data = _model_to_dict(obj)
+        return _attach_eway_bills(db, [data])[0]
     finally:
         db.close()
 
@@ -198,7 +259,8 @@ def update_lr(lr_id: int, payload: dict) -> dict:
         
         db.commit()
         db.refresh(obj)
-        return _model_to_dict(obj)
+        data = _model_to_dict(obj)
+        return _attach_eway_bills(db, [data])[0]
     finally:
         db.close()
 
@@ -225,6 +287,7 @@ def verify_lr_pod(lr_id: int) -> dict:
         obj.status = 'POD_VERIFIED'
         db.commit()
         db.refresh(obj)
-        return _model_to_dict(obj)
+        data = _model_to_dict(obj)
+        return _attach_eway_bills(db, [data])[0]
     finally:
         db.close()

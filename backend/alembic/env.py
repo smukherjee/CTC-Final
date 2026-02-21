@@ -32,6 +32,7 @@ from app.models import (
     contract,
     vehicle_location,
     file_upload,
+    ewaybill,
 )
 target_metadata = Base.metadata
 

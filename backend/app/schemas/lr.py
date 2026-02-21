@@ -60,6 +60,7 @@ class LRCreate(BaseModel):
     cm_date: Optional[str] = None
     remarks: Optional[str] = None
     eway_bill: Optional[Any] = None # JSON
+    eway_bills: Optional[List[Any]] = None
     pod_url: Optional[str] = None
     pod_verified_at: Optional[str] = None
 
@@ -109,6 +110,7 @@ class LRUpdate(BaseModel):
     cm_date: Optional[str] = None
     remarks: Optional[str] = None
     eway_bill: Optional[Any] = None
+    eway_bills: Optional[List[Any]] = None
     pod_url: Optional[str] = None
     pod_verified_at: Optional[str] = None
     status: Optional[str] = None

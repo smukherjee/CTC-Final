@@ -73,12 +73,19 @@ export interface Trip {
 export type LRStatus = 'DRAFT' | 'DISPATCHED' | 'DELIVERED' | 'POD_UPLOADED' | 'POD_VERIFIED' | 'BILLED';
 
 export interface EWayBill {
-    id: string;
+    id: string | number;
+    lr_id?: string | number;
     number: string;
-    valid_from: string;
-    valid_upto: string;
+    valid_from?: string;
+    valid_upto?: string;
+    expires_at?: string;
     status: 'ACTIVE' | 'EXPIRED';
-    alert_sent: boolean;
+    is_expired?: boolean;
+    alert_sent?: boolean;
+    file_url?: string;
+    extension_count?: number;
+    last_extended_at?: string;
+    meta?: Record<string, unknown>;
 }
 
 export interface GoodsLineItem {
@@ -114,7 +121,8 @@ export interface LR {
     // Locations
     delivery_at?: string; // Specific delivery point
 
-    eway_bill?: EWayBill;
+    eway_bill?: EWayBill | null;
+    eway_bills?: EWayBill[];
 
     // Goods - Multi-line items
     goods_items: GoodsLineItem[];
