@@ -289,6 +289,10 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
     const draftStatus = formOptions.defaults.lr_status || '';
     const isReadOnly = !!(lrId && draftStatus && status !== draftStatus);
 
+    // Use resolved DB id when available; fall back to route/prop or initialData id so
+    // upload managers remain enabled when viewing an existing (read-only) LR.
+    const effectiveLrId: number | undefined = resolvedLrId ?? (initialData?.id ? Number(initialData.id) : (lrId ? Number(lrId) : undefined));
+
     // --- AG Grid Handlers ---
 
     const addGoodsLine = () => {
@@ -919,14 +923,14 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
 
                         {/* 6. File Uploads */}
                         <div className="border-t border-slate-200 pt-6">
-                            <EWayBillManager lrId={resolvedLrId || undefined} />
+                            <EWayBillManager lrId={effectiveLrId} />
                         </div>
 
                         {/* 7. File Uploads */}
                         <div className="border-t border-slate-200 pt-6">
                             <FileUpload
                                 title="LR / Invoice / E-Way / POD Uploads"
-                                lrId={resolvedLrId || undefined}
+                                lrId={effectiveLrId}
                                 allowedDocumentTypes={['LR', 'INVOICE', 'EWAY_BILL', 'POD']}
                             />
                         </div>
