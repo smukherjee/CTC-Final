@@ -4,6 +4,7 @@ import { Trash2 } from 'lucide-react';
 
 import { useApiList } from '@/hooks/useApiList';
 import AppAgGrid from '@/components/grid/AppAgGrid';
+import { confirmDestructiveAction } from '@/utils/destructiveAction';
 
 type RowId = number | string;
 
@@ -51,6 +52,10 @@ export default function MasterCrudGrid<T extends { id?: RowId }>({
   const onDelete = useCallback(async (row: T) => {
     const id = row.id;
     if (id === undefined || id === null) return;
+    const rowLabel = (row as any)?.name || String(id);
+    if (!confirmDestructiveAction({ action: 'Delete this record', subject: rowLabel })) {
+      return;
+    }
     await axios.delete(`${listEndpoint}${id}`);
     setData((prev) => prev.filter((it) => String(it.id) !== String(id)));
   }, [listEndpoint, setData]);
@@ -88,7 +93,7 @@ export default function MasterCrudGrid<T extends { id?: RowId }>({
       ...columns,
       {
         headerName: 'ACT',
-        width: 80,
+        width: 96,
         pinned: 'right',
         sortable: false,
         filter: false,
@@ -100,11 +105,13 @@ export default function MasterCrudGrid<T extends { id?: RowId }>({
             <div className="flex items-center justify-center h-full gap-1">
               <button
                 onClick={() => onDelete(row)}
-                className="p-1 rounded hover:bg-red-100 text-red-600 transition-colors disabled:opacity-50"
+                type="button"
+                className="h-11 w-11 inline-flex items-center justify-center rounded-md hover:bg-red-100 text-red-600 transition-colors disabled:opacity-50"
                 title="Delete"
+                aria-label="Delete record"
                 disabled={isSaving}
               >
-                <Trash2 size={14} />
+                <Trash2 size={16} />
               </button>
             </div>
           );

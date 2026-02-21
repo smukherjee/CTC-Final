@@ -15,6 +15,7 @@ import { printLR } from '@/utils/printLR';
 import { EMPTY_FORM_OPTIONS, fetchFormOptions, type FormOptions } from '@/config/formOptions';
 import { mapApiLrToUi } from './lrMappings';
 import AppAgGrid from '@/components/grid/AppAgGrid';
+import { confirmDestructiveAction } from '@/utils/destructiveAction';
 
 // Zod Schema for Validation
 const lrSchema = z.object({
@@ -307,9 +308,26 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
 
     const handleDeleteLine = useCallback((id: string) => {
         if (goodsItems.length > 1) {
+            const targetLine = goodsItems.find((item) => item.id === id);
+            const hasData = Boolean(
+                targetLine &&
+                (
+                    toNumber(targetLine.articles_count) > 0 ||
+                    toNumber(targetLine.weight_qtl) > 0 ||
+                    toNumber(targetLine.weight_kg) > 0 ||
+                    toNumber(targetLine.rate_per_qtl) > 0 ||
+                    toNumber(targetLine.freight_rs) > 0 ||
+                    toNumber(targetLine.freight_p) > 0 ||
+                    String(targetLine.description || '').trim() ||
+                    String((targetLine as any).remarks || '').trim()
+                )
+            );
+            if (hasData && !confirmDestructiveAction({ action: 'Delete this goods line' })) {
+                return;
+            }
             setGoodsItems(prev => prev.filter(item => item.id !== id));
         }
-    }, [goodsItems.length]);
+    }, [goodsItems, toNumber]);
 
     const onCellValueChanged = useCallback((event: any) => {
         const item = event.data as GoodsLineItem;
@@ -550,19 +568,19 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
         },
         {
             headerName: 'Act',
-            width: 60,
+            width: 90,
             pinned: 'right',
             cellRenderer: (params: { data: GoodsLineItem }) => (
                 <div className="flex items-center justify-center h-full">
                     <button
                         type="button"
                         onClick={() => handleDeleteLine(params.data.id)}
-                        className="p-1 rounded hover:bg-red-100 text-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="h-11 w-11 inline-flex items-center justify-center rounded-md hover:bg-red-100 text-red-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                         disabled={goodsItems.length === 1 || isReadOnly}
                         aria-label="Delete line item"
                         title="Delete line item"
                     >
-                        <Trash2 size={14} />
+                        <Trash2 size={16} />
                     </button>
                 </div>
             ),

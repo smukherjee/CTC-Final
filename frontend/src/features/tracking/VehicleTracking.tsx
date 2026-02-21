@@ -288,21 +288,23 @@ export default function VehicleTracking() {
         },
         {
             headerName: 'Actions',
-            width: 80,
+            width: 96,
             pinned: 'right',
             cellRenderer: (params: { data: VehicleLocationItem }) => (
                 <div className="flex items-center justify-center h-full">
                     <button
+                        type="button"
                         onClick={() =>
                             loadHistory(
                                 params.data.lr_id,
                                 `${params.data.lr_number || 'LR'} • ${params.data.vehicle_number}`,
                             )
                         }
-                        className="p-1 rounded hover:bg-blue-100 text-blue-600 transition-colors"
+                        className="h-11 w-11 inline-flex items-center justify-center rounded-md hover:bg-blue-100 text-blue-700 transition-colors"
                         title="View History"
+                        aria-label="View location history"
                     >
-                        <History size={14} />
+                        <History size={16} />
                     </button>
                 </div>
             ),
@@ -411,7 +413,7 @@ export default function VehicleTracking() {
             </Dialog>
 
             {/* Hints */}
-            <div className="text-xs text-slate-400 text-center space-x-4">
+            <div className="text-xs text-slate-500 text-center space-x-4">
                 <span>💡 Double-click Current City or Status to edit</span>
                 <span>•</span>
                 <span>Green = Arrived Destination</span>

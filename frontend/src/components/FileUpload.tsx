@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import { confirmDestructiveAction } from '@/utils/destructiveAction';
 
 type DocumentType = 'LR' | 'INVOICE' | 'EWAY_BILL' | 'POD';
 
@@ -113,6 +114,7 @@ export default function FileUpload({
 
   const handleArchive = async (docId: number) => {
     if (!allowArchive) return;
+    if (!confirmDestructiveAction({ action: 'Archive this file' })) return;
     try {
       await axios.post(`/api/files/${docId}/archive`);
       await loadDocuments();
@@ -216,7 +218,7 @@ export default function FileUpload({
                   {allowArchive && !doc.is_archived && (
                     <button
                       type="button"
-                      className="text-red-600 hover:text-red-700 text-xs"
+                      className="inline-flex h-11 items-center rounded-md px-3 text-red-700 hover:bg-red-50 hover:text-red-800"
                       onClick={() => handleArchive(doc.id)}
                     >
                       Archive

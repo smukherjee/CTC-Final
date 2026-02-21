@@ -11,6 +11,7 @@ import { fetchFormOptions } from '@/config/formOptions';
 import { DEFAULT_LR_STATUS_COLOR, LR_STATUS_COLORS } from '@/config/lrStatus';
 import { mapApiLrsToUi, mapVendorOptions, mapVehicleOptions } from './lrMappings';
 import AppAgGrid from '@/components/grid/AppAgGrid';
+import { confirmDestructiveAction } from '@/utils/destructiveAction';
 
 // ============ COMPONENTS ============
 function StatusBadge({ value }: { value: string }) {
@@ -227,16 +228,16 @@ export default function DispatchRegister() {
     }, []);
 
     // Delete handler
-    const handleDelete = useCallback(async (id: string) => {
-        if (!confirm('Are you sure you want to delete this LR?')) return;
-        const numericId = Number(id);
+    const handleDelete = useCallback(async (lr: LR) => {
+        if (!confirmDestructiveAction({ action: 'Delete LR', subject: lr.lr_number })) return;
+        const numericId = Number(lr.id);
         if (!Number.isFinite(numericId) || numericId <= 0) {
             alert('Invalid LR id. Please refresh and try again.');
             return;
         }
         try {
             await axios.delete(`/api/lr/${numericId}`);
-            setRowData((prev) => prev.filter((row) => String(row.id) !== String(id)));
+            setRowData((prev) => prev.filter((row) => String(row.id) !== String(lr.id)));
         } catch (err: any) {
             const detail = err?.response?.data?.detail || err?.message || 'Delete failed';
             alert(`Failed to delete LR: ${detail}`);
@@ -573,22 +574,25 @@ export default function DispatchRegister() {
         // Actions
         {
             headerName: 'ACTIONS',
-            width: 80,
+            width: 152,
             pinned: 'right',
             filter: false,
             sortable: false,
             cellRenderer: (params: { data: LR }) => (
-                <div className="flex items-center justify-center h-full gap-1">
+                <div className="flex items-center justify-center h-full gap-2">
                     <button
+                        type="button"
                         onClick={() => {
                             window.location.href = `/operations/tracking?vehicle=${encodeURIComponent(params.data.vehicle_number || '')}`;
                         }}
-                        className="p-1 rounded hover:bg-green-100 text-green-600 transition-colors"
+                        className="h-11 w-11 inline-flex items-center justify-center rounded-md hover:bg-green-100 text-green-700 transition-colors"
                         title="Track Vehicle"
+                        aria-label="Track vehicle"
                     >
-                        <MapPin size={14} />
+                        <MapPin size={16} />
                     </button>
                     <button
+                        type="button"
                         onClick={() => {
                             const lrId = Number(params.data.id);
                             if (!Number.isFinite(lrId) || lrId <= 0) {
@@ -597,17 +601,20 @@ export default function DispatchRegister() {
                             }
                             window.location.href = `/operations/hirememo?lr_id=${lrId}`;
                         }}
-                        className="p-1 rounded hover:bg-blue-100 text-blue-600 transition-colors"
+                        className="h-11 w-11 inline-flex items-center justify-center rounded-md hover:bg-blue-100 text-blue-700 transition-colors"
                         title="Create Hire Memo"
+                        aria-label="Create hire memo"
                     >
-                        <Truck size={14} />
+                        <Truck size={16} />
                     </button>
                     <button
-                        onClick={() => handleDelete(params.data.id)}
-                        className="p-1 rounded hover:bg-red-100 text-red-600 transition-colors"
+                        type="button"
+                        onClick={() => handleDelete(params.data)}
+                        className="h-11 w-11 inline-flex items-center justify-center rounded-md hover:bg-red-100 text-red-700 transition-colors"
                         title="Delete"
+                        aria-label="Delete LR"
                     >
-                        <Trash2 size={14} />
+                        <Trash2 size={16} />
                     </button>
                 </div>
             ),

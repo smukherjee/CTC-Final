@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import { confirmDestructiveAction } from '@/utils/destructiveAction';
 
 interface EWayBillRecord {
   id: number;
@@ -132,7 +133,7 @@ export default function EWayBillManager({ lrId }: EWayBillManagerProps) {
   };
 
   const deleteBill = async (ewayId: number) => {
-    if (!confirm('Delete this E-way Bill record?')) return;
+    if (!confirmDestructiveAction({ action: 'Delete E-way Bill record' })) return;
     try {
       await axios.delete(`/api/ewaybill/${ewayId}`);
       await loadRows();
@@ -256,7 +257,7 @@ export default function EWayBillManager({ lrId }: EWayBillManagerProps) {
                     <button
                       type="button"
                       onClick={() => extendBill(row.id)}
-                      className="text-blue-700 hover:text-blue-800 text-xs"
+                      className="inline-flex h-11 items-center rounded-md px-3 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
                       disabled={saving}
                     >
                       Extend
@@ -267,7 +268,7 @@ export default function EWayBillManager({ lrId }: EWayBillManagerProps) {
                   <button
                     type="button"
                     onClick={() => deleteBill(row.id)}
-                    className="text-red-600 hover:text-red-700 text-xs"
+                    className="inline-flex h-11 items-center rounded-md px-3 text-red-700 hover:bg-red-50 hover:text-red-800"
                     disabled={saving}
                   >
                     Delete

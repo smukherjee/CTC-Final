@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
+import { confirmDestructiveAction } from '@/utils/destructiveAction';
 
 interface PodFileRow {
   id: number;
@@ -86,6 +87,7 @@ export default function PODVerification() {
   };
 
   const handleArchive = async (id: number) => {
+    if (!confirmDestructiveAction({ action: 'Archive POD file' })) return;
     try {
       await axios.post(`/api/files/${id}/archive`);
       await loadRows();
@@ -188,7 +190,7 @@ export default function PODVerification() {
                   {!row.is_archived && !row.pod_verified_at && (
                     <button
                       type="button"
-                      className="text-emerald-700 hover:text-emerald-800"
+                      className="inline-flex h-11 items-center rounded-md px-3 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
                       onClick={() => handleVerify(row.lr_id)}
                     >
                       Verify
@@ -197,7 +199,7 @@ export default function PODVerification() {
                   {!row.is_archived && (
                     <button
                       type="button"
-                      className="text-red-600 hover:text-red-700"
+                      className="inline-flex h-11 items-center rounded-md px-3 text-red-700 hover:bg-red-50 hover:text-red-800"
                       onClick={() => handleArchive(row.id)}
                     >
                       Archive

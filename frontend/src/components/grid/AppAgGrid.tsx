@@ -106,14 +106,23 @@ export default function AppAgGrid<T>({
           padding: 0 !important;
         }
         .dispatch-grid.ag-theme-alpine {
-          --ag-font-size: 12px;
-          --ag-header-font-size: 11px;
-          --ag-row-height: 42px;
-          --ag-header-height: 42px;
+          --ag-font-size: 14px;
+          --ag-header-font-size: 13px;
+          --ag-row-height: 48px;
+          --ag-header-height: 46px;
         }
         .dispatch-grid .ag-header-cell-text {
           font-weight: 700;
           letter-spacing: 0.2px;
+          color: #1e293b;
+        }
+        .dispatch-grid .ag-cell {
+          color: #0f172a;
+          line-height: 1.45;
+        }
+        .dispatch-grid .ag-paging-panel {
+          font-size: 13px;
+          color: #334155;
         }
       `}</style>
       <AgGridReact<T>
