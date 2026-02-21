@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import axios from 'axios';
 import { useParams } from 'react-router-dom';
@@ -489,7 +490,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
     };
 
     // --- Column Definitions ---
-    const colDefs = useMemo<any[]>(() => [
+    const colDefs = useMemo<unknown[]>(() => [
         {
             field: 'articles_count',
             headerName: 'No. of Articles',
@@ -556,6 +557,8 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                         onClick={() => handleDeleteLine(params.data.id)}
                         className="p-1 rounded hover:bg-red-100 text-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                         disabled={goodsItems.length === 1 || isReadOnly}
+                        aria-label="Delete line item"
+                        title="Delete line item"
                     >
                         <Trash2 size={14} />
                     </button>
@@ -618,16 +621,18 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                         {/* 1. Header Details */}
                         <div className="grid grid-cols-2 gap-8">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1.5">LR Number</label>
+                                <label htmlFor="lr_number" className="block text-sm font-medium text-slate-700 mb-1.5">LR Number</label>
                                 <input
                                     {...register('lr_number')}
+                                    id="lr_number"
                                     disabled
                                     className="w-full px-3 py-2 border border-slate-200 rounded-md bg-slate-50 text-slate-500"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Date</label>
+                                <label htmlFor="date" className="block text-sm font-medium text-slate-700 mb-1.5">Date</label>
                                 <input
+                                    id="date"
                                     type="date"
                                     {...register('date')}
                                     disabled={isReadOnly}
@@ -643,20 +648,22 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                         <div className="grid grid-cols-2 gap-8">
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Consignor <span className="text-red-500">*</span></label>
-                                    <select
-                                        {...register('consignor_id')}
-                                        disabled={isReadOnly}
-                                        className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
-                                    >
-                                        <option value="">Select Consignor</option>
-                                        {consignors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
+                                    <label htmlFor="consignor_id" className="block text-sm font-medium text-slate-700 mb-1.5">Consignor <span className="text-red-500">*</span></label>
+                                        <select
+                                            id="consignor_id"
+                                            {...register('consignor_id')}
+                                            disabled={isReadOnly}
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
+                                        >
+                                            <option value="">Select Consignor</option>
+                                            {consignors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        </select>
                                     {errors.consignor_id && <p className="text-red-500 text-xs mt-1">{errors.consignor_id.message}</p>}
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Origin <span className="text-red-500">*</span></label>
+                                    <label htmlFor="origin" className="block text-sm font-medium text-slate-700 mb-1.5">Origin <span className="text-red-500">*</span></label>
                                     <select
+                                        id="origin"
                                         {...register('origin')}
                                         disabled={isReadOnly}
                                         className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
@@ -670,8 +677,9 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
 
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Consignee <span className="text-red-500">*</span></label>
+                                    <label htmlFor="consignee_id" className="block text-sm font-medium text-slate-700 mb-1.5">Consignee <span className="text-red-500">*</span></label>
                                     <select
+                                        id="consignee_id"
                                         {...register('consignee_id')}
                                         disabled={isReadOnly}
                                         className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
@@ -682,8 +690,9 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                                     {errors.consignee_id && <p className="text-red-500 text-xs mt-1">{errors.consignee_id.message}</p>}
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Destination <span className="text-red-500">*</span></label>
+                                    <label htmlFor="destination" className="block text-sm font-medium text-slate-700 mb-1.5">Destination <span className="text-red-500">*</span></label>
                                     <select
+                                        id="destination"
                                         {...register('destination')}
                                         disabled={isReadOnly}
                                         className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
@@ -694,8 +703,9 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                                     {errors.destination && <p className="text-red-500 text-xs mt-1">{errors.destination.message}</p>}
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Delivery At</label>
+                                    <label htmlFor="delivery_at" className="block text-sm font-medium text-slate-700 mb-1.5">Delivery At</label>
                                     <input
+                                        id="delivery_at"
                                         {...register('delivery_at')}
                                         disabled={isReadOnly}
                                         placeholder="Specific location..."
@@ -710,8 +720,9 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                         {/* Carrier / Through */}
                         <div className="grid grid-cols-2 gap-8">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Through (Carrier/Broker)</label>
+                                <label htmlFor="through_id" className="block text-sm font-medium text-slate-700 mb-1.5">Through (Carrier/Broker)</label>
                                 <select
+                                    id="through_id"
                                     {...register('through_id')}
                                     disabled={isReadOnly}
                                     onChange={(e) => {
@@ -770,8 +781,9 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                                 <h4 className="text-sm font-medium text-slate-900">Vehicle Details</h4>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-500 mb-1">Vehicle No.</label>
+                                        <label htmlFor="vehicle_id" className="block text-xs font-medium text-slate-500 mb-1">Vehicle No.</label>
                                         <select
+                                            id="vehicle_id"
                                             {...register('vehicle_id')}
                                             disabled={isReadOnly}
                                             onChange={(e) => {
@@ -790,8 +802,9 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                                         {errors.vehicle_id && <p className="text-red-500 text-xs mt-1">{errors.vehicle_id.message}</p>}
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-500 mb-1">Seal No.</label>
+                                        <label htmlFor="seal_number" className="block text-xs font-medium text-slate-500 mb-1">Seal No.</label>
                                         <input
+                                            id="seal_number"
                                             {...register('seal_number')}
                                             disabled={isReadOnly}
                                             className="w-full px-3 py-2 border border-slate-200 rounded-md"
@@ -817,20 +830,20 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                                 <h4 className="text-sm font-medium text-slate-900">Loading Point Time</h4>
                                 <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-md border border-slate-100">
                                     <div>
-                                        <label className="block text-xs text-slate-500 mb-1">In Date</label>
-                                        <input type="date" {...register('loading_point_times.in_date')} disabled={isReadOnly} className="w-full text-xs px-2 py-1 border rounded" />
+                                        <label htmlFor="loading_point_in_date" className="block text-xs text-slate-500 mb-1">In Date</label>
+                                        <input id="loading_point_in_date" type="date" {...register('loading_point_times.in_date')} disabled={isReadOnly} className="w-full text-xs px-2 py-1 border rounded" />
                                     </div>
                                     <div>
-                                        <label className="block text-xs text-slate-500 mb-1">In Time</label>
-                                        <input type="time" {...register('loading_point_times.in_time')} disabled={isReadOnly} className="w-full text-xs px-2 py-1 border rounded" />
+                                        <label htmlFor="loading_point_in_time" className="block text-xs text-slate-500 mb-1">In Time</label>
+                                        <input id="loading_point_in_time" type="time" {...register('loading_point_times.in_time')} disabled={isReadOnly} className="w-full text-xs px-2 py-1 border rounded" />
                                     </div>
                                     <div>
-                                        <label className="block text-xs text-slate-500 mb-1">Out Date</label>
-                                        <input type="date" {...register('loading_point_times.out_date')} disabled={isReadOnly} className="w-full text-xs px-2 py-1 border rounded" />
+                                        <label htmlFor="loading_point_out_date" className="block text-xs text-slate-500 mb-1">Out Date</label>
+                                        <input id="loading_point_out_date" type="date" {...register('loading_point_times.out_date')} disabled={isReadOnly} className="w-full text-xs px-2 py-1 border rounded" />
                                     </div>
                                     <div>
-                                        <label className="block text-xs text-slate-500 mb-1">Out Time</label>
-                                        <input type="time" {...register('loading_point_times.out_time')} disabled={isReadOnly} className="w-full text-xs px-2 py-1 border rounded" />
+                                        <label htmlFor="loading_point_out_time" className="block text-xs text-slate-500 mb-1">Out Time</label>
+                                        <input id="loading_point_out_time" type="time" {...register('loading_point_times.out_time')} disabled={isReadOnly} className="w-full text-xs px-2 py-1 border rounded" />
                                     </div>
                                 </div>
                             </div>
@@ -847,8 +860,9 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
 
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between gap-4">
-                                        <label className="text-sm text-slate-600">Surcharge</label>
+                                        <label htmlFor="surcharge" className="text-sm text-slate-600">Surcharge</label>
                                         <input
+                                            id="surcharge"
                                             type="number"
                                             {...register('surcharge')}
                                             disabled={isReadOnly}
@@ -856,8 +870,9 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                                         />
                                     </div>
                                     <div className="flex items-center justify-between gap-4">
-                                        <label className="text-sm text-slate-600">Hamali Charges</label>
+                                        <label htmlFor="hamali_charges" className="text-sm text-slate-600">Hamali Charges</label>
                                         <input
+                                            id="hamali_charges"
                                             type="number"
                                             {...register('hamali_charges')}
                                             disabled={isReadOnly}
@@ -865,8 +880,9 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                                         />
                                     </div>
                                     <div className="flex items-center justify-between gap-4">
-                                        <label className="text-sm text-slate-600">St. Charges</label>
+                                        <label htmlFor="st_charges" className="text-sm text-slate-600">St. Charges</label>
                                         <input
+                                            id="st_charges"
                                             type="number"
                                             {...register('st_charges')}
                                             disabled={isReadOnly}

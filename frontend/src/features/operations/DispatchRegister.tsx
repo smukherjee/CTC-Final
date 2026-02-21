@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import axios from 'axios';
 import type { LR } from '@/types';
@@ -9,9 +11,6 @@ import { fetchFormOptions } from '@/config/formOptions';
 import { DEFAULT_LR_STATUS_COLOR, LR_STATUS_COLORS } from '@/config/lrStatus';
 import { mapApiLrsToUi, mapVendorOptions, mapVehicleOptions } from './lrMappings';
 import AppAgGrid from '@/components/grid/AppAgGrid';
-
-// Export for use in CreateLR — LRs now come from DB, this is empty
-export const MOCK_LRS: LR[] = [];
 
 // ============ COMPONENTS ============
 function StatusBadge({ value }: { value: string }) {
@@ -475,7 +474,7 @@ export default function DispatchRegister() {
         },
         // Actions
         {
-            headerName: 'Act',
+            headerName: 'ACTIONS',
             width: 80,
             pinned: 'right',
             filter: false,

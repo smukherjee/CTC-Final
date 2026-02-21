@@ -84,16 +84,21 @@ export default function HireMemo() {
 
   useEffect(() => {
     if (!activeLrId) {
-      setExistingMemoId(undefined);
-      setLinkedLrNumber('');
-      setLinkedLrDate('');
-      setLinkedArticlesCount(undefined);
-      setForm((prev) => ({ ...prev, lr_id: undefined }));
+      // reset states asynchronously to avoid cascading synchronous renders
+      setTimeout(() => {
+        setExistingMemoId(undefined);
+        setLinkedLrNumber('');
+        setLinkedLrDate('');
+        setLinkedArticlesCount(undefined);
+        setForm((prev) => ({ ...prev, lr_id: undefined }));
+      }, 0);
+
       return;
     }
 
     let mounted = true;
-    setLoading(true);
+    // defer setting loading to avoid synchronous setState inside effect
+    setTimeout(() => { if (mounted) setLoading(true); }, 0);
 
     Promise.all([
       axios.get(`/api/lr/${activeLrId}`).catch(() => ({ data: null })),
@@ -215,47 +220,47 @@ export default function HireMemo() {
 
       <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white p-6 rounded shadow">
         <div className="col-span-1">
-          <label className="block text-sm font-medium">HM No (Manual)</label>
-          <input name="hire_memo_no" value={form.hire_memo_no || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <label htmlFor="hire_memo_no" className="block text-sm font-medium">HM No (Manual)</label>
+          <input id="hire_memo_no" name="hire_memo_no" value={form.hire_memo_no || ''} onChange={updateField} className="w-full border p-2 rounded" />
         </div>
         <div className="col-span-1">
-          <label className="block text-sm font-medium">Date</label>
-          <input type="date" name="hire_memo_date" value={form.hire_memo_date || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <label htmlFor="hire_memo_date" className="block text-sm font-medium">Date</label>
+          <input id="hire_memo_date" type="date" name="hire_memo_date" value={form.hire_memo_date || ''} onChange={updateField} className="w-full border p-2 rounded" />
         </div>
         <div className="col-span-1">
-          <label className="block text-sm font-medium">Branch</label>
-          <input name="branch" value={form.branch || ''} onChange={updateField} className="w-full border p-2 rounded" />
-        </div>
-
-        <div className="col-span-1">
-          <label className="block text-sm font-medium">Vehicle No</label>
-          <input name="vehicle_number" value={form.vehicle_number || ''} onChange={updateField} className="w-full border p-2 rounded" />
-        </div>
-        <div className="col-span-1">
-          <label className="block text-sm font-medium">Driver Name</label>
-          <input name="driver_name" value={form.driver_name || ''} onChange={updateField} className="w-full border p-2 rounded" />
-        </div>
-        <div className="col-span-1">
-          <label className="block text-sm font-medium">Driver Mobile</label>
-          <input name="driver_mobile" value={form.driver_mobile || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <label htmlFor="branch" className="block text-sm font-medium">Branch</label>
+          <input id="branch" name="branch" value={form.branch || ''} onChange={updateField} className="w-full border p-2 rounded" />
         </div>
 
         <div className="col-span-1">
-          <label className="block text-sm font-medium">From</label>
-          <input name="from_location" value={form.from_location || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <label htmlFor="vehicle_number" className="block text-sm font-medium">Vehicle No</label>
+          <input id="vehicle_number" name="vehicle_number" value={form.vehicle_number || ''} onChange={updateField} className="w-full border p-2 rounded" />
         </div>
         <div className="col-span-1">
-          <label className="block text-sm font-medium">To</label>
-          <input name="to_location" value={form.to_location || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <label htmlFor="driver_name" className="block text-sm font-medium">Driver Name</label>
+          <input id="driver_name" name="driver_name" value={form.driver_name || ''} onChange={updateField} className="w-full border p-2 rounded" />
         </div>
         <div className="col-span-1">
-          <label className="block text-sm font-medium">Payment At</label>
-          <input name="payment_location" value={form.payment_location || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <label htmlFor="driver_mobile" className="block text-sm font-medium">Driver Mobile</label>
+          <input id="driver_mobile" name="driver_mobile" value={form.driver_mobile || ''} onChange={updateField} className="w-full border p-2 rounded" />
         </div>
 
         <div className="col-span-1">
-          <label className="block text-sm font-medium">Rate Type</label>
-          <select name="rate_type" value={form.rate_type || ''} onChange={updateField} className="w-full border p-2 rounded">
+          <label htmlFor="from_location" className="block text-sm font-medium">From</label>
+          <input id="from_location" name="from_location" value={form.from_location || ''} onChange={updateField} className="w-full border p-2 rounded" />
+        </div>
+        <div className="col-span-1">
+          <label htmlFor="to_location" className="block text-sm font-medium">To</label>
+          <input id="to_location" name="to_location" value={form.to_location || ''} onChange={updateField} className="w-full border p-2 rounded" />
+        </div>
+        <div className="col-span-1">
+          <label htmlFor="payment_location" className="block text-sm font-medium">Payment At</label>
+          <input id="payment_location" name="payment_location" value={form.payment_location || ''} onChange={updateField} className="w-full border p-2 rounded" />
+        </div>
+
+        <div className="col-span-1">
+          <label htmlFor="rate_type" className="block text-sm font-medium">Rate Type</label>
+          <select id="rate_type" name="rate_type" value={form.rate_type || ''} onChange={updateField} className="w-full border p-2 rounded">
             <option value="">Select Rate Type</option>
             {formOptions.hirememo_rate_types.map((rateType) => (
               <option key={rateType} value={rateType}>{rateType}</option>
@@ -263,43 +268,43 @@ export default function HireMemo() {
           </select>
         </div>
         <div className="col-span-1">
-          <label className="block text-sm font-medium">Rate</label>
-          <input type="number" name="freight_rate" value={form.freight_rate || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <label htmlFor="freight_rate" className="block text-sm font-medium">Rate</label>
+          <input id="freight_rate" type="number" name="freight_rate" value={form.freight_rate || ''} onChange={updateField} className="w-full border p-2 rounded" />
         </div>
         <div className="col-span-1">
-          <label className="block text-sm font-medium">Weight (MT)</label>
-          <input type="number" name="freight_weight" value={form.freight_weight || ''} onChange={updateField} className="w-full border p-2 rounded" />
-        </div>
-
-        <div className="col-span-1">
-          <label className="block text-sm font-bold text-blue-600">Total Amount</label>
-          <input type="number" name="total_amount" value={form.total_amount || ''} onChange={updateField} className="w-full border p-2 rounded font-bold" />
-        </div>
-        <div className="col-span-1">
-          <label className="block text-sm font-medium">Advance Cash</label>
-          <input type="number" name="advance_cash" value={form.advance_cash || ''} onChange={updateField} className="w-full border p-2 rounded" />
-        </div>
-        <div className="col-span-1">
-          <label className="block text-sm font-medium">Advance Bank</label>
-          <input type="number" name="advance_bank" value={form.advance_bank || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <label htmlFor="freight_weight" className="block text-sm font-medium">Weight (MT)</label>
+          <input id="freight_weight" type="number" name="freight_weight" value={form.freight_weight || ''} onChange={updateField} className="w-full border p-2 rounded" />
         </div>
 
         <div className="col-span-1">
-          <label className="block text-sm font-medium">Commission</label>
-          <input type="number" name="commission" value={form.commission || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <label htmlFor="total_amount" className="block text-sm font-bold text-blue-600">Total Amount</label>
+          <input id="total_amount" type="number" name="total_amount" value={form.total_amount || ''} onChange={updateField} className="w-full border p-2 rounded font-bold" />
         </div>
         <div className="col-span-1">
-          <label className="block text-sm font-medium">Hamali</label>
-          <input type="number" name="hamali" value={form.hamali || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <label htmlFor="advance_cash" className="block text-sm font-medium">Advance Cash</label>
+          <input id="advance_cash" type="number" name="advance_cash" value={form.advance_cash || ''} onChange={updateField} className="w-full border p-2 rounded" />
         </div>
         <div className="col-span-1">
-          <label className="block text-sm font-medium">Mamul</label>
-          <input type="number" name="mamul" value={form.mamul || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <label htmlFor="advance_bank" className="block text-sm font-medium">Advance Bank</label>
+          <input id="advance_bank" type="number" name="advance_bank" value={form.advance_bank || ''} onChange={updateField} className="w-full border p-2 rounded" />
+        </div>
+
+        <div className="col-span-1">
+          <label htmlFor="commission" className="block text-sm font-medium">Commission</label>
+          <input id="commission" type="number" name="commission" value={form.commission || ''} onChange={updateField} className="w-full border p-2 rounded" />
+        </div>
+        <div className="col-span-1">
+          <label htmlFor="hamali" className="block text-sm font-medium">Hamali</label>
+          <input id="hamali" type="number" name="hamali" value={form.hamali || ''} onChange={updateField} className="w-full border p-2 rounded" />
+        </div>
+        <div className="col-span-1">
+          <label htmlFor="mamul" className="block text-sm font-medium">Mamul</label>
+          <input id="mamul" type="number" name="mamul" value={form.mamul || ''} onChange={updateField} className="w-full border p-2 rounded" />
         </div>
 
         <div className="col-span-3">
-          <label className="block text-sm font-medium">Notes</label>
-          <textarea name="notes" value={form.notes || ''} onChange={updateField} className="w-full border p-2 rounded" rows={3} />
+          <label htmlFor="notes" className="block text-sm font-medium">Notes</label>
+          <textarea id="notes" name="notes" value={form.notes || ''} onChange={updateField} className="w-full border p-2 rounded" rows={3} />
         </div>
 
         <div className="col-span-3 mt-4 flex justify-end gap-2">
