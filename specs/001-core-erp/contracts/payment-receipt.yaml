@@ -1,0 +1,109 @@
+openapi: "3.0.3"
+info:
+  title: CTC-ERP Payment Receipts API
+  version: "1.0"
+  description: Record and query payments received from clients
+
+paths:
+  /api/payment-receipts/:
+    get:
+      summary: List payment receipts
+      operationId: listPaymentReceipts
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string, example: "2025-26" }
+          description: Financial year filter (defaults to current FY)
+        - name: received_from
+          in: query
+          schema: { type: string }
+          description: Filter by client name (partial match)
+      responses:
+        "200":
+          description: List of payment receipts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PaymentReceiptResponse"
+    post:
+      summary: Create a payment receipt
+      operationId: createPaymentReceipt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentReceiptCreate"
+      responses:
+        "201":
+          description: Payment receipt created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentReceiptResponse"
+
+  /api/payment-receipts/{id}:
+    put:
+      summary: Update a payment receipt
+      operationId: updatePaymentReceipt
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentReceiptUpdate"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentReceiptResponse"
+    delete:
+      summary: Delete a payment receipt
+      operationId: deletePaymentReceipt
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Deleted
+
+components:
+  schemas:
+    PaymentReceiptCreate:
+      type: object
+      required: [payment_date, amount, received_from, financial_year]
+      properties:
+        payment_date: { type: string, format: date }
+        amount: { type: number, format: float }
+        received_from: { type: string }
+        financial_year: { type: string, example: "2025-26" }
+        notes: { type: string }
+
+    PaymentReceiptUpdate:
+      type: object
+      properties:
+        payment_date: { type: string, format: date }
+        amount: { type: number, format: float }
+        received_from: { type: string }
+        notes: { type: string }
+
+    PaymentReceiptResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        payment_date: { type: string, format: date }
+        amount: { type: number }
+        received_from: { type: string }
+        financial_year: { type: string }
+        notes: { type: string }
+        created_at: { type: string, format: date-time }

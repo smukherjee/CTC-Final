@@ -1,0 +1,185 @@
+openapi: "3.0.3"
+info:
+  title: CTC-ERP Billing API
+  version: "1.0"
+  description: Invoice creation and BillBook management. Note: invoice printing is handled entirely in the browser via Handlebars template (printInvoice.ts) — no PDF endpoint.
+
+paths:
+  /api/billing/invoices:
+    get:
+      summary: List invoices
+      operationId: listInvoices
+      parameters:
+        - name: party_id
+          in: query
+          schema: { type: integer }
+          description: Filter by client/party
+        - name: fy
+          in: query
+          schema: { type: string, example: "2025-26" }
+          description: Financial year filter (defaults to current FY)
+        - name: status
+          in: query
+          schema: { type: string, enum: [draft, issued, paid] }
+      responses:
+        "200":
+          description: List of invoices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InvoiceResponse"
+    post:
+      summary: Create a new invoice
+      operationId: createInvoice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceCreate"
+      responses:
+        "201":
+          description: Invoice created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceResponse"
+
+  /api/billing/invoices/{id}:
+    get:
+      summary: Get invoice by ID
+      operationId: getInvoice
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceResponse"
+    put:
+      summary: Update invoice
+      operationId: updateInvoice
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceUpdate"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceResponse"
+    delete:
+      summary: Delete invoice (draft only)
+      operationId: deleteInvoice
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Deleted
+
+components:
+  schemas:
+    InvoiceCreate:
+      type: object
+      required: [party_id, invoice_date, financial_year, lines]
+      properties:
+        party_id: { type: integer }
+        invoice_date: { type: string, format: date }
+        financial_year: { type: string, example: "2025-26" }
+        po_no: { type: string }
+        po_date: { type: string, format: date }
+        hsn_code: { type: string, default: "996791" }
+        reverse_charge: { type: boolean, default: false }
+        gst_paid_by: { type: string }
+        tds_amount: { type: number, format: float, default: 0 }
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvoiceLineCreate"
+
+    InvoiceLineCreate:
+      type: object
+      required: [lr_id, s_no]
+      properties:
+        lr_id: { type: integer }
+        s_no: { type: integer }
+        particulars: { type: string }
+        v_type: { type: string }
+        freight: { type: number, default: 0 }
+        loading_detention: { type: number, default: 0 }
+        unloading_charges: { type: number, default: 0 }
+        unloading_detention: { type: number, default: 0 }
+        other_charges: { type: number, default: 0 }
+
+    InvoiceUpdate:
+      type: object
+      properties:
+        po_no: { type: string }
+        po_date: { type: string, format: date }
+        tds_amount: { type: number }
+        reverse_charge: { type: boolean }
+        gst_paid_by: { type: string }
+        status: { type: string, enum: [draft, issued, paid] }
+
+    InvoiceResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        invoice_no: { type: string, example: "1543/25-26" }
+        invoice_date: { type: string, format: date }
+        party_id: { type: integer }
+        party_name: { type: string }
+        financial_year: { type: string }
+        po_no: { type: string }
+        po_date: { type: string, format: date }
+        hsn_code: { type: string }
+        reverse_charge: { type: boolean }
+        gst_paid_by: { type: string }
+        total_amount: { type: number }
+        tds_amount: { type: number }
+        net_amount: { type: number }
+        status: { type: string }
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvoiceLineResponse"
+
+    InvoiceLineResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        lr_id: { type: integer }
+        lr_no: { type: string }
+        lr_date: { type: string, format: date }
+        s_no: { type: integer }
+        qty: { type: integer }
+        particulars: { type: string }
+        v_type: { type: string }
+        vehicle_no: { type: string }
+        consignor: { type: string }
+        consignee: { type: string }
+        from_city: { type: string }
+        to_city: { type: string }
+        freight: { type: number }
+        loading_detention: { type: number }
+        unloading_charges: { type: number }
+        unloading_detention: { type: number }
+        other_charges: { type: number }
+        total: { type: number }
