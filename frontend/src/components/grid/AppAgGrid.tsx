@@ -125,7 +125,7 @@ export default function AppAgGrid<T>({
   }, [loading, overlayNoRowsTemplate, rowData]);
 
   return (
-    <div ref={containerRef} className={`flex-1 min-h-[500px] rounded-lg overflow-hidden border border-slate-200 ag-theme-alpine dispatch-grid ${className || ''}`}>
+    <div ref={containerRef} className={`flex-1 h-[500px] min-h-[500px] rounded-lg overflow-hidden border border-slate-200 ag-theme-alpine dispatch-grid ${className || ''}`}>
       <style>{`
         .eway-expiry-warning {
           background-color: #fef2f2 !important;
