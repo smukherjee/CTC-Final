@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text
+from sqlalchemy import Column, Integer, String, Text, Numeric
 from ..db import engine, Base
 
 
@@ -11,6 +11,7 @@ class PartyModel(Base):
     gstin = Column(String(64), nullable=True)
     mobile = Column(String(64), nullable=True)
     address = Column(Text, nullable=True)
+    tds_rate = Column(Numeric(5, 2), nullable=False, default=0)
 
 
 def create_tables():

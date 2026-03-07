@@ -17,6 +17,7 @@ LR (lrs) ──── HireMemo (hirememos)   Invoice (invoices)
   └────────────────────────────────► InvoiceLine (invoice_lines)
 
 PaymentReceipt (payment_receipts) — standalone, linked to party by name only
+Voucher (vouchers) — FY-scoped; auto-created from HireMemo advances
 Vehicle (vehicles) — referenced by LR
 Vendor (vendors) — referenced by LR (through/broker)
 ```
@@ -180,6 +181,24 @@ One row per LR within an invoice (16-column annexure structure).
 | `financial_year` | VARCHAR(7) | NOT NULL | e.g. `2025-26` |
 | `notes` | TEXT | | Optional remarks |
 | `created_at` | TIMESTAMP | DEFAULT now() | |
+
+---
+
+## 8. `vouchers` — NEW
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| `id` | SERIAL | PK | |
+| `voucher_type` | VARCHAR(20) | NOT NULL | `cash`, `bank`, `debit`, `credit` |
+| `reference_id` | INTEGER | | FK to source entity (e.g., hirememo.id) |
+| `reference_type` | VARCHAR(50) | | e.g. `hirememo`, `invoice`, `payment_receipt` |
+| `amount` | NUMERIC(12,2) | NOT NULL | |
+| `narration` | TEXT | | Description / purpose |
+| `date` | DATE | NOT NULL | Voucher date |
+| `financial_year` | VARCHAR(7) | NOT NULL | e.g. `2025-26` |
+| `created_at` | TIMESTAMP | DEFAULT now() | |
+
+**Note**: Auto-created by `voucher_service.py` when HireMemo advance is saved. Indexed by `financial_year` for LedgerBook queries.
 
 ---
 

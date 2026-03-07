@@ -147,7 +147,7 @@ export default function FileUpload({
             <select
               value={fixedDocumentType || documentType}
               onChange={(e) => setDocumentType(e.target.value as DocumentType)}
-              disabled={Boolean(fixedDocumentType)}
+              disabled={Boolean(fixedDocumentType) || !canUpload}
               className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
             >
               {effectiveTypes.map((type) => (
@@ -161,6 +161,7 @@ export default function FileUpload({
               type="file"
               accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
               onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+              disabled={!canUpload}
               className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm bg-white"
             />
           </div>

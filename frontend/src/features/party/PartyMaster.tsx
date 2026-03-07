@@ -7,6 +7,7 @@ interface Party {
   gstin?: string;
   mobile?: string;
   address?: string;
+  tds_rate?: number;
 }
 
 export default function PartyMaster() {
@@ -21,6 +22,7 @@ export default function PartyMaster() {
         gstin: '',
         mobile: '',
         address: '',
+        tds_rate: 0,
       })}
       toCreatePayload={(row) => ({
         name: row.name,
@@ -28,6 +30,7 @@ export default function PartyMaster() {
         gstin: row.gstin || null,
         mobile: row.mobile || null,
         address: row.address || null,
+        tds_rate: row.tds_rate == null ? 0 : Number(row.tds_rate),
       })}
       toUpdatePayload={(row) => ({
         name: row.name,
@@ -35,6 +38,7 @@ export default function PartyMaster() {
         gstin: row.gstin || null,
         mobile: row.mobile || null,
         address: row.address || null,
+        tds_rate: row.tds_rate == null ? 0 : Number(row.tds_rate),
       })}
       columns={[
         { field: 'id', headerName: 'ID', width: 90, editable: false, pinned: 'left' },
@@ -50,6 +54,7 @@ export default function PartyMaster() {
         },
         { field: 'gstin', headerName: 'GSTIN', width: 180, editable: true },
         { field: 'mobile', headerName: 'MOBILE', width: 140, editable: true },
+        { field: 'tds_rate', headerName: 'TDS RATE (%)', width: 140, editable: true },
         { field: 'address', headerName: 'ADDRESS', width: 280, editable: true },
       ]}
     />

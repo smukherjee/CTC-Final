@@ -7,11 +7,13 @@ import { format, isBefore, addHours, parseISO } from 'date-fns';
 import { Trash2, Truck, MapPin } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import CreateLR from './CreateLR';
+import TrackingLog from '@/features/tracking/TrackingLog';
 import { fetchFormOptions } from '@/config/formOptions';
 import { DEFAULT_LR_STATUS_COLOR, LR_STATUS_COLORS } from '@/config/lrStatus';
 import { mapApiLrsToUi, mapVendorOptions, mapVehicleOptions } from './lrMappings';
 import AppAgGrid from '@/components/grid/AppAgGrid';
 import { confirmDestructiveAction } from '@/utils/destructiveAction';
+import { generateFyDropdownOptions, getCurrentFy } from '@/utils/financialYear';
 
 // ============ COMPONENTS ============
 function StatusBadge({ value }: { value: string }) {
@@ -36,9 +38,14 @@ function StatusBadge({ value }: { value: string }) {
 
 // ============ MAIN COMPONENT ============
 export default function DispatchRegister() {
+    const currentFy = getCurrentFy();
+    const fyOptions = generateFyDropdownOptions(currentFy);
+
     const [rowData, setRowData] = useState<LR[]>([]);
     const [selectedLR, setSelectedLR] = useState<LR | null>(null);
     const [isLrModalOpen, setIsLrModalOpen] = useState(false);
+    const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+    const [trackingLrId, setTrackingLrId] = useState<number | null>(null);
 
     const handleOpenLrModal = (lr: LR) => {
         setSelectedLR(lr);
@@ -49,6 +56,16 @@ export default function DispatchRegister() {
         setSelectedLR(null);
         setIsLrModalOpen(true);
     };
+
+    const handleOpenTrackingModal = useCallback((lr: LR) => {
+        const lrId = Number(lr.id);
+        if (!Number.isFinite(lrId) || lrId <= 0) {
+            alert('Please save the LR before opening tracking.');
+            return;
+        }
+        setTrackingLrId(lrId);
+        setIsTrackingModalOpen(true);
+    }, []);
 
     const handleSaveLR = (updatedLR: LR) => {
         setRowData(prev => {
@@ -77,6 +94,7 @@ export default function DispatchRegister() {
     // Consignors and Consignees from party master
     const [consignorsList, setConsignorsList] = useState<{ id: number; name: string }[]>([]);
     const [consigneesList, setConsigneesList] = useState<{ id: number; name: string }[]>([]);
+    const [partyList, setPartyList] = useState<{ id: number; name: string }[]>([]);
     // Vehicle master: number -> type map for auto-population
     const [vehicleMap, setVehicleMap] = useState<Record<string, string>>({});
     const [vehicleIdByNumber, setVehicleIdByNumber] = useState<Record<string, number>>({});
@@ -85,6 +103,7 @@ export default function DispatchRegister() {
     const [statusOptions, setStatusOptions] = useState<string[]>([]);
     const [defaultStatus, setDefaultStatus] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [fyFilter, setFyFilter] = useState<string>(currentFy);
     const [podFilter, setPodFilter] = useState<'ALL' | 'UPLOADED' | 'VERIFIED' | 'MISSING'>('ALL');
 
 
@@ -138,6 +157,7 @@ export default function DispatchRegister() {
                 const data = res.data;
                 if (!mounted) return;
                 if (Array.isArray(data)) {
+                    setPartyList(data.map((p: any) => ({ id: Number(p.id), name: String(p.name || '') })));
                     setConsignorsList(
                         data
                             .filter((p: any) => {
@@ -166,7 +186,7 @@ export default function DispatchRegister() {
     // Load persisted LRs from backend on mount
     useEffect(() => {
         let mounted = true;
-        axios.get('/api/lr/')
+        axios.get('/api/lr/', { params: { fy: fyFilter } })
             .then(res => {
                 if (!mounted) return;
                 const data = res.data;
@@ -183,7 +203,7 @@ export default function DispatchRegister() {
             });
 
         return () => { mounted = false; };
-    }, [defaultStatus]);
+    }, [defaultStatus, fyFilter]);
 
     useEffect(() => {
         let mounted = true;
@@ -222,11 +242,6 @@ export default function DispatchRegister() {
         return undefined;
     }, [isEwayExpiringSoon]);
 
-    const getActiveEway = useCallback((row?: LR) => {
-        if (!row) return undefined;
-        return row.eway_bill || (Array.isArray(row.eway_bills) ? row.eway_bills[0] : undefined);
-    }, []);
-
     // Delete handler
     const handleDelete = useCallback(async (lr: LR) => {
         if (!confirmDestructiveAction({ action: 'Delete LR', subject: lr.lr_number })) return;
@@ -244,8 +259,21 @@ export default function DispatchRegister() {
         }
     }, []);
 
+    const isRowReadOnly = useCallback((row?: LR): boolean => {
+        if (!row) return false;
+        if (!defaultStatus) return false;
+        return row.status !== defaultStatus;
+    }, [defaultStatus]);
+
+    const editableWhenWritable = useCallback((params: { data?: LR }) => {
+        return !isRowReadOnly(params.data);
+    }, [isRowReadOnly]);
+
     // Cell value changed handler
     const onCellValueChanged = useCallback((event: any) => {
+        if (isRowReadOnly(event?.data)) {
+            return;
+        }
         const updatedData = { ...event.data };
 
         // If consignor changed, update consignor_id too
@@ -278,15 +306,23 @@ export default function DispatchRegister() {
         // Update local state immediately for responsiveness
         setRowData(prev => prev.map(row => row.id === updatedData.id ? updatedData : row));
 
-        // Persist to backend - Send FULL payload to avoid losing data
+        // Persist to backend - use lightweight PATCH for inline E-way updates
         const lrId = updatedData.id;
-        // Exclude UI-only fields or circular refs if any (none in LR type currently)
-        const payload = { ...updatedData };
+        if (event.colDef.field === 'eway_bill_no' || event.colDef.field === 'eway_bill_expiry') {
+            axios.patch(`/api/lr/${lrId}`, {
+                eway_bill_no: updatedData.eway_bill_no || null,
+                eway_bill_expiry: updatedData.eway_bill_expiry || null,
+            })
+                .then(() => console.log('LR E-way patched:', lrId))
+                .catch(err => console.error('Failed to patch LR E-way:', err));
+            return;
+        }
 
+        const payload = { ...updatedData };
         axios.put(`/api/lr/${lrId}`, payload)
             .then(() => console.log('LR saved:', lrId))
             .catch(err => console.error('Failed to save LR:', err));
-    }, [consignorsList, consigneesList, vendorNameById, vehicleMap, vehicleIdByNumber]);
+    }, [consignorsList, consigneesList, vendorNameById, vehicleMap, vehicleIdByNumber, isRowReadOnly]);
 
     const filteredRowData = useMemo(() => {
         const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -351,7 +387,7 @@ export default function DispatchRegister() {
             headerName: 'DATE',
             filter: 'agDateColumnFilter',
             width: 100,
-            editable: true,
+            editable: editableWhenWritable,
             cellEditor: 'agDateCellEditor',
             // Date format: dd/MM/yyyy
             valueFormatter: (params: any) => {
@@ -388,7 +424,7 @@ export default function DispatchRegister() {
             headerName: 'CONSIGNOR',
             filter: 'agTextColumnFilter',
             width: 180,
-            editable: true,
+            editable: editableWhenWritable,
             cellEditor: 'agSelectCellEditor',
             cellEditorParams: { values: consignorsList.map(c => c.name) },
         },
@@ -398,7 +434,7 @@ export default function DispatchRegister() {
             headerName: 'CONSIGNEE',
             filter: 'agTextColumnFilter',
             width: 180,
-            editable: true,
+            editable: editableWhenWritable,
             cellEditor: 'agSelectCellEditor',
             cellEditorParams: { values: consigneesList.map(c => c.name) },
         },
@@ -412,7 +448,7 @@ export default function DispatchRegister() {
             cellStyle: { backgroundColor: '#f1f5f9', color: '#64748b' },
         },
         // 10. ARTICLES DESCRIPTION
-        { field: 'articles_description', headerName: 'DESCRIPTION', filter: 'agTextColumnFilter', width: 200, editable: true },
+        { field: 'articles_description', headerName: 'DESCRIPTION', filter: 'agTextColumnFilter', width: 200, editable: editableWhenWritable },
 
         // 8. TYPE OF VEHICLE (auto-populated from vehicle master, readonly)
         {
@@ -428,7 +464,7 @@ export default function DispatchRegister() {
             field: 'vehicle_number',
             headerName: 'VEHICLE NO.',
             width: 120,
-            editable: true,
+            editable: editableWhenWritable,
             cellEditor: 'agSelectCellEditor',
             cellEditorParams: { values: vehicleNumbers },
             valueSetter: (params: any) => {
@@ -441,12 +477,19 @@ export default function DispatchRegister() {
                 return true;
             },
         },
+        {
+            field: 'driver_mobile',
+            headerName: 'DRIVER MOBILE',
+            width: 140,
+            editable: editableWhenWritable,
+            filter: 'agTextColumnFilter',
+        },
         // 10. ORIGIN
         {
             field: 'origin',
             headerName: 'ORIGIN',
             width: 100,
-            editable: true,
+            editable: editableWhenWritable,
             cellEditor: 'agSelectCellEditor',
             cellEditorParams: { values: citiesList },
         },
@@ -455,25 +498,38 @@ export default function DispatchRegister() {
             field: 'destination',
             headerName: 'DESTINATION',
             width: 110,
-            editable: true,
+            editable: editableWhenWritable,
             cellEditor: 'agSelectCellEditor',
             cellEditorParams: { values: citiesList },
         },
         // 12. FOB
         {
-            field: 'fob',
-            headerName: 'FOB',
-            width: 90,
-            editable: true,
+            field: 'fob_party_id',
+            headerName: 'FOB PARTY',
+            width: 180,
+            editable: editableWhenWritable,
             cellEditor: 'agSelectCellEditor',
-            cellEditorParams: { values: citiesList },
+            cellEditorParams: { values: partyList.map((p) => p.id) },
+            valueFormatter: (params: { value: number }) => {
+                const party = partyList.find((p) => p.id === Number(params.value));
+                return party ? party.name : '';
+            },
+            valueSetter: (params: any) => {
+                const newId = params.newValue === '' || params.newValue === null || params.newValue === undefined
+                    ? undefined
+                    : Number(params.newValue);
+                params.data.fob_party_id = newId;
+                const party = partyList.find((p) => p.id === Number(newId));
+                params.data.fob = party ? party.name : '';
+                return true;
+            },
         },
         // 13. THROUGH
         {
             field: 'through_id',
             headerName: 'THROUGH',
             width: 140,
-            editable: true,
+            editable: editableWhenWritable,
             cellDataType: 'number',
             cellEditor: 'agSelectCellEditor',
             cellEditorParams: { values: vendorIds },
@@ -500,22 +556,23 @@ export default function DispatchRegister() {
             field: 'bill_number',
             headerName: 'BILL NO',
             width: 80,
-            editable: true,
+            editable: editableWhenWritable,
         },
         {
+            field: 'eway_bill_no',
             headerName: 'EWAY NO',
             width: 140,
             editable: false,
-            valueGetter: (params: any) => getActiveEway(params.data)?.number || '',
+            cellStyle: { backgroundColor: '#f1f5f9', color: '#64748b' },
+            tooltipValueGetter: () => 'Managed from LR E-Way Bills section',
         },
         {
+            field: 'eway_bill_expiry',
             headerName: 'EWAY EXPIRY',
             width: 170,
             editable: false,
-            valueGetter: (params: any) => {
-                const activeEway = getActiveEway(params.data);
-                return activeEway?.expires_at || activeEway?.valid_upto || '';
-            },
+            cellStyle: { backgroundColor: '#f1f5f9', color: '#64748b' },
+            tooltipValueGetter: () => 'Auto-calculated from E-Way Bill validity',
             valueFormatter: (params: any) => {
                 if (!params.value) return '';
                 const date = parseISO(String(params.value));
@@ -528,7 +585,7 @@ export default function DispatchRegister() {
             field: 'remarks',
             headerName: 'REMARKS',
             width: 120,
-            editable: true,
+            editable: editableWhenWritable,
         },
         {
             field: 'pod_url',
@@ -566,7 +623,7 @@ export default function DispatchRegister() {
             headerName: 'STATUS',
             filter: 'agTextColumnFilter',
             width: 120,
-            editable: true,
+            editable: editableWhenWritable,
             cellEditor: 'agSelectCellEditor',
             cellEditorParams: { values: statusOptions },
             cellRenderer: (params: { value: string }) => <StatusBadge value={params.value} />,
@@ -582,9 +639,7 @@ export default function DispatchRegister() {
                 <div className="flex items-center justify-center h-full gap-2">
                     <button
                         type="button"
-                        onClick={() => {
-                            window.location.href = `/operations/tracking?vehicle=${encodeURIComponent(params.data.vehicle_number || '')}`;
-                        }}
+                        onClick={() => handleOpenTrackingModal(params.data)}
                         className="h-11 w-11 inline-flex items-center justify-center rounded-md hover:bg-green-100 text-green-700 transition-colors"
                         title="Track Vehicle"
                         aria-label="Track vehicle"
@@ -619,7 +674,7 @@ export default function DispatchRegister() {
                 </div>
             ),
         },
-    ], [handleDelete, citiesList, vendorIds, vendorNameById, vehicleMap, vehicleIdByNumber, vehicleNumbers, consignorsList, consigneesList, statusOptions, getActiveEway]);
+    ], [handleDelete, handleOpenLrModal, handleOpenTrackingModal, editableWhenWritable, citiesList, vendorIds, vendorNameById, vehicleMap, vehicleIdByNumber, vehicleNumbers, consignorsList, consigneesList, statusOptions, partyList]);
 
     // Default column settings
     const defaultColDef = useMemo(() => ({
@@ -651,6 +706,14 @@ export default function DispatchRegister() {
                         placeholder="Search LR / Party / POD..."
                         className="w-64 px-3 py-2 border border-slate-200 rounded-lg text-sm"
                     />
+                    <select
+                        value={fyFilter}
+                        onChange={(e) => setFyFilter(e.target.value)}
+                        className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+                        aria-label="Filter by financial year"
+                    >
+                        {fyOptions.map((fy) => <option key={fy} value={fy}>{fy}</option>)}
+                    </select>
                     <select
                         value={podFilter}
                         onChange={(e) => setPodFilter(e.target.value as 'ALL' | 'UPLOADED' | 'VERIFIED' | 'MISSING')}
@@ -703,6 +766,19 @@ export default function DispatchRegister() {
                         initialData={selectedLR ?? undefined}
                         isModal={true}
                         onSave={handleSaveLR}
+                    />
+                </DialogContent>
+            </Dialog>
+            <Dialog open={isTrackingModalOpen} onOpenChange={setIsTrackingModalOpen}>
+                <DialogContent className="max-w-5xl h-[85vh] overflow-auto">
+                    <DialogTitle>Tracking Log</DialogTitle>
+                    <DialogDescription>
+                        Quick location update for LR {trackingLrId || '-'}.
+                    </DialogDescription>
+                    <TrackingLog
+                        initialLrId={trackingLrId || undefined}
+                        lockLrId={true}
+                        embedded={true}
                     />
                 </DialogContent>
             </Dialog>

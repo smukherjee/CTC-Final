@@ -15,7 +15,10 @@ This specification defines the core features required for the CTC-ERP system, fo
 
 ## Non-Functional Requirements
 
-- **Financial Year Scoping**: All registers (Dispatch/LR, Hire Memo, Invoice, Payment Receipts) MUST be scoped by financial year (`YYYY-YY` format, e.g. `2025-26`). Every record that belongs to a register MUST carry a `financial_year` field. UI filters default to the current FY (April 1–March 31). New FY begins April 1.
+- **Financial Year Scoping**: All registers (Dispatch/LR, Hire Memo, Invoice, Payment Receipts, POD Management, Vouchers, Ledger Books, Reports) MUST be scoped by financial year (`YYYY-YY` format, e.g. `2025-26`). Every record that belongs to a register MUST carry a `financial_year` field. 
+  - **UI Filter Standard**: Every register screen MUST provide a FY dropdown filter showing the current FY (default selection) plus the 3 immediately prior years. Example: if current date is March 2026, dropdown shows `2025-26` (default), `2024-25`, `2023-24`, `2022-23`.
+  - FY runs April 1–March 31 (Indian financial year).
+  - Changing the dropdown MUST reload the grid/list to show only records matching the selected FY via API `?fy=` query parameter.
 - **Alerts**: E-way Bill pre-expiry alerts are surfaced as in-app banners/modals on the dashboard. Email/push notification deferred to v2.
 - **File uploads**: PDF, JPG, PNG only; max 10 MB per file.
 - **User roles**: Dispatch, Tracking, Accounts, Admin.

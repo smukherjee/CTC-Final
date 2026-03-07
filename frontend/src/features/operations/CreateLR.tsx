@@ -27,9 +27,11 @@ const lrSchema = z.object({
     destination: z.string().min(1, 'Destination is required'),
     through: z.string().optional(),
     through_id: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().optional()),
+    fob_party_id: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().optional()),
     delivery_at: z.string().optional(),
     vehicle_number: z.string().optional(),
     vehicle_id: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().optional()),
+    driver_mobile: z.string().optional(),
     seal_number: z.string().optional(),
     booked_on_owners_risk: z.boolean().optional(),
     surcharge: z.preprocess((v) => Number(v), z.number().optional()),
@@ -63,6 +65,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
     const [vendors, setVendors] = useState<any[]>([]);
     const [consignors, setConsignors] = useState<{ id: string; name: string }[]>([]);
     const [consignees, setConsignees] = useState<{ id: string; name: string }[]>([]);
+    const [fobParties, setFobParties] = useState<{ id: string; name: string }[]>([]);
     const [goodsItems, setGoodsItems] = useState<GoodsLineItem[]>([{
         id: '1',
         articles_count: 0,
@@ -86,10 +89,12 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
         destination: initialData?.destination || '',
         through: initialData?.through || '',
         through_id: initialData?.through_id ? Number(initialData.through_id) : undefined,
+        fob_party_id: (initialData as any)?.fob_party_id ? Number((initialData as any).fob_party_id) : undefined,
         delivery_at: '',
-        vehicle_number: '',
-        vehicle_id: undefined,
-        seal_number: '',
+        vehicle_number: initialData?.vehicle_number || '',
+        vehicle_id: initialData?.vehicle_id ? Number(initialData.vehicle_id) : undefined,
+        driver_mobile: initialData?.driver_mobile || '',
+        seal_number: initialData?.seal_number || '',
         booked_on_owners_risk: false,
         surcharge: 0,
         hamali_charges: 0,
@@ -110,7 +115,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
         defaultValues,
     });
 
-    const [vehiclesList, setVehiclesList] = useState<{id: string; number: string}[]>([]);
+    const [vehiclesList, setVehiclesList] = useState<{id: string; number: string; type?: string}[]>([]);
     const toNumber = useCallback((value: unknown): number => {
         const parsed = Number(value);
         return Number.isFinite(parsed) ? parsed : 0;
@@ -155,7 +160,13 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                 let loadedVehicles: any[] = [];
                 if (Array.isArray(vehicleRes.data)) {
                     // Map to id/number pairs for stable selection
-                    const vList = vehicleRes.data.map((v: any) => ({ id: String(v.id ?? v.vehicle_id ?? v._id ?? ''), number: (v.number || v.vehicle_number || v.vehicleNo || v.vehicle_no || '').toString() })).filter((x: any) => x.number);
+                    const vList = vehicleRes.data
+                        .map((v: any) => ({
+                            id: String(v.id ?? v.vehicle_id ?? v._id ?? ''),
+                            number: (v.number || v.vehicle_number || v.vehicleNo || v.vehicle_no || '').toString(),
+                            type: (v.type || v.vehicle_type || '').toString(),
+                        }))
+                        .filter((x: any) => x.number);
                     loadedVehicles = vList;
                     setVehiclesList(vList);
                 }
@@ -180,6 +191,9 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
 
                     setConsignors(loadedConsignors);
                     setConsignees(loadedConsignees);
+                    setFobParties(
+                        partyRes.data.map((p: any) => ({ id: String(p.id), name: String(p.name || '') }))
+                    );
                 }
 
                 // 2. Map Initial Data AFTER lists are loaded
@@ -224,6 +238,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                         destination: normalizeCity(lrData?.destination || ''),
                         through: throughMatch.name || (lrData?.through || ''),
                         through_id: throughMatch.id ? Number(throughMatch.id) : undefined,
+                        fob_party_id: lrData?.fob_party_id ? Number(lrData.fob_party_id) : undefined,
                         delivery_at: lrData?.delivery_at || '',
                         vehicle_number: lrData?.vehicle_number || '',
                         vehicle_id: lrData?.vehicle_id
@@ -233,6 +248,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                                 : undefined),
                         seal_number: lrData?.seal_number || '',
                         booked_on_owners_risk: !!lrData?.booked_on_owners_risk,
+                        driver_mobile: lrData?.driver_mobile || '',
                         surcharge: toNumber(lrData?.surcharge),
                         hamali_charges: toNumber(lrData?.hamali_charges),
                         st_charges: toNumber(lrData?.st_charges),
@@ -421,6 +437,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
             delivery_at: fullLR.delivery_at,
             through: fullLR.through,
             through_id: toIntOrNull(fullLR.through_id),
+            fob_party_id: toIntOrNull((fullLR as any).fob_party_id),
             surcharge: Number(fullLR.surcharge || 0),
             hamali_charges: Number(fullLR.hamali_charges || 0),
             st_charges: Number(fullLR.st_charges || 0),
@@ -432,6 +449,10 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
             articles_description: fullLR.articles_description,
                 vehicle_id: toIntOrNull(fullLR.vehicle_id as any),
             vehicle_number: fullLR.vehicle_number,
+            vehicle_type: fullLR.vehicle_id
+                ? (vehiclesList.find((v) => String(v.id) === String(fullLR.vehicle_id))?.type || '')
+                : undefined,
+            driver_mobile: fullLR.driver_mobile,
             seal_number: fullLR.seal_number,
             booked_on_owners_risk: fullLR.booked_on_owners_risk,
             loading_point_times: fullLR.loading_point_times,
@@ -762,6 +783,18 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                                     {(vendors.length ? vendors : []).map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
                                 </select>
                             </div>
+                            <div>
+                                <label htmlFor="fob_party_id" className="block text-sm font-medium text-slate-700 mb-1.5">FOB Party</label>
+                                <select
+                                    id="fob_party_id"
+                                    {...register('fob_party_id')}
+                                    disabled={isReadOnly}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
+                                >
+                                    <option value="">Select FOB Party</option>
+                                    {fobParties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                            </div>
                         </div>
 
 
@@ -803,7 +836,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                         <div className="grid grid-cols-2 gap-8">
                             <div className="space-y-4">
                                 <h4 className="text-sm font-medium text-slate-900">Vehicle Details</h4>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-3 gap-4">
                                     <div>
                                         <label htmlFor="vehicle_id" className="block text-xs font-medium text-slate-500 mb-1">Vehicle No.</label>
                                         <select
@@ -824,6 +857,15 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                                             ))}
                                         </select>
                                         {errors.vehicle_id && <p className="text-red-500 text-xs mt-1">{errors.vehicle_id.message}</p>}
+                                    </div>
+                                    <div>
+                                        <label htmlFor="driver_mobile" className="block text-xs font-medium text-slate-500 mb-1">Driver Mobile</label>
+                                        <input
+                                            id="driver_mobile"
+                                            {...register('driver_mobile')}
+                                            disabled={isReadOnly}
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-md"
+                                        />
                                     </div>
                                     <div>
                                         <label htmlFor="seal_number" className="block text-xs font-medium text-slate-500 mb-1">Seal No.</label>

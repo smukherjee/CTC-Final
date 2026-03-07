@@ -44,6 +44,9 @@ class HireMemoModel(Base):
     ack_status = Column(String(32), nullable=False, default='PENDING')
     notes = Column(Text, nullable=True)
 
+    # Financial year scoping
+    financial_year = Column(String(7), nullable=False, default='2025-26')
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

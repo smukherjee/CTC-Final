@@ -33,6 +33,9 @@ from app.models import (
     vehicle_location,
     file_upload,
     ewaybill,
+    invoice,
+    payment_receipt,
+    voucher,
 )
 target_metadata = Base.metadata
 

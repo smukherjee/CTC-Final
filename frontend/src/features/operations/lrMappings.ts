@@ -18,6 +18,7 @@ export function mapApiLrToUi(it: any, defaultStatus = ''): LR {
     weight: it.weight || 0,
     freight_amount: it.freight_amount || 0,
     fob: it.fob || '',
+    fob_party_id: it.fob_party_id ? Number(it.fob_party_id) : undefined,
     through: it.through || '',
     through_id: it.through_id ? Number(it.through_id) : undefined,
     vehicle_type: it.vehicle_type || '',
@@ -40,7 +41,11 @@ export function mapApiLrToUi(it: any, defaultStatus = ''): LR {
     eway_bill: it.eway_bill || null,
     eway_bills: Array.isArray(it.eway_bills) ? it.eway_bills : [],
     pod_url: it.pod_url || '',
+    pod_received: Boolean(it.pod_received),
+    pod_file_id: it.pod_file_id ? Number(it.pod_file_id) : undefined,
     pod_verified_at: it.pod_verified_at || '',
+    eway_bill_no: it.eway_bill_no || '',
+    eway_bill_expiry: it.eway_bill_expiry || '',
   };
 }
 

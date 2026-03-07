@@ -4,7 +4,6 @@ interface Vendor {
   id?: number;
   name: string;
   type: string;
-  gstin?: string;
   mobile?: string;
   pan?: string;
   address?: string;
@@ -19,7 +18,6 @@ export default function VendorMaster() {
       createDraft={() => ({
         name: 'New Vendor',
         type: 'VENDOR',
-        gstin: '',
         mobile: '',
         pan: '',
         address: '',
@@ -28,7 +26,6 @@ export default function VendorMaster() {
       toCreatePayload={(row) => ({
         name: row.name,
         type: row.type,
-        gstin: row.gstin || null,
         mobile: row.mobile || null,
         pan: row.pan || null,
         address: row.address || null,
@@ -37,7 +34,6 @@ export default function VendorMaster() {
       toUpdatePayload={(row) => ({
         name: row.name,
         type: row.type,
-        gstin: row.gstin || null,
         mobile: row.mobile || null,
         pan: row.pan || null,
         address: row.address || null,
@@ -47,7 +43,6 @@ export default function VendorMaster() {
         { field: 'id', headerName: 'ID', width: 90, editable: false, pinned: 'left' },
         { field: 'name', headerName: 'NAME', width: 220, editable: true },
         { field: 'type', headerName: 'TYPE', width: 140, editable: true },
-        { field: 'gstin', headerName: 'GSTIN', width: 180, editable: true },
         { field: 'mobile', headerName: 'MOBILE', width: 140, editable: true },
         { field: 'pan', headerName: 'PAN', width: 140, editable: true },
         { field: 'address', headerName: 'ADDRESS', width: 260, editable: true },

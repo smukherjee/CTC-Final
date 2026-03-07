@@ -248,6 +248,7 @@ def list_documents(
     lr_id: Optional[int] = None,
     hirememo_id: Optional[int] = None,
     q: Optional[str] = None,
+    fy: Optional[str] = None,
     include_archived: bool = False,
 ) -> List[Dict[str, Any]]:
     apply_retention_policy()
@@ -272,6 +273,8 @@ def list_documents(
                     LRModel.consignee_name.ilike(pattern),
                 )
             )
+        if fy:
+            query = query.filter(LRModel.financial_year == fy)
 
         rows = query.order_by(FileUploadModel.created_at.desc()).all()
         return [_to_document_dict(doc, lr=lr) for doc, lr in rows]

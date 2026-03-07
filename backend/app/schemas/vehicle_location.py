@@ -5,9 +5,10 @@ from typing import Optional
 
 class VehicleLocationBase(BaseModel):
     lr_id: Optional[int] = None
-    vehicle_number: str = Field(..., min_length=1)
+    vehicle_number: Optional[str] = None
     location: str = Field(..., min_length=1)
     status: Optional[str] = None
+    timestamp: Optional[datetime] = None
     reported_by: Optional[str] = None
     notes: Optional[str] = None
 

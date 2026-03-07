@@ -36,6 +36,10 @@ from app.api.vehicle_location import router as vehicle_location_router
 from app.api.config import router as config_router
 from app.api.files import router as files_router
 from app.api.ewaybill import router as ewaybill_router
+from app.api.billing import router as billing_router
+from app.api.payment_receipts import router as payment_receipts_router
+from app.api.vouchers import router as vouchers_router
+from app.api.reports import router as reports_router
 
 
 app.include_router(party_router, prefix="/api")
@@ -51,3 +55,7 @@ app.include_router(vehicle_location_router, prefix="/api")
 app.include_router(config_router, prefix="/api")
 app.include_router(files_router, prefix="/api")
 app.include_router(ewaybill_router, prefix="/api")
+app.include_router(billing_router, prefix="/api")
+app.include_router(payment_receipts_router, prefix="/api")
+app.include_router(vouchers_router, prefix="/api")
+app.include_router(reports_router, prefix="/api")

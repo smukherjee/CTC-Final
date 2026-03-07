@@ -60,6 +60,17 @@ class LRModel(Base):
     eway_bill = Column(JSONB, nullable=True) # expiry, no, status
     pod_url = Column(String(1024), nullable=True)
     pod_verified_at = Column(DateTime(timezone=True), nullable=True)
+    pod_received = Column(Boolean, nullable=False, default=False)
+    pod_file_id = Column(Integer, nullable=True)
+
+    # E-way bill inline fields
+    eway_bill_no = Column(String(64), nullable=True)
+    eway_bill_expiry = Column(DateTime(timezone=True), nullable=True)
+
+    # Financial year scoping
+    financial_year = Column(String(7), nullable=False, default='2025-26')
+    # FOB party link
+    fob_party_id = Column(Integer, nullable=True)
 
     created_at = Column(DateTime(timezone=True), nullable=True)
     updated_at = Column(DateTime(timezone=True), nullable=True)

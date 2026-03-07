@@ -159,6 +159,7 @@ export interface LR {
 
     // New fields from Requirements
     fob?: string;
+    fob_party_id?: number;
     through?: string; // Broker/Vendor Ref
     through_id?: number; // Vendor id (foreign key)
 
@@ -168,7 +169,12 @@ export interface LR {
     booked_on_owners_risk?: boolean;
 
     pod_url?: string;
+    pod_received?: boolean;
+    pod_file_id?: number;
     pod_verified_at?: string;
+    financial_year?: string;
+    eway_bill_no?: string;
+    eway_bill_expiry?: string;
 }
 
 // Stats for Dashboard

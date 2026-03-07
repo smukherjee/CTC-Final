@@ -1,6 +1,9 @@
 from typing import Optional
+from datetime import date
 from ..models.hirememo import HireMemoModel
 from ..db import SessionLocal
+from ..core.financial_year_utils import fy_from_date as _fy_from_date, next_hirememo_seq as _next_hirememo_seq
+from ..services.voucher_service import sync_hirememo_advance_vouchers as _sync_hirememo_advance_vouchers
 
 
 def calculate_balance(total: float, cash: Optional[float], bank: Optional[float]) -> float:
@@ -9,12 +12,14 @@ def calculate_balance(total: float, cash: Optional[float], bank: Optional[float]
     return float(total) - float(cash) - float(bank)
 
 
-def get_all_hirememos(lr_id: Optional[int] = None):
+def get_all_hirememos(lr_id: Optional[int] = None, fy: Optional[str] = None):
     session = SessionLocal()
     try:
         query = session.query(HireMemoModel)
         if lr_id is not None:
             query = query.filter(HireMemoModel.lr_id == lr_id)
+        if fy is not None:
+            query = query.filter(HireMemoModel.financial_year == fy)
         return query.order_by(HireMemoModel.id.desc()).all()
     finally:
         session.close()
@@ -62,7 +67,8 @@ def _apply_payload(hm: HireMemoModel, payload: dict, partial: bool = False):
     else:
         hm.lr_id = payload.get("lr_id", hm.lr_id)
         # Meta
-        hm.hire_memo_no = payload.get("hire_memo_no")
+        if payload.get("hire_memo_no") is not None:
+            hm.hire_memo_no = payload.get("hire_memo_no")
         hm.hire_memo_date = payload.get("hire_memo_date")
         hm.branch = payload.get("branch")
         # Vehicle & Driver
@@ -99,18 +105,42 @@ def create_hirememo(payload: dict):
     session = SessionLocal()
     try:
         lr_id = payload.get("lr_id")
+
+        # Determine financial year
+        hm_date = payload.get("hire_memo_date")
+        if isinstance(hm_date, str) and hm_date:
+            try:
+                hm_date = date.fromisoformat(hm_date)
+            except ValueError:
+                hm_date = None
+        fy = _fy_from_date(hm_date) if hm_date else _fy_from_date(date.today())
+
         existing = None
         if lr_id is not None:
             existing = session.query(HireMemoModel).filter(HireMemoModel.lr_id == lr_id).first()
 
         if existing:
             _apply_payload(existing, payload, partial=False)
+            existing.financial_year = fy
             hm = existing
         else:
             hm = HireMemoModel(lr_id=lr_id)
             _apply_payload(hm, payload, partial=False)
-            session.add(hm)
+            hm.financial_year = fy
+            # Auto-assign hire memo sequence scoped to financial year.
+            seq = _next_hirememo_seq(session, fy)
+            hm.hire_memo_no = str(seq)
 
+        session.add(hm)
+        session.flush()
+        _sync_hirememo_advance_vouchers(
+            session,
+            hirememo_id=hm.id,
+            hirememo_no=hm.hire_memo_no,
+            hirememo_date=hm.hire_memo_date,
+            advance_cash=float(hm.advance_cash or 0),
+            advance_bank=float(hm.advance_bank or 0),
+        )
         session.commit()
         session.refresh(hm)
         return hm
@@ -130,6 +160,15 @@ def update_hirememo(hm_id: int, payload: dict):
         if not hm:
             return None
         _apply_payload(hm, payload, partial=True)
+        session.flush()
+        _sync_hirememo_advance_vouchers(
+            session,
+            hirememo_id=hm.id,
+            hirememo_no=hm.hire_memo_no,
+            hirememo_date=hm.hire_memo_date,
+            advance_cash=float(hm.advance_cash or 0),
+            advance_bank=float(hm.advance_bank or 0),
+        )
         session.commit()
         session.refresh(hm)
         return hm

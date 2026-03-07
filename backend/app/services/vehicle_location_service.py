@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List, Optional
 from sqlalchemy import desc
 from db.db import SessionLocal
@@ -10,7 +11,34 @@ def create_location_update(location_data: VehicleLocationCreate) -> VehicleLocat
     """Create a new location update."""
     db = SessionLocal()
     try:
-        db_location = VehicleLocationModel(**location_data.model_dump())
+        payload = location_data.model_dump()
+
+        lr_id = payload.get("lr_id")
+        lr = None
+        if lr_id:
+            lr = db.query(LRModel).filter(LRModel.id == lr_id).first()
+            if not lr:
+                raise ValueError("LR not found")
+
+        vehicle_number = (payload.get("vehicle_number") or "").strip()
+        if not vehicle_number and lr:
+            vehicle_number = (lr.vehicle_number or "").strip()
+        if not vehicle_number:
+            raise ValueError("vehicle_number is required")
+
+        reported_at = payload.get("timestamp")
+        if reported_at is not None and not isinstance(reported_at, datetime):
+            raise ValueError("timestamp must be a valid datetime")
+
+        db_location = VehicleLocationModel(
+            lr_id=lr_id,
+            vehicle_number=vehicle_number,
+            location=(payload.get("location") or "").strip(),
+            status=payload.get("status"),
+            reported_by=payload.get("reported_by"),
+            notes=payload.get("notes"),
+            reported_at=reported_at or None,
+        )
         db.add(db_location)
         db.commit()
         db.refresh(db_location)
@@ -33,7 +61,11 @@ def get_location_history_by_lr_id(lr_id: int) -> List[VehicleLocationModel]:
         db.close()
 
 
-def get_latest_locations(limit: Optional[int] = None) -> List[VehicleLatestLocation]:
+def get_latest_locations(
+    limit: Optional[int] = None,
+    fy: Optional[str] = None,
+    lr_id: Optional[int] = None,
+) -> List[VehicleLatestLocation]:
     """
     Get the latest location for each active LR.
     Joins with LR table to get trip details.
@@ -78,6 +110,10 @@ def get_latest_locations(limit: Optional[int] = None) -> List[VehicleLatestLocat
             .filter(LRModel.status.notin_(['DELIVERED', 'CANCELLED']))
             .order_by(desc(LRModel.date), desc(LRModel.id))
         )
+        if lr_id:
+            query = query.filter(LRModel.id == lr_id)
+        if fy:
+            query = query.filter(LRModel.financial_year == fy)
 
         if limit:
             query = query.limit(limit)

@@ -64,6 +64,26 @@ def _validate_lr_exists(db, lr_id: int) -> None:
         raise ValueError("LR not found")
 
 
+def _sync_lr_inline_eway(db, lr_id: int) -> None:
+    """Keep LR inline E-way fields aligned with latest eway_bills row."""
+    lr = db.query(LRModel).filter(LRModel.id == lr_id).first()
+    if not lr:
+        return
+    latest = (
+        db.query(EWayBillModel)
+        .filter(EWayBillModel.lr_id == lr_id)
+        .order_by(EWayBillModel.valid_upto.desc().nullslast(), EWayBillModel.id.desc())
+        .first()
+    )
+    if latest:
+        lr.eway_bill_no = latest.number
+        lr.eway_bill_expiry = latest.expires_at
+    else:
+        lr.eway_bill_no = None
+        lr.eway_bill_expiry = None
+    db.add(lr)
+
+
 def create_ewaybill(payload: dict) -> dict:
     db = SessionLocal()
     try:
@@ -94,6 +114,7 @@ def create_ewaybill(payload: dict) -> dict:
             extension_count=0,
         )
         db.add(obj)
+        _sync_lr_inline_eway(db, int(lr_id))
         db.commit()
         db.refresh(obj)
         return _model_to_dict(obj)
@@ -160,6 +181,7 @@ def update_ewaybill(eway_id: int, payload: dict) -> Optional[dict]:
             obj.meta = payload.get("meta")
 
         obj.status = _derive_status(obj.expires_at)
+        _sync_lr_inline_eway(db, int(obj.lr_id))
         db.commit()
         db.refresh(obj)
         return _model_to_dict(obj)
@@ -186,6 +208,7 @@ def extend_ewaybill(eway_id: int, new_valid_upto) -> Optional[dict]:
         obj.extension_count = int(obj.extension_count or 0) + 1
         obj.last_extended_at = dt_datetime.now(timezone.utc)
         obj.status = _derive_status(obj.expires_at)
+        _sync_lr_inline_eway(db, int(obj.lr_id))
         db.commit()
         db.refresh(obj)
         return _model_to_dict(obj)
@@ -196,8 +219,13 @@ def extend_ewaybill(eway_id: int, new_valid_upto) -> Optional[dict]:
 def delete_ewaybill(eway_id: int) -> bool:
     db = SessionLocal()
     try:
-        deleted = db.query(EWayBillModel).filter(EWayBillModel.id == eway_id).delete()
+        obj = db.query(EWayBillModel).filter(EWayBillModel.id == eway_id).first()
+        if not obj:
+            return False
+        lr_id = int(obj.lr_id)
+        db.delete(obj)
+        _sync_lr_inline_eway(db, lr_id)
         db.commit()
-        return bool(deleted)
+        return True
     finally:
         db.close()

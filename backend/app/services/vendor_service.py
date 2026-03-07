@@ -9,7 +9,6 @@ def _model_to_vendor(m: VendorModel) -> Vendor:
         id=m.id,
         name=m.name,
         type=m.type,
-        gstin=m.gstin,
         mobile=m.mobile,
         address=m.address,
         tds_certificate_url=m.tds_certificate_url,

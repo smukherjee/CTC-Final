@@ -42,6 +42,7 @@ def list_file_documents(
     lr_id: Optional[int] = None,
     hirememo_id: Optional[int] = None,
     q: Optional[str] = None,
+    fy: Optional[str] = None,
     include_archived: bool = False,
 ):
     return list_documents(
@@ -49,6 +50,7 @@ def list_file_documents(
         lr_id=lr_id,
         hirememo_id=hirememo_id,
         q=q,
+        fy=fy,
         include_archived=include_archived,
     )
 

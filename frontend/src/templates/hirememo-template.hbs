@@ -5,8 +5,8 @@
   <title>Hire Memo - {{hire_memo_no}}</title>
   <style>
     @page {
-      size: A6 landscape;
-      margin: 2mm;
+      size: A4 portrait;
+      margin: 8mm;
     }
 
     * { box-sizing: border-box; }
@@ -14,357 +14,229 @@
     html, body {
       margin: 0;
       padding: 0;
-      width: 100%;
       font-family: Arial, sans-serif;
       color: #000;
       background: #fff;
     }
 
-    .sheet {
-      border: 1.4px solid #000;
-      padding: 2.2mm;
-      font-size: 9px;
-      line-height: 1.2;
+    .page {
+      display: flex;
+      flex-direction: column;
+      gap: 6mm;
     }
 
-    .top-strip {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      font-size: 9px;
-      font-weight: 700;
-      margin-bottom: 0.8mm;
+    .copy {
+      border: 1px solid #000;
+      padding: 4mm;
+      min-height: calc(50vh - 12mm);
     }
 
-    .top-strip .subject { text-align: center; }
-
-    .brand {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 1.6mm;
-      align-items: end;
-      margin-bottom: 0.4mm;
-    }
-
-    .brand .logo {
-      font-size: 18px;
-      font-weight: 800;
-      line-height: 1;
-    }
-
-    .brand .name {
-      font-size: 14px;
+    .copy-title {
+      text-align: center;
+      font-size: 12px;
       font-weight: 800;
       text-transform: uppercase;
-      line-height: 1;
+      margin-bottom: 3mm;
+      letter-spacing: 0.4px;
     }
 
-    .addr {
-      font-size: 8.2px;
-      font-weight: 700;
-      margin-bottom: 1.2mm;
-      text-transform: uppercase;
-    }
-
-    .meta-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 2mm;
-      margin-bottom: 0.8mm;
-      align-items: end;
-    }
-
-    .meta-item {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 1mm;
-      align-items: end;
+    .head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 2mm;
       font-size: 12px;
       font-weight: 700;
     }
 
-    .line {
-      border-bottom: 1px solid #000;
-      min-height: 4mm;
-      line-height: 3.6mm;
-      padding: 0 0.8mm;
-      text-transform: uppercase;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
+    .subhead {
       font-size: 11px;
-      font-weight: 600;
-    }
-
-    .stmt {
-      margin-bottom: 0.8mm;
-      font-size: 10px;
       font-weight: 700;
+      margin-bottom: 3mm;
+      border-bottom: 1px solid #000;
+      padding-bottom: 1.5mm;
     }
 
-    .inline-fields {
-      display: inline-grid;
-      grid-auto-flow: column;
-      align-items: end;
-      gap: 0.8mm;
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 2mm 6mm;
+      font-size: 10px;
+      margin-bottom: 3mm;
     }
 
-    .small-line {
+    .line {
+      border-bottom: 1px dotted #000;
+      padding: 0 1mm;
+      min-height: 4mm;
       display: inline-block;
       min-width: 26mm;
-      border-bottom: 1px dotted #000;
-      line-height: 3.4mm;
-      height: 3.8mm;
-      vertical-align: bottom;
-      padding: 0 0.6mm;
-      text-transform: uppercase;
-      font-size: 10px;
-      font-weight: 600;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-    }
-
-    .small-line.narrow { min-width: 16mm; }
-    .small-line.wide { min-width: 38mm; }
-
-    .amount-grid {
-      display: grid;
-      grid-template-columns: 1fr 1.2fr 1fr;
-      gap: 2mm;
-      margin-top: 1.1mm;
-      margin-bottom: 1.2mm;
-      min-height: 21mm;
-    }
-
-    .amount-col {
-      border-top: 1px solid #000;
-      padding-top: 0.8mm;
-    }
-
-    .amount-col .head {
-      font-size: 11px;
-      font-weight: 800;
-      text-align: center;
-      margin-bottom: 1.2mm;
-      text-transform: uppercase;
-    }
-
-    .big-write {
-      min-height: 7mm;
-      font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
-      margin-bottom: 2.4mm;
-      border-bottom: 1px dotted #000;
-      padding: 0 0.6mm;
-      line-height: 6.2mm;
-    }
-
-    .money-row {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 1mm;
-      align-items: end;
-      margin-bottom: 1.4mm;
-      font-size: 11px;
-      font-weight: 800;
-    }
-
-    .money-line {
-      border-bottom: 1px solid #000;
-      min-height: 4.4mm;
       line-height: 4mm;
-      padding: 0 0.8mm;
-      font-size: 11px;
+      vertical-align: bottom;
+    }
+
+    .paragraph {
+      font-size: 10px;
+      line-height: 1.35;
+      margin-bottom: 2.5mm;
+    }
+
+    .money {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 3mm;
+      margin-bottom: 3mm;
+    }
+
+    .money-box {
+      border: 1px solid #000;
+      padding: 2mm;
+      font-size: 10px;
+    }
+
+    .money-box .label {
+      font-weight: 800;
+      margin-bottom: 1.2mm;
+      text-transform: uppercase;
+    }
+
+    .money-box .value {
       font-weight: 700;
-      text-align: right;
+      min-height: 4mm;
     }
 
     .words {
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      align-items: end;
-      gap: 1mm;
+      margin-bottom: 3mm;
       font-size: 10px;
       font-weight: 700;
-      margin-bottom: 1.1mm;
     }
 
-    .words .line {
-      min-height: 4.2mm;
-      font-size: 10px;
-      line-height: 3.8mm;
-      font-weight: 600;
-    }
-
-    .sign-grid {
+    .signs {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 4mm;
-      margin-bottom: 1.2mm;
-    }
-
-    .sign-box {
-      min-height: 12mm;
-    }
-
-    .sign-title {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10mm;
       font-size: 10px;
-      font-weight: 800;
-      text-transform: uppercase;
-      margin-bottom: 5mm;
+      margin-top: 4mm;
     }
 
     .sign-line {
       border-bottom: 1px solid #000;
-      min-height: 4mm;
-      margin-bottom: 0.8mm;
+      margin-top: 10mm;
+      margin-bottom: 1mm;
     }
 
-    .sign-label {
-      font-size: 10px;
-      font-weight: 700;
-    }
-
-    .footer-copy {
-      border-top: 1px solid #000;
-      padding-top: 1mm;
-      font-size: 10px;
-      font-weight: 700;
-      line-height: 1.25;
-    }
-
-    .footer-copy .dotline {
-      display: inline-block;
-      min-width: 22mm;
-      border-bottom: 1px dotted #000;
-      height: 3.6mm;
-      line-height: 3.2mm;
-      vertical-align: bottom;
-      padding: 0 0.6mm;
-      text-transform: uppercase;
-      font-size: 10px;
-      font-weight: 600;
-    }
-
-    .company-final {
-      text-align: right;
-      margin-top: 1.2mm;
-      font-size: 10px;
-      font-weight: 800;
-      text-transform: uppercase;
-    }
-
-    .generated {
-      margin-top: 0.8mm;
-      text-align: right;
-      font-size: 8px;
-      color: #555;
+    @media print {
+      .copy {
+        page-break-inside: avoid;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="sheet">
-    <div class="top-strip">
-      <div class="subject">Subject to Chennai Court Jurisdiction only</div>
-      <div>Phone : 044-4272 5261</div>
-    </div>
-
-    <div class="brand">
-      <div class="logo">CTC</div>
-      <div class="name">Chandra Transport Corporation</div>
-    </div>
-
-    <div class="addr">Flat No. 31, BBC Villa Complex, 65, Broadway, Chennai - 600 108.</div>
-
-    <div class="meta-row">
-      <div class="meta-item">
-        <span>Hire Memo No.</span>
-        <span class="line">{{hire_memo_no}}</span>
+  <div class="page">
+    <section class="copy">
+      <div class="copy-title">Original Copy</div>
+      <div class="head">
+        <span>Chandra Transport Corporation</span>
+        <span>Phone: 044-4272 5261</span>
       </div>
-      <div class="meta-item">
-        <span>Date</span>
-        <span class="line">{{hire_memo_date}}</span>
+      <div class="subhead">Flat No. 31, BBC Villa Complex, 65, Broadway, Chennai - 600 108.</div>
+
+      <div class="grid">
+        <div>Hire Memo No: <span class="line">{{hire_memo_no}}</span></div>
+        <div>Date: <span class="line">{{hire_memo_date}}</span></div>
+        <div>LR No: <span class="line">{{lr_number}}</span></div>
+        <div>LR Date: <span class="line">{{lr_date}}</span></div>
+        <div>Vehicle No: <span class="line">{{vehicle_number}}</span></div>
+        <div>Driver: <span class="line">{{driver_name}}</span></div>
       </div>
-    </div>
 
-    <div class="meta-row" style="grid-template-columns: 1fr; margin-bottom: 1.1mm;">
-      <div class="meta-item">
-        <span>Branch</span>
-        <span class="line">{{branch}}</span>
+      <div class="paragraph">
+        Loaded from <span class="line">{{from_location}}</span> to <span class="line">{{to_location}}</span>.
+        Payment at <span class="line">{{payment_location}}</span>. No. of articles: <span class="line">{{articles_count}}</span>.
       </div>
-    </div>
 
-    <div class="stmt">
-      We have loaded your Lorry No.
-      <span class="small-line wide">{{vehicle_number}}</span>
-      Driver Name
-      <span class="small-line wide">{{driver_name}}</span>
-    </div>
-
-    <div class="stmt">
-      No. of articles
-      <span class="small-line">{{articles_count}}</span>
-      as per LR No
-      <span class="small-line">{{lr_number}}</span>
-      Dated
-      <span class="small-line">{{lr_date}}</span>
-    </div>
-
-    <div class="stmt">
-      You are responsible for the safe and timely delivery of these articles in good condition
-      from <span class="small-line">{{from_location}}</span>
-      to <span class="small-line">{{to_location}}</span>
-      and collect the payment as under from
-      <span class="small-line">{{payment_location}}</span>
-      on production of this memo duly receipted by the destination office.
-    </div>
-
-    <div class="amount-grid">
-      <div class="amount-col">
-        <div class="head">Rate</div>
-        <div class="big-write">{{rate_type}}</div>
+      <div class="money">
+        <div class="money-box"><div class="label">Rate Type</div><div class="value">{{rate_type}}</div></div>
+        <div class="money-box"><div class="label">Freight Weight</div><div class="value">{{freight_weight}}</div></div>
+        <div class="money-box">
+          <div class="label">Amounts</div>
+          <div class="value">Total: {{total_amount}}</div>
+          <div class="value">Advance: {{part_payment}}</div>
+          <div class="value">Balance: {{balance}}</div>
+        </div>
       </div>
-      <div class="amount-col">
-        <div class="head">Freight to be paid<br>For Weight</div>
-        <div class="big-write">{{freight_weight}}</div>
-      </div>
-      <div class="amount-col">
-        <div class="head">Total Amount</div>
-        <div class="money-row"><span>Rs.</span><span class="money-line">{{total_amount}}</span></div>
-        <div class="money-row"><span>Less Part Payment</span><span class="money-line">{{part_payment}}</span></div>
-        <div class="money-row" style="margin-bottom:0;"><span>Balance</span><span class="money-line">{{balance}}</span></div>
-      </div>
-    </div>
 
-    <div class="words">
-      <span>(Rs.</span>
-      <span class="line">{{balance_in_words}}</span>
-      <span>only)</span>
-    </div>
+      <div class="words">Amount in words: {{balance_in_words}}</div>
 
-    <div class="sign-grid">
-      <div class="sign-box">
-        <div class="sign-title">For Chandra Transport Corporation</div>
-        <div class="sign-line"></div>
+      <div class="paragraph">
+        Deductions: Rs {{other_deductions}} on account of {{notes}}.
       </div>
-      <div class="sign-box">
-        <div class="sign-title">I/We confirm and acknowledge the above</div>
-        <div class="sign-line"></div>
-        <div class="sign-label">Signature of Driver / Owner</div>
-        <div class="sign-label" style="margin-top: 0.8mm;">Lic. No. <span class="small-line narrow">{{driver_license}}</span></div>
+
+      <div class="signs">
+        <div>
+          <div class="sign-line"></div>
+          <div>For Chandra Transport Corporation</div>
+        </div>
+        <div>
+          <div class="sign-line"></div>
+          <div>Driver / Owner Sign (Lic: {{driver_license}})</div>
+        </div>
       </div>
-    </div>
+    </section>
 
-    <div class="footer-copy">
-      We acknowledge the receipt of <span class="dotline">{{articles_count}}</span> articles as per details in your L.R No
-      <span class="dotline">{{lr_number}}</span> from the Lorry mentioned above.<br>
-      The hire may be paid after making the following deductions for reasons given below:<br>
-      Deduct Rs <span class="dotline">{{other_deductions}}</span> on account of <span class="dotline">{{notes}}</span>
-      <div class="company-final">For Chandra Transport Corporation</div>
-    </div>
+    <section class="copy">
+      <div class="copy-title">Book Copy</div>
+      <div class="head">
+        <span>Chandra Transport Corporation</span>
+        <span>Phone: 044-4272 5261</span>
+      </div>
+      <div class="subhead">Flat No. 31, BBC Villa Complex, 65, Broadway, Chennai - 600 108.</div>
 
-    <div class="generated">Generated on {{generated_at}}</div>
+      <div class="grid">
+        <div>Hire Memo No: <span class="line">{{hire_memo_no}}</span></div>
+        <div>Date: <span class="line">{{hire_memo_date}}</span></div>
+        <div>LR No: <span class="line">{{lr_number}}</span></div>
+        <div>LR Date: <span class="line">{{lr_date}}</span></div>
+        <div>Vehicle No: <span class="line">{{vehicle_number}}</span></div>
+        <div>Driver: <span class="line">{{driver_name}}</span></div>
+      </div>
+
+      <div class="paragraph">
+        Loaded from <span class="line">{{from_location}}</span> to <span class="line">{{to_location}}</span>.
+        Payment at <span class="line">{{payment_location}}</span>. No. of articles: <span class="line">{{articles_count}}</span>.
+      </div>
+
+      <div class="money">
+        <div class="money-box"><div class="label">Rate Type</div><div class="value">{{rate_type}}</div></div>
+        <div class="money-box"><div class="label">Freight Weight</div><div class="value">{{freight_weight}}</div></div>
+        <div class="money-box">
+          <div class="label">Amounts</div>
+          <div class="value">Total: {{total_amount}}</div>
+          <div class="value">Advance: {{part_payment}}</div>
+          <div class="value">Balance: {{balance}}</div>
+        </div>
+      </div>
+
+      <div class="words">Amount in words: {{balance_in_words}}</div>
+
+      <div class="paragraph">
+        Deductions: Rs {{other_deductions}} on account of {{notes}}.
+      </div>
+
+      <div class="signs">
+        <div>
+          <div class="sign-line"></div>
+          <div>For Chandra Transport Corporation</div>
+        </div>
+        <div>
+          <div class="sign-line"></div>
+          <div>Driver / Owner Sign (Lic: {{driver_license}})</div>
+        </div>
+      </div>
+    </section>
   </div>
 </body>
 </html>

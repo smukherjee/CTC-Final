@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
 import { confirmDestructiveAction } from '@/utils/destructiveAction';
+import { generateFyDropdownOptions, getCurrentFy } from '@/utils/financialYear';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 
 interface PodFileRow {
   id: number;
@@ -17,6 +19,9 @@ interface PodFileRow {
 }
 
 export default function PODVerification() {
+  const currentFy = getCurrentFy();
+  const fyOptions = generateFyDropdownOptions(currentFy);
+  const [fy, setFy] = useState(currentFy);
   const [rows, setRows] = useState<PodFileRow[]>([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -24,6 +29,7 @@ export default function PODVerification() {
   const [lrNumber, setLrNumber] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [verifyPreview, setVerifyPreview] = useState<PodFileRow | null>(null);
 
   const loadRows = useCallback(async () => {
     setLoading(true);
@@ -32,6 +38,7 @@ export default function PODVerification() {
         params: {
           document_type: 'POD',
           q: query || undefined,
+          fy,
           include_archived: includeArchived,
         },
       });
@@ -42,7 +49,7 @@ export default function PODVerification() {
     } finally {
       setLoading(false);
     }
-  }, [query, includeArchived]);
+  }, [query, includeArchived, fy]);
 
   useEffect(() => {
     void loadRows();
@@ -81,6 +88,7 @@ export default function PODVerification() {
     try {
       await axios.post(`/api/lr/${lrId}/pod/verify`);
       await loadRows();
+      setVerifyPreview(null);
     } catch (err: any) {
       alert(`POD verification failed: ${err?.response?.data?.detail || err?.message || 'Unknown error'}`);
     }
@@ -100,7 +108,7 @@ export default function PODVerification() {
     <div className="h-full flex flex-col gap-4">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">POD Verification</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900">POD Management</h2>
           <p className="text-sm text-slate-500 mt-1">Upload, search, verify, and archive POD documents</p>
         </div>
       </div>
@@ -138,6 +146,19 @@ export default function PODVerification() {
       </div>
 
       <div className="bg-white border rounded-lg p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <label htmlFor="pod_fy" className="text-sm font-medium text-slate-700">FY</label>
+          <select
+            id="pod_fy"
+            value={fy}
+            onChange={(e) => setFy(e.target.value)}
+            className="rounded border px-3 py-2 text-sm"
+          >
+            {fyOptions.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        </div>
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -172,7 +193,20 @@ export default function PODVerification() {
             )}
             {!loading && rows.map((row) => (
               <tr key={row.id} className="border-t border-slate-100">
-                <td className="px-3 py-2 font-medium">{row.lr_number || '-'}</td>
+                <td className="px-3 py-2 font-medium">
+                  {row.lr_id ? (
+                    <a
+                      href={`/operations/lr/${row.lr_id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-700 hover:underline"
+                    >
+                      {row.lr_number || `LR-${row.lr_id}`}
+                    </a>
+                  ) : (
+                    row.lr_number || '-'
+                  )}
+                </td>
                 <td className="px-3 py-2">{row.consignor_name || '-'}</td>
                 <td className="px-3 py-2">{row.consignee_name || '-'}</td>
                 <td className="px-3 py-2">
@@ -191,9 +225,9 @@ export default function PODVerification() {
                     <button
                       type="button"
                       className="inline-flex h-11 items-center rounded-md px-3 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
-                      onClick={() => handleVerify(row.lr_id)}
+                      onClick={() => setVerifyPreview(row)}
                     >
-                      Verify
+                      Review & Verify
                     </button>
                   )}
                   {!row.is_archived && (
@@ -211,6 +245,45 @@ export default function PODVerification() {
           </tbody>
         </table>
       </div>
+
+      <Dialog open={Boolean(verifyPreview)} onOpenChange={(open) => !open && setVerifyPreview(null)}>
+        <DialogContent className="max-w-5xl h-[90vh] overflow-hidden p-0">
+          <div className="p-4 border-b bg-white">
+            <DialogTitle>Review POD Proof</DialogTitle>
+            <DialogDescription>
+              Review uploaded POD for LR {verifyPreview?.lr_number || verifyPreview?.lr_id || '-'} before verifying.
+            </DialogDescription>
+          </div>
+          <div className="flex-1 h-[calc(90vh-140px)] bg-slate-50">
+            {verifyPreview?.file_url ? (
+              <iframe
+                src={verifyPreview.file_url}
+                title="POD Preview"
+                className="w-full h-full border-0"
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center text-slate-500">No POD file available to preview.</div>
+            )}
+          </div>
+          <div className="p-4 border-t bg-white flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setVerifyPreview(null)}
+              className="px-4 py-2 rounded border border-slate-300 text-slate-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!verifyPreview?.lr_id}
+              onClick={() => handleVerify(verifyPreview?.lr_id)}
+              className="px-4 py-2 rounded bg-emerald-700 text-white disabled:opacity-60"
+            >
+              Verify POD
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

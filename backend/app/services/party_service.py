@@ -12,6 +12,7 @@ def _model_to_party(m: PartyModel) -> Party:
         gstin=m.gstin,
         mobile=m.mobile,
         address=m.address,
+        tds_rate=float(m.tds_rate) if m.tds_rate is not None else 0.0,
     )
 
 

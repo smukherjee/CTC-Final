@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException
-from ..schemas.lr import LRCreate, LRUpdate
+from fastapi import APIRouter, HTTPException, Query
+from typing import Optional
+from ..schemas.lr import LRCreate, LRUpdate, LREwayBillPatch, LRPodPatch
 from ..services.lr_service import (
     create_lr,
     get_all_lrs,
@@ -8,14 +9,25 @@ from ..services.lr_service import (
     update_lr,
     delete_lr,
     verify_lr_pod,
+    patch_lr_eway,
+    patch_lr_pod,
+    get_eway_expiring,
 )
 
 router = APIRouter()
 
 
+@router.get('/lr/eway-expiring')
+def list_eway_expiring(
+    hours: int = Query(default=8, ge=1, le=24 * 31),
+    months: Optional[int] = Query(default=None, ge=1, le=12),
+):
+    return get_eway_expiring(hours=hours, months=months)
+
+
 @router.get('/lr/')
-def list_lrs():
-    return get_all_lrs()
+def list_lrs(fy: Optional[str] = Query(default=None)):
+    return get_all_lrs(fy=fy)
 
 
 @router.get('/lr/{lr_id}')
@@ -56,12 +68,47 @@ def put_lr(lr_id: int, payload: LRUpdate):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.patch('/lr/{lr_id}')
+def patch_lr(lr_id: int, payload: LREwayBillPatch):
+    try:
+        updated = patch_lr_eway(
+            lr_id,
+            eway_bill_no=payload.eway_bill_no,
+            eway_bill_expiry=payload.eway_bill_expiry,
+        )
+        if not updated:
+            raise HTTPException(status_code=404, detail="LR not found")
+        return updated
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch('/lr/{lr_id}/pod')
+def patch_pod(lr_id: int, payload: LRPodPatch):
+    try:
+        updated = patch_lr_pod(lr_id, pod_received=payload.pod_received, pod_file_id=payload.pod_file_id)
+        if not updated:
+            raise HTTPException(status_code=404, detail="LR not found")
+        return updated
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.delete('/lr/{lr_id}')
 def remove_lr(lr_id: int):
-    deleted = delete_lr(lr_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="LR not found")
-    return {"ok": True}
+    try:
+        deleted = delete_lr(lr_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="LR not found")
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.post('/lr/{lr_id}/pod/verify')

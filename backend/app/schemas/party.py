@@ -9,6 +9,7 @@ class Party(BaseModel):
     gstin: Optional[str] = None
     mobile: Optional[str] = None
     address: Optional[str] = None
+    tds_rate: Optional[float] = 0.0
 
 
 class PartyCreate(BaseModel):
@@ -17,6 +18,7 @@ class PartyCreate(BaseModel):
     gstin: Optional[str] = None
     mobile: Optional[str] = None
     address: Optional[str] = None
+    tds_rate: Optional[float] = 0.0
 
 
 class PartyUpdate(BaseModel):
@@ -25,3 +27,8 @@ class PartyUpdate(BaseModel):
     gstin: Optional[str] = None
     mobile: Optional[str] = None
     address: Optional[str] = None
+    tds_rate: Optional[float] = None
+
+
+# Backward compat alias
+PartyResponse = Party

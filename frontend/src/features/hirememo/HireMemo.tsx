@@ -221,13 +221,18 @@ export default function HireMemo() {
 
       <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white p-6 rounded shadow">
         <div className="col-span-1">
-          <label htmlFor="hire_memo_no" className="block text-sm font-medium">HM No (Manual)</label>
-          <input id="hire_memo_no" name="hire_memo_no" value={form.hire_memo_no || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <label className="block text-sm font-medium">HM No (Auto)</label>
+          <input value={form.hire_memo_no || 'Auto on Save'} readOnly className="w-full border p-2 rounded bg-slate-50" />
         </div>
         <div className="col-span-1">
           <label htmlFor="hire_memo_date" className="block text-sm font-medium">Date</label>
           <input id="hire_memo_date" type="date" name="hire_memo_date" value={form.hire_memo_date || ''} onChange={updateField} className="w-full border p-2 rounded" />
         </div>
+        <div className="col-span-1">
+          <label className="block text-sm font-medium">Financial Year</label>
+          <input value={(form as any).financial_year || 'Auto'} readOnly className="w-full border p-2 rounded bg-slate-50" />
+        </div>
+
         <div className="col-span-1">
           <label htmlFor="branch" className="block text-sm font-medium">Branch</label>
           <input id="branch" name="branch" value={form.branch || ''} onChange={updateField} className="w-full border p-2 rounded" />

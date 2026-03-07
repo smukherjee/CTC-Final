@@ -65,6 +65,16 @@ class LRCreate(BaseModel):
     pod_verified_at: Optional[str] = None
 
     status: Optional[str] = None
+    # Financial year scoping
+    financial_year: Optional[str] = None
+    # FOB party link
+    fob_party_id: Optional[int] = None
+    # POD
+    pod_received: Optional[bool] = None
+    pod_file_id: Optional[int] = None
+    # Inline E-way bill
+    eway_bill_no: Optional[str] = None
+    eway_bill_expiry: Optional[str] = None
 
 
 class LRUpdate(BaseModel):
@@ -114,6 +124,23 @@ class LRUpdate(BaseModel):
     pod_url: Optional[str] = None
     pod_verified_at: Optional[str] = None
     status: Optional[str] = None
+    # Financial year scoping
+    financial_year: Optional[str] = None
+    fob_party_id: Optional[int] = None
+    pod_received: Optional[bool] = None
+    pod_file_id: Optional[int] = None
+    eway_bill_no: Optional[str] = None
+    eway_bill_expiry: Optional[str] = None
+
+
+class LREwayBillPatch(BaseModel):
+    eway_bill_no: Optional[str] = None
+    eway_bill_expiry: Optional[str] = None
+
+
+class LRPodPatch(BaseModel):
+    pod_received: bool
+    pod_file_id: Optional[int] = None
 
 
 class LRResponse(LRCreate):

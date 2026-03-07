@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Invoice {{invoice_no}}</title>
+  <style>
+    @page {
+      size: A4 landscape;
+      margin: 8mm;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      color: #000;
+      font-size: 11px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 1px solid #000;
+      padding-bottom: 6px;
+      margin-bottom: 8px;
+    }
+    .company {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+    .muted { color: #222; font-size: 10px; }
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px 18px;
+      margin-bottom: 8px;
+    }
+    .box {
+      border: 1px solid #000;
+      padding: 6px;
+      min-height: 64px;
+    }
+    .line {
+      margin: 2px 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+    th, td {
+      border: 1px solid #000;
+      padding: 4px;
+      font-size: 9px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f1f1f1; font-weight: 700; }
+    .num { text-align: right; white-space: nowrap; }
+    .totals {
+      margin-top: 8px;
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 10px;
+      align-items: start;
+    }
+    .summary {
+      border: 1px solid #000;
+      padding: 6px;
+    }
+    .summary .row {
+      display: flex;
+      justify-content: space-between;
+      margin: 2px 0;
+    }
+    .bold { font-weight: 700; }
+    .sign {
+      margin-top: 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+    }
+    .sign-box {
+      width: 240px;
+      border-top: 1px solid #000;
+      text-align: center;
+      padding-top: 4px;
+      font-size: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="company">Chandra Transport Corporation</div>
+      <div class="muted">Flat No. 31, BBC Villa Complex, 65 Broadway, Chennai - 600 108</div>
+      <div class="muted">GSTIN: 33AAEFC0000X1Z0 | Phone: 044-4272 5261</div>
+    </div>
+    <div class="box">
+      <div class="line"><b>INVOICE NO:</b> {{invoice_no}}</div>
+      <div class="line"><b>INVOICE DATE:</b> {{invoice_date}}</div>
+      <div class="line"><b>PO NO / DATE:</b> {{po_no}} / {{po_date}}</div>
+      <div class="line"><b>HSN CODE:</b> {{hsn_code}}</div>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div class="box">
+      <div class="bold">BILL TO</div>
+      <div class="line">{{party_name}}</div>
+      <div class="line">{{party_address}}</div>
+      <div class="line">GSTIN: {{party_gstin}}</div>
+    </div>
+    <div class="box">
+      <div class="bold">REVERSE CHARGE</div>
+      <div class="line">{{reverse_charge_label}}</div>
+      <div class="line">GST Paid By: {{gst_paid_by}}</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>S.No</th>
+        <th>LR NO</th>
+        <th>LR DATE</th>
+        <th>QTY</th>
+        <th>PARTICULARS</th>
+        <th>V.TYPE</th>
+        <th>VEHICLE NO</th>
+        <th>CONSIGNOR</th>
+        <th>CONSIGNEE</th>
+        <th>FROM</th>
+        <th>TO</th>
+        <th class="num">FREIGHT</th>
+        <th class="num">LOAD DET.</th>
+        <th class="num">UNLOAD CHG</th>
+        <th class="num">UNLOAD DET.</th>
+        <th class="num">OTHER</th>
+        <th class="num">TOTAL</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each lines}}
+      <tr>
+        <td>{{s_no}}</td>
+        <td>{{lr_no}}</td>
+        <td>{{lr_date}}</td>
+        <td class="num">{{qty}}</td>
+        <td>{{particulars}}</td>
+        <td>{{v_type}}</td>
+        <td>{{vehicle_no}}</td>
+        <td>{{consignor}}</td>
+        <td>{{consignee}}</td>
+        <td>{{from_city}}</td>
+        <td>{{to_city}}</td>
+        <td class="num">{{freight}}</td>
+        <td class="num">{{loading_detention}}</td>
+        <td class="num">{{unloading_charges}}</td>
+        <td class="num">{{unloading_detention}}</td>
+        <td class="num">{{other_charges}}</td>
+        <td class="num">{{total}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div class="summary">
+      <div class="line"><b>Amount in words:</b> {{amountInWords}}</div>
+    </div>
+    <div class="summary">
+      <div class="row"><span>Total Amount</span><span>{{total_amount}}</span></div>
+      <div class="row"><span>Less TDS</span><span>{{tds_amount}}</span></div>
+      <div class="row bold"><span>Net Amount</span><span>{{net_amount}}</span></div>
+    </div>
+  </div>
+
+  <div class="sign">
+    <div class="muted">Generated on {{generated_at}}</div>
+    <div class="sign-box">Authorised Signatory</div>
+  </div>
+</body>
+</html>

@@ -1,5 +1,6 @@
 import Handlebars from 'handlebars';
 import { format } from 'date-fns';
+import { inrWords } from '@/utils/amountInWords';
 
 import hireMemoTemplateSource from '@/templates/hirememo-template.hbs?raw';
 
@@ -38,45 +39,6 @@ function formatMoney(value: number): string {
   return value.toFixed(2);
 }
 
-function numberToWords(num: number): string {
-  const n = Math.floor(Math.abs(num));
-  if (n === 0) return 'Zero';
-
-  const below20 = [
-    '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
-    'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
-    'Seventeen', 'Eighteen', 'Nineteen',
-  ];
-  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-
-  const twoDigits = (v: number): string => {
-    if (v < 20) return below20[v];
-    const t = Math.floor(v / 10);
-    const r = v % 10;
-    return `${tens[t]}${r ? ` ${below20[r]}` : ''}`;
-  };
-
-  const threeDigits = (v: number): string => {
-    const h = Math.floor(v / 100);
-    const r = v % 100;
-    if (!h) return twoDigits(r);
-    return `${below20[h]} Hundred${r ? ` ${twoDigits(r)}` : ''}`;
-  };
-
-  const crore = Math.floor(n / 10000000);
-  const lakh = Math.floor((n % 10000000) / 100000);
-  const thousand = Math.floor((n % 100000) / 1000);
-  const rest = n % 1000;
-
-  const parts: string[] = [];
-  if (crore) parts.push(`${twoDigits(crore)} Crore`);
-  if (lakh) parts.push(`${twoDigits(lakh)} Lakh`);
-  if (thousand) parts.push(`${twoDigits(thousand)} Thousand`);
-  if (rest) parts.push(threeDigits(rest));
-
-  return parts.join(' ').trim();
-}
-
 export function printHireMemo(data: Partial<HireMemoPrintData>) {
   const totalAmount = toNumber(data.total_amount);
   const partPayment = toNumber(data.advance_cash) + toNumber(data.advance_bank);
@@ -97,7 +59,7 @@ export function printHireMemo(data: Partial<HireMemoPrintData>) {
     balance: formatMoney(balance),
     other_deductions: data.other_deductions || '',
     notes: data.notes || '',
-    balance_in_words: numberToWords(balance),
+    balance_in_words: inrWords(balance),
     generated_at: format(new Date(), 'dd/MM/yyyy HH:mm:ss'),
   };
 

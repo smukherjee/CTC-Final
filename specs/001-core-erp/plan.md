@@ -21,6 +21,18 @@ The system is a **React + FastAPI + PostgreSQL** stack. A partial backend (model
 **Constraints**: No offline; file uploads PDF/JPG/PNG max 10 MB; FY resets April 1; Vendor/Broker has no GSTIN
 **Scale/Scope**: ~10 concurrent users; ~50 screens; ~17 DB tables post-migration
 
+### Universal FY Filter Pattern (All Register Screens)
+
+Every register screen (DispatchRegister, HireMemoRegister, BillBook, PaymentReceipts, PODManagement, LedgerBook, Reports, TrackingLog, Vouchers list) MUST implement:
+
+- **Dropdown selector** in the toolbar/header showing:
+  - Current FY (Indian: April 1 – March 31) as **default selected value**
+  - 3 immediately prior FYs
+  - Example (March 2026): `[2025-26*, 2024-25, 2023-24, 2022-23]` (* = default)
+- **API integration**: on selection change, call `GET /api/{resource}/?fy={selected_fy}`
+- **Utility function**: `getCurrentFy()` from `utils/financialYear.ts` provides current FY; `generateFyDropdownOptions()` generates the 4-year array
+- **Consistency**: All screens use identical dropdown component/styling
+
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*

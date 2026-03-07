@@ -14,7 +14,6 @@ class HireMemoBase(BaseModel):
     driver_license: Optional[str] = None
     
     # Meta
-    hire_memo_no: Optional[str] = None
     hire_memo_date: Optional[date] = None
     branch: Optional[str] = None
 
@@ -44,7 +43,8 @@ class HireMemoBase(BaseModel):
 
 
 class HireMemoCreate(HireMemoBase):
-    pass
+    class Config:
+        extra = 'forbid'
 
 
 class HireMemoUpdate(BaseModel):
@@ -87,9 +87,15 @@ class HireMemoUpdate(BaseModel):
 
 class HireMemo(HireMemoBase):
     id: int
-    balance: Optional[float]
-    created_at: Optional[datetime]
-    updated_at: Optional[datetime]
+    hire_memo_no: Optional[str] = None
+    financial_year: Optional[str] = None
+    balance: Optional[float] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         orm_mode = True
+
+
+# Backward compat alias
+HireMemoResponse = HireMemo

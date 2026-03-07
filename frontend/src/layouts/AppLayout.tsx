@@ -21,9 +21,13 @@ export default function AppLayout() {
     const [mastersOpen, setMastersOpen] = useState(false);
 
     const navItems = [
+        { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
         { label: 'Dispatch Register', icon: Truck, path: '/operations/dispatch' },
         { label: 'Create LR', icon: FileText, path: '/operations/create-lr' },
+        { label: 'Hire Memo Register', icon: FileText, path: '/operations/hire-memo-register' },
         { label: 'Vehicle Tracking', icon: MapPin, path: '/operations/tracking' },
+        { label: 'Tracking Log', icon: MapPin, path: '/operations/tracking-log' },
+        { label: 'POD Management', icon: CheckSquare, path: '/pod' },
         {
             label: 'Masters',
             icon: LayoutDashboard,
@@ -37,8 +41,10 @@ export default function AppLayout() {
                 { label: 'Cities', path: '/masters/cities' },
             ]
         },
-        { label: 'POD Verification', icon: CheckSquare, path: '/finance/pod-verify' },
         { label: 'Bill Notebook', icon: Banknote, path: '/finance/invoices' },
+        { label: 'Payment Receipts', icon: Banknote, path: '/finance/payment-receipts' },
+        { label: 'Ledger Book', icon: Banknote, path: '/finance/vouchers' },
+        { label: 'Reports', icon: LayoutDashboard, path: '/reports' },
         { label: 'Settings', icon: Settings, path: '/admin/settings' },
     ];
 
@@ -115,6 +121,7 @@ export default function AppLayout() {
                             <NavLink
                                 key={item.path}
                                 to={item.path}
+                                end
                                 className={({ isActive }) => cn(
                                     "flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium",
                                     isActive
