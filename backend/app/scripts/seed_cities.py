@@ -5,7 +5,7 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-from db.db import SessionLocal
+from app.db import SessionLocal
 from app.models.city import CityModel, create_tables
 
 CITIES = [

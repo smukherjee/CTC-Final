@@ -22,8 +22,9 @@ EWAY_BILL_MAX_UPLOAD_SIZE_BYTES = 1 * 1024 * 1024
 RETENTION_DAYS = 365
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
-UPLOAD_ROOT = BACKEND_ROOT / "storage" / "uploads"
-ARCHIVE_ROOT = BACKEND_ROOT / "storage" / "archive"
+APP_ROOT = Path(__file__).resolve().parents[1]
+UPLOAD_ROOT = APP_ROOT / "storage" / "uploads"
+ARCHIVE_ROOT = APP_ROOT / "storage" / "archive"
 
 
 def _now_utc() -> datetime:

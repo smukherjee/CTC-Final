@@ -28,7 +28,7 @@ from sqlalchemy import inspect
 # Ensure project root is importable when run as a standalone script.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from db.db import SessionLocal  # noqa: E402
+from app.db import SessionLocal  # noqa: E402
 from app.core.financial_year_utils import fy_from_date  # noqa: E402
 from app.models.city import CityModel  # noqa: E402
 from app.models.contract import ContractModel  # noqa: E402
@@ -54,7 +54,7 @@ WORKBOOK_CANDIDATES = [
     Path("/workspace/docs/rectcsampledata/CTC BILL NOTEBOOK Sample.xlsx"),
     Path("/app/docs/rectcsampledata/CTC BILL NOTEBOOK Sample.xlsx"),
 ]
-POD_STORAGE_ROOT = REPO_ROOT / "backend" / "storage" / "uploads" / "seed"
+POD_STORAGE_ROOT = REPO_ROOT / "backend" / "app" / "storage" / "uploads" / "seed"
 
 NS_MAIN = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
 REL_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"

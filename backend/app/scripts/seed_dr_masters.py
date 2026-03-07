@@ -9,7 +9,7 @@ import sys
 # Ensure project root is on path when script executed inside container
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-from db.db import SessionLocal
+from app.db import SessionLocal
 from app.models.party import PartyModel
 from app.models.vehicle import VehicleModel
 from app.models.contract import ContractModel

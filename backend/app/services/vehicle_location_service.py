@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 from sqlalchemy import desc
-from db.db import SessionLocal
+from app.db import SessionLocal
 from app.models.vehicle_location import VehicleLocationModel
 from app.models.lr import LRModel
 from app.schemas.vehicle_location import VehicleLocationCreate, VehicleLatestLocation
