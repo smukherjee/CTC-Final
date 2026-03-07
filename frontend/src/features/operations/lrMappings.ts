@@ -18,7 +18,7 @@ export function mapApiLrToUi(it: any, defaultStatus = ''): LR {
     weight: it.weight || 0,
     freight_amount: it.freight_amount || 0,
     fob: it.fob || '',
-    fob_party_id: it.fob_party_id ? Number(it.fob_party_id) : undefined,
+    fob_client_id: it.fob_client_id ? Number(it.fob_client_id) : undefined,
     through: it.through || '',
     through_id: it.through_id ? Number(it.through_id) : undefined,
     vehicle_type: it.vehicle_type || '',

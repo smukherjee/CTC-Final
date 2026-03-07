@@ -29,7 +29,7 @@
 - [X] T007 [P] Create Alembic migration: add `financial_year VARCHAR(7) NOT NULL DEFAULT '2025-26'` to `hirememos`; add `UNIQUE(hire_memo_no, financial_year)`; update `HireMemo` model (backend/alembic/versions/20260305_add_fy_to_hirememos.py, backend/app/models/hirememo.py)
 - [X] T008 [P] Create Alembic migration: add `financial_year`, `tds_amount NUMERIC`, `net_amount NUMERIC`, `lr_date DATE`, `origin VARCHAR(100)`, `destination VARCHAR(100)` to `bills` table (backend/alembic/versions/20260305_enhance_bills.py)
 - [X] T009 [P] Create Alembic migration: DROP `gstin` column from `vendors` table; update `backend/app/models/vendor.py` to remove the `gstin` SQLAlchemy column definition (backend/alembic/versions/20260305_drop_vendor_gstin.py, backend/app/models/vendor.py)
-- [X] T010 [P] Create Alembic migration: add `tds_rate NUMERIC(5,2) DEFAULT 0` to `parties` table; update `Party` SQLAlchemy model (backend/alembic/versions/20260305_add_tds_rate_to_parties.py, backend/app/models/party.py)
+- [X] T010 [P] Create Alembic migration: add `tds_rate NUMERIC(5,2) DEFAULT 0` to `clients` table; update `Client` SQLAlchemy model (backend/alembic/versions/20260305_add_tds_rate_to_clients.py, backend/app/models/client.py)
 - [X] T011 [P] Create frontend FY utility: `getCurrentFy()`, `fyFromDate(date: Date): string`, `generateFyDropdownOptions(): string[]` — returns array `[currentFY, currentFY-1, currentFY-2, currentFY-3]` e.g. `['2025-26', '2024-25', '2023-24', '2022-23']` (frontend/src/utils/financialYear.ts)
 - [X] T071 [P] Create frontend amount-in-words utility: `inrWords(amount: number): string` — TypeScript port of `inr_words()` using Indian lakh/crore numbering, e.g. `"Rupees One Lakh Five Thousand Only"` (frontend/src/utils/amountInWords.ts) **[prerequisite for T028 and T050]**
 - [X] T012 Run `alembic upgrade head` and confirm all T006–T010 migrations apply cleanly (backend/)
@@ -38,30 +38,33 @@
 
 ## Phase 3: User Story 8 — Master Data Enhancements (Priority: P1) [US8]
 
-**Goal**: Vendor and Party master data matches spec — no Vendor GSTIN, Party has editable TDS rate.
+- [X] T013a Globally rename "client" entities/fields/routes to "Client" including DB table migration, frontend labels, schemas, documentation, and seed data.
 
-**Independent Test**: GET `/api/vendor/` — confirm no `gstin` in response. Open PartyMaster UI — confirm TDS Rate field is present, saves, and is returned by GET `/api/party/{id}`.
+
+**Goal**: Vendor and Client master data matches spec — no Vendor GSTIN, Client has editable TDS rate.
+
+**Independent Test**: GET `/api/vendor/` — confirm no `gstin` in response. Open clientMaster UI — confirm TDS Rate field is present, saves, and is returned by GET `/api/client/{id}`.
 
 - [X] T013 [US8] Update `Vendor` Pydantic schemas: remove `gstin` from `VendorCreate` and `VendorResponse` (backend/app/schemas/vendor.py)
 - [X] T014 [P] [US8] Remove GSTIN input field from VendorMaster form UI (frontend/src/features/vendor/VendorMaster.tsx)
-- [X] T015 [US8] Add `tds_rate` to `PartyCreate`/`PartyResponse` Pydantic schemas; update Party API to accept and return it (backend/app/schemas/party.py, backend/app/api/party.py)
-- [X] T016 [P] [US8] Add TDS Rate numeric input to PartyMaster form UI (frontend/src/features/party/PartyMaster.tsx)
+- [X] T015 [US8] Add `tds_rate` to `clientCreate`/`clientResponse` Pydantic schemas; update client API to accept and return it (backend/app/schemas/client.py, backend/app/api/client.py)
+- [X] T016 [P] [US8] Add TDS Rate numeric input to clientMaster form UI (frontend/src/features/client/clientMaster.tsx)
 
 ---
 
 ## Phase 4: User Story 1 — Centralized Dispatch Register (Priority: P1) [US1]
 
-**Goal**: All LR operations are FY-scoped; `driver_mobile` is visible in the grid; E-way Bill fields are inline-editable; FOB links to Party Master.
+**Goal**: All LR operations are FY-scoped; `driver_mobile` is visible in the grid; E-way Bill fields are inline-editable; FOB links to client Master.
 
-**Independent Test**: POST `/api/lr/` → confirm response contains `financial_year`; open DispatchRegister — confirm `driver_mobile` column visible, E-way Bill cells editable, FY filter changes grid content, FOB dropdown shows Party names.
+**Independent Test**: POST `/api/lr/` → confirm response contains `financial_year`; open DispatchRegister — confirm `driver_mobile` column visible, E-way Bill cells editable, FY filter changes grid content, FOB dropdown shows client names.
 
 - [X] T017 [US1] Update `lr_service.create_lr()`: auto-populate `financial_year` via `fy_from_date(lr.date)`; update `GET /api/lr/` to accept `?fy=` query parameter for filtering (backend/app/services/lr_service.py, backend/app/api/lr.py)
-- [X] T018 [P] [US1] Update `LRCreate`/`LRResponse` schemas: add `financial_year`; accept `fob_party_id INTEGER` (backend/app/schemas/lr.py)
+- [X] T018 [P] [US1] Update `LRCreate`/`LRResponse` schemas: add `financial_year`; accept `fob_client_id INTEGER` (backend/app/schemas/lr.py)
 - [X] T019 [US1] Add `PATCH /api/lr/{id}` endpoint accepting `eway_bill_no`, `eway_bill_expiry` for inline grid updates (backend/app/api/lr.py)
 - [X] T020 [US1] DispatchRegister.tsx: expose `driver_mobile` as a visible, sortable grid column (frontend/src/features/operations/DispatchRegister.tsx)
 - [X] T021 [US1] DispatchRegister.tsx: make E-way Bill No and Expiry Date inline-editable; call `PATCH /api/lr/{id}` on cell change (frontend/src/features/operations/DispatchRegister.tsx)
 - [X] T022 [US1] DispatchRegister.tsx: add FY filter dropdown showing current FY + 3 prior years (via `generateFyDropdownOptions()`), defaulting to `getCurrentFy()`; on change, reload grid via `GET /api/lr/?fy={selected}` (frontend/src/features/operations/DispatchRegister.tsx)
-- [X] T023 [US1] CreateLR.tsx: replace FOB free-text input with Party Master dropdown (`GET /api/party/`); store `fob_party_id` on submit (frontend/src/features/operations/CreateLR.tsx)
+- [X] T023 [US1] CreateLR.tsx: replace FOB free-text input with client Master dropdown (`GET /api/client/`); store `fob_client_id` on submit (frontend/src/features/operations/CreateLR.tsx)
 
 ---
 
@@ -113,7 +116,7 @@
 
 **Independent Test**: POST `/api/billing/invoices` with 2 LR lines → `invoice_no` is `"1/25-26"`; BillBook.tsx shows TDS_AMOUNT, NET_AMOUNT, ORIGIN, DESTINATION, LR_DATE columns; download PDF → contains PO No, HSN 996791, 2 annexure rows, amount-in-words, reverse charge block.
 
-- [X] T039 [US5] Create `Invoice` SQLAlchemy model: `id, invoice_no, invoice_date, party_id, financial_year, po_no, po_date, hsn_code DEFAULT '996791', reverse_charge BOOL, gst_paid_by, total_amount, tds_amount, net_amount, status DEFAULT 'draft'` (backend/app/models/invoice.py)
+- [X] T039 [US5] Create `Invoice` SQLAlchemy model: `id, invoice_no, invoice_date, client_id, financial_year, po_no, po_date, hsn_code DEFAULT '996791', reverse_charge BOOL, gst_paid_by, total_amount, tds_amount, net_amount, status DEFAULT 'draft'` (backend/app/models/invoice.py)
 - [X] T040 [US5] Create `InvoiceLine` SQLAlchemy model: `id, invoice_id FK, lr_id FK, s_no, lr_no, lr_date, qty, particulars, v_type, vehicle_no, consignor, consignee, from_city, to_city, freight, loading_detention, unloading_charges, unloading_detention, other_charges, total` (backend/app/models/invoice.py)
 - [X] T041 [P] [US5] Create Alembic migration: `invoices` table with `UNIQUE(invoice_no, financial_year)` (backend/alembic/versions/20260305_create_invoices.py)
 - [X] T042 [P] [US5] Create Alembic migration: `invoice_lines` table with `FK(invoice_id) ON DELETE CASCADE` (backend/alembic/versions/20260305_create_invoice_lines.py)
@@ -122,9 +125,9 @@
 - [X] T045 [US5] Create `invoice-template.hbs`: Handlebars HTML/CSS template — company header, BILL TO block, invoice no + date, PO no + date, HSN 996791, 16-col landscape annexure table per LR line, deduction lines, totals, `{{amountInWords}}` token, reverse charge block, authorised signatory; create `printInvoice.ts` utility following the same pattern as `printHireMemo.ts` (compile template, format data, `window.open()` + `window.print()`) (frontend/src/templates/invoice-template.hbs, frontend/src/utils/printInvoice.ts)
 - [X] T046 [US5] Add billing API router: `GET/POST /api/billing/invoices`, `GET/PUT/DELETE /api/billing/invoices/{id}`; register in main.py (no PDF endpoint — printing is frontend-only) (backend/app/api/billing.py, backend/app/main.py)
 - [X] T047 [US5] BillBook.tsx: add missing grid columns — LR_DATE, ORIGIN, DESTINATION, TDS_AMOUNT, NET_AMOUNT (NET_AMOUNT read-only = AMOUNT_PASSED − TDS_AMOUNT) (frontend/src/features/finance/BillBook.tsx)
-- [X] T048 [US5] BillBook.tsx: add per-client tab navigation — load unique parties from invoices; each tab filters by `party_id`; show outstanding total (sum of `status != 'paid'` invoices) per tab (frontend/src/features/finance/BillBook.tsx)
-- [X] T049 [US5] BillBook.tsx: add FY filter dropdown showing current FY + 3 prior years (via `generateFyDropdownOptions()`), defaulting to `getCurrentFy()`; on change, reload per-client tabs via `GET /api/billing/invoices/?fy={selected}&party_id=...` (frontend/src/features/finance/BillBook.tsx)
-- [X] T050 [P] [US5] Create `InvoiceForm.tsx`: party selector, invoice date, PO no/date, batch LR selector (checkboxes), per-line charge inputs, TDS amount, Print button calling `printInvoice()` from `utils/printInvoice.ts` (requires T045, T071) (frontend/src/features/finance/InvoiceForm.tsx)
+- [X] T048 [US5] BillBook.tsx: add per-client tab navigation — load unique clients from invoices; each tab filters by `client_id`; show outstanding total (sum of `status != 'paid'` invoices) per tab (frontend/src/features/finance/BillBook.tsx)
+- [X] T049 [US5] BillBook.tsx: add FY filter dropdown showing current FY + 3 prior years (via `generateFyDropdownOptions()`), defaulting to `getCurrentFy()`; on change, reload per-client tabs via `GET /api/billing/invoices/?fy={selected}&client_id=...` (frontend/src/features/finance/BillBook.tsx)
+- [X] T050 [P] [US5] Create `InvoiceForm.tsx`: client selector, invoice date, PO no/date, batch LR selector (checkboxes), per-line charge inputs, TDS amount, Print button calling `printInvoice()` from `utils/printInvoice.ts` (requires T045, T071) (frontend/src/features/finance/InvoiceForm.tsx)
 
 ---
 
@@ -163,7 +166,7 @@
 **Independent Test**: `GET /api/billing/invoices` without a token → 401. Log in as Dispatch role → navigate to `/bills` → redirected to Access Denied page.
 
 - [ ] T061 [US9] Implement JWT auth endpoints: `POST /api/auth/login` returns access token; `GET /api/auth/me` returns `{id, name, role}` (backend/app/api/user.py, backend/app/core/security.py)
-- [ ] T062 [US9] Add `Depends(get_current_user)` to all existing API routers (`lr.py`, `hirememo.py`, `party.py`, `vendor.py`, `contract.py`, `ewaybill.py`, `vehicle.py`, `vehicle_location.py`, `files.py`, `city.py`) and to the new routers added in this feature (`billing.py`, `payment_receipts.py`, `vouchers.py`); restrict `/api/billing/`, `/api/payment-receipts/`, `/api/vouchers/` to `role == "Accounts"` (backend/app/api/*.py)
+- [ ] T062 [US9] Add `Depends(get_current_user)` to all existing API routers (`lr.py`, `hirememo.py`, `client.py`, `vendor.py`, `contract.py`, `ewaybill.py`, `vehicle.py`, `vehicle_location.py`, `files.py`, `city.py`) and to the new routers added in this feature (`billing.py`, `payment_receipts.py`, `vouchers.py`); restrict `/api/billing/`, `/api/payment-receipts/`, `/api/vouchers/` to `role == "Accounts"` (backend/app/api/*.py)
 - [ ] T063 [P] [US9] Implement frontend auth: Login page; store JWT in localStorage; add axios interceptor for `Authorization: Bearer <token>` header; add `/login` as a public (unauthenticated) route in React Router (frontend/src/features/auth/Login.tsx, frontend/src/api/client.ts, frontend/src/router.tsx)
 - [ ] T064 [US9] Add role-based route guard in React Router: redirect non-Accounts users away from `/bills`, `/payment-receipts`, `/vouchers` (frontend/src/router.tsx)
 
@@ -187,7 +190,7 @@ Phase 2 (Foundational — utilities + migrations)
   └─► ALL phases below (financial_year on tables must exist before any story work)
 
 Phase 3 (US8 Master Data)
-  └─► Phase 4 US1 (Party dropdown on CreateLR FOB field needs updated Party API)
+  └─► Phase 4 US1 (client dropdown on CreateLR FOB field needs updated client API)
 
 Phase 4 (US1 Dispatch) ──────────────────────────┐ Can start in parallel
 Phase 5 (US2 Hire Memo) ─────────────────────────┤ after Phase 2 + 3 complete
@@ -231,7 +234,7 @@ After all features complete:
 **MVP Scope** — Phases 1–5 (deliver together for initial parallel run):
 - Clean dispatch register with FY scoping, `driver_mobile`, inline E-way bill
 - Hire Memo auto-numbered + 2-copy print
-- Master data clean (no Vendor GSTIN, Party has TDS rate)
+- Master data clean (no Vendor GSTIN, client has TDS rate)
 
 **Increment 2** — Phases 6–9:
 - Full billing cycle: Invoice Register → PDF → Payment Receipts

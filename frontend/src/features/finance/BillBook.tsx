@@ -10,8 +10,8 @@ interface BillBookRow {
   invoice_id: number;
   invoice_no: string;
   invoice_date: string;
-  party_id: number;
-  party_name: string;
+  client_id: number;
+  client_name: string;
   status: string;
   lr_number: string;
   lr_date: string;
@@ -26,28 +26,37 @@ export default function BillBook() {
   const currentFy = getCurrentFy();
   const fyOptions = generateFyDropdownOptions(currentFy);
   const [rows, setRows] = useState<BillBookRow[]>([]);
-  const [invoiceSummary, setInvoiceSummary] = useState<any[]>([]);
-  const [partyMap, setPartyMap] = useState<Record<number, string>>({});
+  const [clientMap, setClientMap] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [fy, setFy] = useState(currentFy);
-  const [activePartyId, setActivePartyId] = useState<number | 'all'>('all');
+  const [activeClientId, setActiveClientId] = useState<number | 'all'>('all');
+
+  const clientOptions = useMemo(() => {
+    const opts: {id: number | 'all'; label: string}[] = [{ id: 'all', label: 'ALL' }];
+    Object.entries(clientMap)
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .forEach(([id, label]) => {
+        opts.push({ id: Number(id), label });
+      });
+    return opts;
+  }, [clientMap]);
 
   useEffect(() => {
-    axios.get('/api/party/')
+    axios.get('/api/clients/')
       .then((res) => {
         const data = Array.isArray(res.data) ? res.data : [];
         const mapped: Record<number, string> = {};
-        data.forEach((party: any) => {
-          const id = Number(party?.id);
+        data.forEach((client: any) => {
+          const id = Number(client?.id);
           if (Number.isFinite(id) && id > 0) {
-            mapped[id] = String(party?.name || party?.party_name || `Party ${id}`);
+            mapped[id] = String(client?.name || client?.client_name || `Client ${id}`);
           }
         });
-        setPartyMap(mapped);
+        setClientMap(mapped);
       })
       .catch((err) => {
-        console.error('Failed to load parties for BillBook', err);
+        console.error('Failed to load clients for BillBook', err);
       });
   }, []);
 
@@ -58,14 +67,13 @@ export default function BillBook() {
       .then((res) => {
         if (!mounted) return;
         const invoices = Array.isArray(res.data) ? res.data : [];
-        setInvoiceSummary(invoices);
 
         const mappedRows: BillBookRow[] = invoices.flatMap((invoice: any) => {
           const invoiceId = Number(invoice.id);
           const invoiceNo = String(invoice.invoice_no || '');
           const invoiceDate = String(invoice.invoice_date || '');
-          const partyId = Number(invoice.party_id || 0);
-          const partyName = partyMap[partyId] || `Party ${partyId || '-'}`;
+          const clientId = Number(invoice.client_id || 0);
+          const clientName = clientMap[clientId] || `Client ${clientId || '-'}`;
           const status = String(invoice.status || 'draft');
           const amountPassed = Number(invoice.total_amount || 0);
           const tdsAmount = Number(invoice.tds_amount || 0);
@@ -82,8 +90,8 @@ export default function BillBook() {
               invoice_id: invoiceId,
               invoice_no: invoiceNo,
               invoice_date: invoiceDate,
-              party_id: partyId,
-              party_name: partyName,
+              client_id: clientId,
+              client_name: clientName,
               status,
               lr_number: '',
               lr_date: '',
@@ -100,8 +108,8 @@ export default function BillBook() {
             invoice_id: invoiceId,
             invoice_no: invoiceNo,
             invoice_date: invoiceDate,
-            party_id: partyId,
-            party_name: partyName,
+            client_id: clientId,
+            client_name: clientName,
             status,
             lr_number: String(line?.lr_no || ''),
             lr_date: String(line?.lr_date || ''),
@@ -116,38 +124,27 @@ export default function BillBook() {
       })
       .catch((err) => {
         console.error('Failed to load invoice register', err);
-        setInvoiceSummary([]);
         setRows([]);
       })
       .finally(() => {
         if (mounted) setLoading(false);
       });
     return () => { mounted = false; };
-  }, [fy, partyMap]);
+  }, [fy, clientMap]);
 
-  const partyTabs = useMemo(() => {
-    const ids = Array.from(new Set(invoiceSummary.map((invoice: any) => Number(invoice.party_id)).filter((id: number) => Number.isFinite(id) && id > 0)));
-    return ids.map((id) => ({
-      id,
-      label: partyMap[id] || `Party ${id}`,
-      outstanding: invoiceSummary
-        .filter((invoice: any) => Number(invoice.party_id) === id && String(invoice.status || '').toLowerCase() !== 'paid')
-        .reduce((sum: number, invoice: any) => sum + Number(invoice.net_amount || invoice.total_amount || 0), 0),
-    }));
-  }, [invoiceSummary, partyMap]);
 
   const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const base = activePartyId === 'all' ? rows : rows.filter((row) => row.party_id === activePartyId);
+    const base = activeClientId === 'all' ? rows : rows.filter((row) => row.client_id === activeClientId);
     if (!q) return base;
     return base.filter((r) =>
       r.invoice_no.toLowerCase().includes(q) ||
       r.lr_number.toLowerCase().includes(q) ||
-      r.party_name.toLowerCase().includes(q) ||
+      r.client_name.toLowerCase().includes(q) ||
       r.origin.toLowerCase().includes(q) ||
       r.destination.toLowerCase().includes(q)
     );
-  }, [rows, query, activePartyId]);
+  }, [rows, query, activeClientId]);
 
   const totalPassed = useMemo(() => filteredRows.reduce((s, r) => s + Number(r.amount_passed || 0), 0), [filteredRows]);
   const totalTds = useMemo(() => filteredRows.reduce((s, r) => s + Number(r.tds_amount || 0), 0), [filteredRows]);
@@ -170,7 +167,7 @@ export default function BillBook() {
         }
       },
     },
-    { field: 'party_name', headerName: 'CLIENT', width: 180, editable: false },
+    { field: 'client_name', headerName: 'CLIENT', width: 180, editable: false },
     { field: 'lr_number', headerName: 'LR NO.', width: 120, editable: false, pinned: 'left' },
     {
       field: 'lr_date',
@@ -221,9 +218,7 @@ export default function BillBook() {
     <div className="h-full flex flex-col gap-4">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Bill Notebook</h2>
-          <p className="text-sm text-slate-500 mt-1">Invoice register by client with FY filter and outstanding tracking.</p>
-        </div>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Invoice Register</h2>        </div>
         <div className="text-right text-sm space-y-2">
           <div>Amount Passed: <span className="font-semibold">Rs. {totalPassed.toFixed(2)}</span></div>
           <div>TDS Amount: <span className="font-semibold">Rs. {totalTds.toFixed(2)}</span></div>
@@ -249,28 +244,23 @@ export default function BillBook() {
             <option key={opt} value={opt}>{opt}</option>
           ))}
         </select>
+
+        <label htmlFor="billbook_client" className="text-sm font-medium text-slate-700">Client</label>
+        <select
+          id="billbook_client"
+          value={activeClientId}
+          onChange={(e) => {
+            const v = e.target.value;
+            setActiveClientId(v === 'all' ? 'all' : Number(v));
+          }}
+          className="w-40 rounded border px-2 py-1 text-sm"
+        >
+          {clientOptions.map((opt) => (
+            <option key={opt.id} value={opt.id}>{opt.label}</option>
+          ))}
+        </select>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setActivePartyId('all')}
-          className={`rounded px-3 py-1 text-sm ${activePartyId === 'all' ? 'bg-slate-900 text-white' : 'bg-white border text-slate-700'}`}
-        >
-          All
-        </button>
-        {partyTabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActivePartyId(tab.id)}
-            className={`rounded px-3 py-1 text-sm ${activePartyId === tab.id ? 'bg-slate-900 text-white' : 'bg-white border text-slate-700'}`}
-            title={`Outstanding: Rs. ${tab.outstanding.toFixed(2)}`}
-          >
-            {tab.label} (Rs. {tab.outstanding.toFixed(0)})
-          </button>
-        ))}
-      </div>
 
       <div className="bg-white border rounded-lg p-4">
         <input
@@ -286,6 +276,7 @@ export default function BillBook() {
         columnDefs={colDefs}
         className="dispatch-grid"
         loading={loading}
+        noRowsMessage={`No invoices found for FY ${fy}${activeClientId === 'all' ? '' : ' and the selected client'}.`}
         getRowId={(params: any) => params.data.id}
         rowSelection={{
           mode: 'singleRow',

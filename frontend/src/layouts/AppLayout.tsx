@@ -33,7 +33,7 @@ export default function AppLayout() {
             icon: LayoutDashboard,
             path: '#', // Placeholder for parent
             children: [
-                { label: 'Parties', path: '/masters/parties' },
+                { label: 'Clients', path: '/masters/clients' },
                 { label: 'Vendors', path: '/masters/vendors' },
                 { label: 'Vehicles', path: '/masters/vehicles' },
                 { label: 'Contracts', path: '/masters/contracts' },

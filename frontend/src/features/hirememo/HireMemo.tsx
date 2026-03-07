@@ -27,10 +27,11 @@ export interface HireMemo {
   total_amount: number;
   advance_cash?: number;
   advance_bank?: number;
+  advance_payment_date?: string;
   balance?: number;
+  balance_payment_date?: string;
   commission?: number;
   hamali?: number;
-  mamul?: number;
   other_deductions?: number;
   ack_status?: string;
   notes?: string;
@@ -56,13 +57,20 @@ export default function HireMemo() {
     hire_memo_date: format(new Date(), 'yyyy-MM-dd'),
     commission: 0,
     hamali: 0,
-    mamul: 0,
     other_deductions: 0,
     advance_cash: 0,
     advance_bank: 0,
+    advance_payment_date: format(new Date(), 'yyyy-MM-dd'),
+    balance_payment_date: format(new Date(), 'yyyy-MM-dd'),
   });
 
   const canSave = useMemo(() => Boolean(activeLrId), [activeLrId]);
+  const computedBalance = useMemo(() => {
+    const total = Number(form.total_amount || 0);
+    const cash = Number(form.advance_cash || 0);
+    const bank = Number(form.advance_bank || 0);
+    return (total - cash - bank).toFixed(2);
+  }, [form.total_amount, form.advance_cash, form.advance_bank]);
 
   useEffect(() => {
     let mounted = true;
@@ -123,6 +131,7 @@ export default function HireMemo() {
             ...existing,
             lr_id: activeLrId,
             hire_memo_date: existing.hire_memo_date || format(new Date(), 'yyyy-MM-dd'),
+            hamali: Number(lr?.hamali_charges || existing.hamali || 0),
           });
         } else {
           setForm((prev) => ({
@@ -136,6 +145,7 @@ export default function HireMemo() {
             from_location: lr?.origin || '',
             to_location: lr?.destination || '',
             freight_weight: lr?.weight ? Number(lr.weight) / 1000 : 0,
+            hamali: Number(lr?.hamali_charges || 0),
           }));
         }
       })
@@ -164,12 +174,13 @@ export default function HireMemo() {
       total_amount: Number(form.total_amount || 0),
       advance_cash: Number(form.advance_cash || 0),
       advance_bank: Number(form.advance_bank || 0),
+      advance_payment_date: form.advance_payment_date || null,
+      balance_payment_date: form.balance_payment_date || null,
       freight_rate: form.freight_rate ? Number(form.freight_rate) : null,
       freight_weight: form.freight_weight ? Number(form.freight_weight) : null,
       guaranteed_weight: form.guaranteed_weight ? Number(form.guaranteed_weight) : null,
       commission: Number(form.commission || 0),
       hamali: Number(form.hamali || 0),
-      mamul: Number(form.mamul || 0),
       other_deductions: Number(form.other_deductions || 0),
       vehicle_id: form.vehicle_id ? Number(form.vehicle_id) : null,
     };
@@ -287,12 +298,24 @@ export default function HireMemo() {
           <input id="total_amount" type="number" name="total_amount" value={form.total_amount || ''} onChange={updateField} className="w-full border p-2 rounded font-bold" />
         </div>
         <div className="col-span-1">
+          <label className="block text-sm font-medium">Balance</label>
+          <input value={computedBalance} readOnly className="w-full border p-2 rounded bg-slate-50" />
+        </div>
+        <div className="col-span-1">
           <label htmlFor="advance_cash" className="block text-sm font-medium">Advance Cash</label>
           <input id="advance_cash" type="number" name="advance_cash" value={form.advance_cash || ''} onChange={updateField} className="w-full border p-2 rounded" />
         </div>
         <div className="col-span-1">
           <label htmlFor="advance_bank" className="block text-sm font-medium">Advance Bank</label>
           <input id="advance_bank" type="number" name="advance_bank" value={form.advance_bank || ''} onChange={updateField} className="w-full border p-2 rounded" />
+        </div>
+        <div className="col-span-1">
+          <label htmlFor="advance_payment_date" className="block text-sm font-medium">Advance Pay Date</label>
+          <input id="advance_payment_date" type="date" name="advance_payment_date" value={form.advance_payment_date || ''} onChange={updateField} className="w-full border p-2 rounded" />
+        </div>
+        <div className="col-span-1">
+          <label htmlFor="balance_payment_date" className="block text-sm font-medium">Balance Pay Date</label>
+          <input id="balance_payment_date" type="date" name="balance_payment_date" value={form.balance_payment_date || ''} onChange={updateField} className="w-full border p-2 rounded" />
         </div>
 
         <div className="col-span-1">
@@ -301,11 +324,8 @@ export default function HireMemo() {
         </div>
         <div className="col-span-1">
           <label htmlFor="hamali" className="block text-sm font-medium">Hamali</label>
-          <input id="hamali" type="number" name="hamali" value={form.hamali || ''} onChange={updateField} className="w-full border p-2 rounded" />
-        </div>
-        <div className="col-span-1">
-          <label htmlFor="mamul" className="block text-sm font-medium">Mamul</label>
-          <input id="mamul" type="number" name="mamul" value={form.mamul || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <input id="hamali" type="number" name="hamali" value={form.hamali || ''} readOnly className="w-full border p-2 rounded bg-slate-50" />
+          <p className="mt-1 text-xs text-slate-500">Linked from the LR Hamali Charges field.</p>
         </div>
 
         <div className="col-span-3">

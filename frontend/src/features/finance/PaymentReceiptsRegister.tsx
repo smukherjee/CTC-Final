@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 
+import AppAgGrid from '@/components/grid/AppAgGrid';
+import { formatDisplayDate } from '@/utils/dateFormat';
 import { generateFyDropdownOptions, getCurrentFy } from '@/utils/financialYear';
 
 interface PaymentReceiptRow {
@@ -105,12 +107,60 @@ export default function PaymentReceiptsRegister() {
     }
   };
 
+  const colDefs = useMemo<any[]>(() => [
+    {
+      field: 'payment_date',
+      headerName: 'PAYMENT DATE',
+      minWidth: 150,
+      flex: 1,
+      editable: false,
+      valueFormatter: (params: any) => formatDisplayDate(params.value),
+    },
+    {
+      field: 'amount',
+      headerName: 'AMOUNT',
+      minWidth: 140,
+      flex: 1,
+      editable: false,
+      cellStyle: { textAlign: 'right' },
+      valueFormatter: (params: any) => Number(params.value || 0).toFixed(2),
+    },
+    {
+      field: 'received_from',
+      headerName: 'RECEIVED FROM',
+      minWidth: 220,
+      flex: 1.3,
+      editable: false,
+    },
+    {
+      field: 'notes',
+      headerName: 'NOTES',
+      minWidth: 220,
+      flex: 1.5,
+      editable: false,
+      valueGetter: (params: any) => params.data.notes || '-',
+    },
+    {
+      headerName: 'ACTIONS',
+      minWidth: 170,
+      flex: 1,
+      editable: false,
+      sortable: false,
+      filter: false,
+      cellRenderer: (params: any) => (
+        <div className="flex h-full items-center gap-2">
+          <button type="button" onClick={() => editRow(params.data)} className="rounded border px-2 py-1 text-xs">Edit</button>
+          <button type="button" onClick={() => removeRow(params.data.id)} className="rounded border px-2 py-1 text-xs text-red-700">Delete</button>
+        </div>
+      ),
+    },
+  ], [editRow, removeRow]);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">Payment Receipts Register</h2>
-          <p className="text-sm text-slate-500">Maintain FY-scoped payment receipts with inline add/edit/delete.</p>
         </div>
         <div className="text-right text-sm">
           <div>Total Receipts: <span className="font-semibold">Rs. {totalAmount.toFixed(2)}</span></div>
@@ -148,43 +198,17 @@ export default function PaymentReceiptsRegister() {
         </div>
       </div>
 
-      <div className="overflow-auto rounded border bg-white">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-100 text-slate-700">
-            <tr>
-              <th className="px-3 py-2 text-left">PAYMENT DATE</th>
-              <th className="px-3 py-2 text-left">AMOUNT</th>
-              <th className="px-3 py-2 text-left">RECEIVED FROM</th>
-              <th className="px-3 py-2 text-left">NOTES</th>
-              <th className="px-3 py-2 text-left">ACTIONS</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr>
-                <td colSpan={5} className="px-3 py-4 text-slate-500">Loading...</td>
-              </tr>
-            )}
-            {!loading && rows.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-3 py-4 text-slate-500">No payment receipts found for FY {fy}</td>
-              </tr>
-            )}
-            {!loading && rows.map((row) => (
-              <tr key={row.id} className="border-t border-slate-100">
-                <td className="px-3 py-2">{new Date(row.payment_date).toLocaleDateString()}</td>
-                <td className="px-3 py-2">{Number(row.amount || 0).toFixed(2)}</td>
-                <td className="px-3 py-2">{row.received_from}</td>
-                <td className="px-3 py-2">{row.notes || '-'}</td>
-                <td className="px-3 py-2 space-x-2">
-                  <button type="button" onClick={() => editRow(row)} className="rounded border px-2 py-1 text-xs">Edit</button>
-                  <button type="button" onClick={() => removeRow(row.id)} className="rounded border px-2 py-1 text-xs text-red-700">Delete</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <AppAgGrid<PaymentReceiptRow>
+        rowData={rows}
+        columnDefs={colDefs}
+        loading={loading}
+        noRowsMessage={`No payment receipts found for FY ${fy}.`}
+        defaultColDef={{ editable: false }}
+        getRowId={(params: any) => String(params.data.id)}
+        rowSelection={{ mode: 'singleRow', enableClickSelection: false, checkboxes: false }}
+        fitColumns={false}
+        alwaysShowHorizontalScroll={true}
+      />
     </div>
   );
 }

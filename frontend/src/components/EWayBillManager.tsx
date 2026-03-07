@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { confirmDestructiveAction } from '@/utils/destructiveAction';
+import { formatDisplayDate, formatDisplayDateTime } from '@/utils/dateFormat';
 
 interface EWayBillRecord {
   id: number;
@@ -225,9 +226,9 @@ export default function EWayBillManager({ lrId }: EWayBillManagerProps) {
             {!loading && rows.map((row) => (
               <tr key={row.id} className="border-t border-slate-100">
                 <td className="px-3 py-2 font-medium">{row.number}</td>
-                <td className="px-3 py-2">{row.valid_from || '-'}</td>
-                <td className="px-3 py-2">{row.valid_upto || '-'}</td>
-                <td className="px-3 py-2">{row.expires_at ? new Date(row.expires_at).toLocaleString() : '-'}</td>
+                <td className="px-3 py-2">{formatDisplayDate(row.valid_from)}</td>
+                <td className="px-3 py-2">{formatDisplayDate(row.valid_upto)}</td>
+                <td className="px-3 py-2">{formatDisplayDateTime(row.expires_at)}</td>
                 <td className="px-3 py-2">
                   <span className={row.is_expired ? 'text-red-700 font-medium' : 'text-emerald-700 font-medium'}>
                     {row.status || (row.is_expired ? 'EXPIRED' : 'ACTIVE')}

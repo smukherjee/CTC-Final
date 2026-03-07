@@ -10,10 +10,10 @@ paths:
       summary: List invoices
       operationId: listInvoices
       parameters:
-        - name: party_id
+        - name: client_id
           in: query
           schema: { type: integer }
-          description: Filter by client/party
+          description: Filter by client/client
         - name: fy
           in: query
           schema: { type: string, example: "2025-26" }
@@ -98,9 +98,9 @@ components:
   schemas:
     InvoiceCreate:
       type: object
-      required: [party_id, invoice_date, financial_year, lines]
+      required: [client_id, invoice_date, financial_year, lines]
       properties:
-        party_id: { type: integer }
+        client_id: { type: integer }
         invoice_date: { type: string, format: date }
         financial_year: { type: string, example: "2025-26" }
         po_no: { type: string }
@@ -144,8 +144,8 @@ components:
         id: { type: integer }
         invoice_no: { type: string, example: "1543/25-26" }
         invoice_date: { type: string, format: date }
-        party_id: { type: integer }
-        party_name: { type: string }
+        client_id: { type: integer }
+        client_name: { type: string }
         financial_year: { type: string }
         po_no: { type: string }
         po_date: { type: string, format: date }

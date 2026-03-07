@@ -8,6 +8,9 @@ class HireMemoBase(BaseModel):
     total_amount: float
     advance_cash: Optional[float] = 0.0
     advance_bank: Optional[float] = 0.0
+    advance_payment_date: Optional[date] = None
+    balance: Optional[float] = None
+    balance_payment_date: Optional[date] = None
     # Driver
     driver_name: Optional[str] = None
     driver_mobile: Optional[str] = None
@@ -51,6 +54,9 @@ class HireMemoUpdate(BaseModel):
     total_amount: Optional[float]
     advance_cash: Optional[float]
     advance_bank: Optional[float]
+    advance_payment_date: Optional[date]
+    balance: Optional[float]
+    balance_payment_date: Optional[date]
     driver_name: Optional[str]
     driver_mobile: Optional[str]
     driver_license: Optional[str]

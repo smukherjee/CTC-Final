@@ -29,7 +29,7 @@ def upgrade():
         'contracts',
         sa.Column('id', sa.Integer, primary_key=True),
         sa.Column('name', sa.String(length=256), nullable=False),
-        sa.Column('party_id', sa.Integer, nullable=True),
+        sa.Column('client_id', sa.Integer, nullable=True),
         sa.Column('start_date', sa.Date, nullable=True),
         sa.Column('end_date', sa.Date, nullable=True),
         sa.Column('expiry_alert_days', sa.Integer, nullable=True),

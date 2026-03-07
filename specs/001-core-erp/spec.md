@@ -25,14 +25,14 @@ This specification defines the core features required for the CTC-ERP system, fo
 
 ## Functional Requirements
 1. **Centralized Dispatch Register**
-   - Capture all shipment details at dispatch: LR No, Date, Consignor, Consignee, Qty, Vehicle No, Origin, Destination, FOB (linked to Party Master), Through (Vendor/Broker), Bill No, Remarks.
+   - Capture all shipment details at dispatch: LR No, Date, Consignor, Consignee, Qty, Vehicle No, Origin, Destination, FOB (linked to client Master), Through (Vendor/Broker), Bill No, Remarks.
    - Grid MUST display `driver_mobile` as a visible column (field exists in DB: `driver_mobile`).
    - E-way Bill No and E-way Bill Expiry Date MUST be editable inline in the grid (not read-only).
-   - FOB field MUST link to Party Master (not freeform city input).
+   - FOB field MUST link to client Master (not freeform city input).
    - All LR records MUST carry `financial_year`; grid MUST provide a FY filter.
-   - Allow digital uploads: LR, Party Invoice, E-way Bill.
+   - Allow digital uploads: LR, client Invoice, E-way Bill.
 2. **Hire Memo Management**
-   - Generate Hire Memo for third-party vehicles, pulling data from Dispatch Register.
+   - Generate Hire Memo for third-client vehicles, pulling data from Dispatch Register.
    - Hire Memo number MUST be auto-generated as a sequential series per financial year (no manual override, no duplicates). Format: integer sequence restarting at `1` each April 1.
    - Capture total hire amount, advances (cash/bank), auto-calculate balance, and record driver details.
    - Print output MUST produce **2 copies** on one page: "Original Copy" (top half) and "Book Copy" (bottom half), both carrying the same HM number.
@@ -54,7 +54,7 @@ This specification defines the core features required for the CTC-ERP system, fo
    - All invoice records MUST carry `financial_year`.
    - **Invoice PDF fields** (required for generation):
      - Company header: name, PAN, GSTIN, address, bank details (ICICI Bank, Branch, IFSC, A/c No.).
-     - BILL TO: Party name, address, GSTIN (from Party Master).
+     - BILL TO: client name, address, GSTIN (from client Master).
      - Invoice No. (auto-generated), Invoice Date.
      - PO NUMBER and PO DATE (client purchase order reference).
      - HSN Code: `996791` (standard transport services code, mandatory for GST compliance).
@@ -75,7 +75,7 @@ This specification defines the core features required for the CTC-ERP system, fo
    - Generate print-ready debit vouchers for all advances/balances.
    - Auto-populate Bank Book and Cash Book from daily entries.
 8. **Master Data Management**
-   - **Party Master** (Client/Consignor/Consignee): name, address, GSTIN, contact details.
+   - **client Master** (Client/Consignor/Consignee): name, address, GSTIN, contact details.
    - **Vendor/Broker Master**: KYC, vehicle types, rate history. NOTE: Vendor/Broker does NOT have a GSTIN field. Drop `gstin` from vendor model if present.
    - **Contract Master**: Client-specific rates, validity, expiry alerts.
 9. **Security & Access Control**
@@ -101,7 +101,7 @@ This specification defines the core features required for the CTC-ERP system, fo
 - LR (Lorry Receipt) — carries `financial_year`
 - Hire Memo — carries `financial_year`; auto-numbered per FY
 - Vehicle
-- Party (Consignor/Consignee/Client) — has GSTIN
+- client (Consignor/Consignee/Client) — has GSTIN
 - Vendor/Broker — NO GSTIN field
 - Contract
 - Invoice — carries `financial_year`; auto-numbered `{seq}/{YY}-{YY+1}`; has `tds_amount`, `net_amount`, `po_no`, `po_date`, `reverse_charge`, `gst_paid_by`, `hsn_code`
@@ -140,7 +140,7 @@ This specification defines the core features required for the CTC-ERP system, fo
 - TDS rate is a configurable per-client value (not hardcoded).
 - "Amount in words" applies to INR amounts for both Hire Memo and Invoice prints.
 - HSN Code `996791` is used for all transport service invoices.
-- FOB in Dispatch Register links to Party Master (consignor only); free text is not allowed.
+- FOB in Dispatch Register links to client Master (consignor only); free text is not allowed.
 - Data retention and security follow industry norms.
 
 ---

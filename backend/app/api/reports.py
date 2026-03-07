@@ -6,7 +6,7 @@ from fastapi import APIRouter, Query
 from ..db import SessionLocal
 from ..models.invoice import InvoiceLineModel, InvoiceModel
 from ..models.lr import LRModel
-from ..models.party import PartyModel
+from ..models.client import ClientModel
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -52,8 +52,8 @@ def outstanding_receivables(fy: str | None = Query(default=None)) -> List[dict]:
     session = SessionLocal()
     try:
         rows = (
-            session.query(InvoiceModel, PartyModel)
-            .outerjoin(PartyModel, PartyModel.id == InvoiceModel.party_id)
+            session.query(InvoiceModel, ClientModel)
+            .outerjoin(ClientModel, ClientModel.id == InvoiceModel.client_id)
             .filter(InvoiceModel.status != "paid")
         )
         if fy:
@@ -61,12 +61,12 @@ def outstanding_receivables(fy: str | None = Query(default=None)) -> List[dict]:
         rows = rows.all()
 
         grouped: Dict[int, dict] = {}
-        for invoice, party in rows:
-            key = int(invoice.party_id or 0)
+        for invoice, client in rows:
+            key = int(invoice.client_id or 0)
             if key not in grouped:
                 grouped[key] = {
-                    "party_id": key,
-                    "party_name": party.name if party else f"Party {key}",
+                    "client_id": key,
+                    "client_name": client.name if client else f"Client {key}",
                     "invoice_count": 0,
                     "outstanding_total": 0.0,
                 }

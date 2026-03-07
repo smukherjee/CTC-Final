@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 
-class Party(BaseModel):
+class Client(BaseModel):
     id: int
     name: str
     type: str
@@ -12,7 +12,7 @@ class Party(BaseModel):
     tds_rate: Optional[float] = 0.0
 
 
-class PartyCreate(BaseModel):
+class ClientCreate(BaseModel):
     name: str
     type: str
     gstin: Optional[str] = None
@@ -21,7 +21,7 @@ class PartyCreate(BaseModel):
     tds_rate: Optional[float] = 0.0
 
 
-class PartyUpdate(BaseModel):
+class ClientUpdate(BaseModel):
     name: Optional[str] = None
     type: Optional[str] = None
     gstin: Optional[str] = None
@@ -31,4 +31,4 @@ class PartyUpdate(BaseModel):
 
 
 # Backward compat alias
-PartyResponse = Party
+ClientResponse = Client

@@ -7,15 +7,15 @@ export interface User {
     branch_id: string;
 }
 
-export type PartyType = 'CONSIGNOR' | 'CONSIGNEE' | 'BOTH';
+export type ClientType = 'CONSIGNOR' | 'CONSIGNEE' | 'BOTH';
 
-export interface Party {
+export interface Client {
     id: string;
     name: string;
     address: string;
     gstin?: string;
     mobile?: string;
-    type: PartyType;
+    type: ClientType;
 }
 
 export interface Vendor {
@@ -33,14 +33,14 @@ export interface Vehicle {
     number: string;
     type: string; // e.g., '32 FT MXL'
     capacity: string; // e.g., '18 Tons'
-    owner_id?: string; // Link to Vendor if 3rd party
+    owner_id?: string; // Link to Vendor if 3rd client
     status: VehicleStatus;
 }
 
 export interface Contract {
     id: string;
     name: string;
-    party_id?: string;
+    client_id?: string;
     start_date?: string;
     end_date?: string;
     expiry_alert_days?: number;
@@ -159,7 +159,7 @@ export interface LR {
 
     // New fields from Requirements
     fob?: string;
-    fob_party_id?: number;
+    fob_client_id?: number;
     through?: string; // Broker/Vendor Ref
     through_id?: number; // Vendor id (foreign key)
 

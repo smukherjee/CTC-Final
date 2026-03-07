@@ -34,7 +34,7 @@ This analysis traces three layers:
 | 9 | VEHICLE NO. | ✅ Yes (`vehicle_number`) |
 | 10 | ORIGIN | ✅ Yes |
 | 11 | DESTINATION | ✅ Yes |
-| 12 | FOB | ✅ Yes — but **WRONG data source** (uses Cities; should link to Party Master) |
+| 12 | FOB | ✅ Yes — but **WRONG data source** (uses Cities; should link to Client Master) |
 | 13 | THROUGH | ✅ Yes (`through_id` → Vendor) |
 | 14 | BILL NO | ✅ Yes (`bill_number`) |
 | 15 | REMARKS | ✅ Yes |
@@ -45,7 +45,7 @@ This analysis traces three layers:
 **Key observations from real data:**
 - Financial year shown in header: `DISPATCH REGISTER 2025-2026` — system must scope all data per FY
 - LR numbers are pure integers (e.g., 45610, 45612) — current system uses `lr_number` as string ✅
-- FOB values in sample data are city names like `SRICITY` — **but Nikhil confirmed it must link to Party Master**
+- FOB values in sample data are city names like `SRICITY` — **but Nikhil confirmed it must link to client Master**
 - THROUGH values are broker/vendor names (e.g., `SBR`, `RADHEKRISHNA`, `MEENAKSHI`) — matches vendor lookup ✅
 - BILL NO is a simple integer (e.g., 78) — represents the invoice number ✅
 
@@ -140,7 +140,7 @@ This analysis traces three layers:
 | Company header (CTC logo, PAN, GSTIN) | ❌ Not in invoice generation | Static header needed in PDF |
 | Invoice No. | ❌ Not auto-generated | Format from sample: `1543/25-26` → **FY-based numbering** |
 | Invoice Date | ❌ | |
-| BILL TO (name + address + GST) | ❌ | Needs Party master lookup |
+| BILL TO (name + address + GST) | ❌ | Needs Client master lookup |
 | Description (Transportation Charges From X) | ❌ | |
 | PO NUMBER + PO DATE | ❌ | New field not in spec |
 | LR NO, DATE, QTY/NOS, PARTICULARS, V.TYPE, VEHICLE NO., FROM, TO, AMOUNT | ❌ | Line item per LR |
@@ -231,7 +231,7 @@ This analysis traces three layers:
 | DR-01 | "Driver Number to be added in Dispatch column" | LR template has Driver Mobile field; DR sample missing it | `driver_mobile` in DB but **not shown** in grid | 🔴 CRITICAL |
 | DR-02 | "Eway Bill No. & Eway Bill expiry date to be added in Dispatch column" | DR sample has no E-Way columns; Nikhil confirms need | Grid has EWAY NO + EWAY EXPIRY as read-only | ⚠️ Partial — needs default visibility |
 | DR-03 | "Dispatch Register columns to be added as per sample given" | 15 exact columns confirmed | All 15 columns exist ✅ | 🟢 Good |
-| DR-04 | "Party Master ← [FOB column in Dispatch Register]" | Sample FOB = "SRICITY" (a location/party); currently uses city list | FOB uses `citiesList` not parties | 🔴 CRITICAL — wrong data source |
+| DR-04 | "Client Master ← [FOB column in Dispatch Register]" | Sample FOB = "SRICITY" (a location/client); currently uses city list | FOB uses `citiesList` not clients | 🔴 CRITICAL — wrong data source |
 | DR-05 | "All data must be according to Financial Year" | Sheet header: *DISPATCH REGISTER 2025-2026* — year scoped | No FY field, no FY filter, no FY segregation | 🔴 CRITICAL |
 
 ---
@@ -268,13 +268,13 @@ This analysis traces three layers:
 
 ---
 
-### 3.4 PARTY MASTER (Client Master)
+### 3.4 CLIENT MASTER (formerly client Master)
 
 | Gap ID | Nikhil's Comment | Sample Evidence | Current State | Severity |
 |--------|-----------------|----------------|---------------|----------|
-| PM-01 | "Party Master ← linked to FOB column in Dispatch Register" | Sample FOB = party/location name | FOB uses city list, not Party | 🔴 CRITICAL |
-| PM-02 | Party = "Client" per client's terminology | Sample: "HAVELLS INDIA LTD", "LIFESTYLE INTERNATIONAL" appear in invoice BILL TO | `PartyMaster.tsx` exists with CUSTOMER/CONSIGNOR/CONSIGNEE types | 🟡 Rename label to "Client Master" |
-| PM-03 | Party must include GST NO for invoice generation | Invoice samples show GST on BILL TO section | `gstin` field exists ✅ but needed for invoice | 🟢 OK |
+| PM-01 | "Client Master ← linked to FOB column in Dispatch Register" | Sample FOB = client/location name | FOB uses city list, not Client | 🔴 CRITICAL |
+| PM-02 | client = "Client" per client's terminology | Sample: "HAVELLS INDIA LTD", "LIFESTYLE INTERNATIONAL" appear in invoice BILL TO | `clientMaster.tsx` exists with CUSTOMER/CONSIGNOR/CONSIGNEE types | 🟡 Rename label to "Client Master" |
+| PM-03 | client must include GST NO for invoice generation | Invoice samples show GST on BILL TO section | `gstin` field exists ✅ but needed for invoice | 🟢 OK |
 
 ---
 
@@ -299,7 +299,7 @@ This analysis traces three layers:
 | INV-04 | "GST to be paid by recipient of the services" | Sample: `REMARKS: GST PAYABLE BY HAVELLS INDIA LTD` + `TAX PAYABLE ON REVERSE CHARGES: YES` | ❌ Not in spec or implementation | 🔴 CRITICAL |
 | INV-05 | HSN CODE: 996791 (standard transport code) | Sample confirmed | ❌ No HSN code in implementation | 🔴 CRITICAL |
 | INV-06 | PO NUMBER + PO DATE on invoice | Sample: `PO NUMBER: 119454 / PO DATE: 16.12.2025` | ❌ Not in spec, not in DB model | 🔴 CRITICAL — new field needed |
-| INV-07 | BILL TO with full address + GST from Party Master | Sample shows full address block | ❌ Party model has address + gstin but not used for invoice | 🟡 HIGH |
+| INV-07 | BILL TO with full address + GST from client Master | Sample shows full address block | ❌ Client model has address + gstin but not used for invoice | 🟡 HIGH |
 | INV-08 | BANK DETAIL static section on invoice PDF | Sample: ICICI Bank, IFSC ICIC0004121, A/c 777705252729 | ❌ Not configurable in system | 🟡 HIGH |
 | INV-09 | Inline deductions per LR line (e.g., LESS: SEAL COST) | Without-annexure invoice shows -20.00 per LR | ❌ Not supported | 🟡 HIGH |
 | INV-10 | Amount in words on invoice | Sample: "RUPEES ONE LAKH TWENTY THREE..." | ❌ Not implemented | 🟡 HIGH |
@@ -340,7 +340,7 @@ This analysis traces three layers:
 | 1 | Dispatch Register | ✅ Full | ✅ T011-T018 | ✅ Done | 🔴 3 gaps (driver col, FOB source, FY) |
 | 2 | Hire Memo Entry | ✅ Full | ✅ T019-T023 | ✅ Done | 🔴 4 gaps (2 prints, series, audit, FY) |
 | 3 | Hire Memo Register | ❌ Missing | ❌ No tasks | ❌ Missing | 🔴 New screen needed |
-| 4 | Client Master (Party) | ✅ Partial | ✅ T024-T028 | ✅ Done | 🟡 FOB linkage, rename label |
+| 4 | Client Master (client) | ✅ Partial | ✅ T024-T028 | ✅ Done | 🟡 FOB linkage, rename label |
 | 5 | Vendor Master | ✅ Partial | ✅ T026 | ✅ Done | 🔴 Remove GSTIN, add broker FK |
 | 6 | Invoice Creation | ✅ Spec only | ⚠️ T036-T038 | ❌ Not built | 🔴 Entire screen missing |
 | 7 | Invoice Register | ✅ Partial | ⚠️ T036-T038 | ⚠️ BillBook.tsx partial | 🔴 TDS, Net Amount missing |
@@ -363,7 +363,7 @@ This analysis traces three layers:
 |---|-------|----------|-----------|
 | C1 | **"Capacitor"** in Hire Memo Register | Is this "Capacity" (vehicle load capacity), a commission agent reference, or something else? | Hire Memo Register column |
 | C2 | **"ST. 5%"** in Invoice | Is this a 5% Service Tax legacy field, or a standard 5% surcharge? Should it appear on every invoice? | Invoice Creation |
-| C3 | **FOB → Party Master** | Should FOB show ALL parties or only CONSIGNOR type? Can it be typed manually if not in master? | Dispatch Register |
+| C3 | **FOB → Client Master** | Should FOB show ALL clients or only CONSIGNOR type? Can it be typed manually if not in master? | Dispatch Register |
 | C4 | **TDS in Invoice Register** | Is TDS a fixed percentage deducted by the client? Should system pre-calculate it from a vendor/client rate? | Invoice Register |
 | C5 | **Balance Payment Date** in Hire Memo Register | Is this filled manually after payment is made, or should it be auto-filled from a payment transaction? | Hire Memo Register |
 | C6 | **Print numbering** | Should Original Copy be numbered and Book Copy be a carbon copy, or should both show the same HM number? | Hire Memo Print |
@@ -381,9 +381,9 @@ This analysis traces three layers:
 - [ ] **S1-03** Add `payment_date` DATE, `balance_payment_date` DATE, `capacitor` VARCHAR to `hirememos`. Write migration.
 - [ ] **S1-04** Remove `gstin` column from `vendors` table. Write migration.
 - [ ] **S1-05** Add `tds_declaration` BOOLEAN (DEFAULT FALSE) to `vendors` table. Migrate existing `tds_certificate_url` → derive boolean. Write migration.
-- [ ] **S1-06** Create `invoices` table: `id`, `invoice_no` (format `{seq}/{fy_short}`, unique), `invoice_date`, `party_id` FK, `po_number`, `po_date`, `description`, `hsn_code`, `reverse_charge` BOOLEAN, `total_amount`, `tds_amount`, `other_deductions`, `net_amount`, `remarks`, `financial_year`, `has_annexure` BOOLEAN, `status`, timestamps.
+- [ ] **S1-06** Create `invoices` table: `id`, `invoice_no` (format `{seq}/{fy_short}`, unique), `invoice_date`, `client_id` FK, `po_number`, `po_date`, `description`, `hsn_code`, `reverse_charge` BOOLEAN, `total_amount`, `tds_amount`, `other_deductions`, `net_amount`, `remarks`, `financial_year`, `has_annexure` BOOLEAN, `status`, timestamps.
 - [ ] **S1-07** Create `invoice_line_items` table: `id`, `invoice_id` FK, `lr_id` FK (nullable for manual lines), `lr_number`, `lr_date`, `qty`, `particulars`, `vehicle_type`, `vehicle_number`, `from_location`, `to_location`, `freight`, `seal_cost`, `loading_detention`, `unloading_charges`, `unloading_detention`, `other_charges`, `line_total`, `consignor`, `consignee`, `placed_on`, `loaded_on`.
-- [ ] **S1-08** Create `payment_receipts` table: `id`, `receipt_no` (unique, auto-generated), `receipt_date`, `invoice_id` FK (nullable for advance payments), `party_id` FK, `amount`, `mode` (`CASH`/`BANK`/`CHEQUE`/`NEFT`/`RTGS`), `bank_ref`, `financial_year`, `remarks`, timestamps.
+- [ ] **S1-08** Create `payment_receipts` table: `id`, `receipt_no` (unique, auto-generated), `receipt_date`, `invoice_id` FK (nullable for advance payments), `client_id` FK, `amount`, `mode` (`CASH`/`BANK`/`CHEQUE`/`NEFT`/`RTGS`), `bank_ref`, `financial_year`, `remarks`, timestamps.
 - [ ] **S1-09** Create `print_logs` table: `id`, `entity_type` VARCHAR, `entity_id` INT, `copy_type` VARCHAR (ORIGINAL/BOOK), `printed_by` INT FK users, `printed_at` TIMESTAMP. Write migration.
 - [ ] **S1-10** Update Pydantic schemas for all modified models (HireMemo, Vendor, new Invoice, InvoiceLineItem, PaymentReceipt).
 
@@ -397,12 +397,12 @@ This analysis traces three layers:
 - [ ] **S2-06** Create Invoice Number Generator service: next sequence per FY (e.g., `1/25-26`, `2/25-26`..., `1543/25-26`).
 - [ ] **S2-07** Create Payment Receipts API: `POST /api/payment-receipt/`, `GET /api/payment-receipt/`, `GET /api/payment-receipt/?invoice_id=`, `PUT`.
 - [ ] **S2-08** Create Print Log API: `POST /api/print-log/` (called by frontend after each print), `GET /api/print-log/?entity_type=HIRE_MEMO&entity_id=`.
-- [ ] **S2-09** Add `GET /api/party/` filter for `type=CONSIGNOR` to support FOB dropdown (returns Party names, not city names).
+- [ ] **S2-09** Add `GET /api/client/` filter for `type=CONSIGNOR` to support FOB dropdown (returns client names, not city names).
 
 ### SPRINT 3 — Frontend Fixes to Existing Screens (Week 2)
 
 - [ ] **S3-01** **Dispatch Register** — Add `driver_mobile` column to grid (data exists in backend).
-- [ ] **S3-02** **Dispatch Register** — Change FOB dropdown source from `citiesList` to `partiesList` (from `GET /api/party/`).
+- [ ] **S3-02** **Dispatch Register** — Change FOB dropdown source from `citiesList` to `clientsList` (from `GET /api/client/`).
 - [ ] **S3-03** **Dispatch Register** — Add FY selector to header; filter `GET /api/lr/?financial_year=` on load. Default to current FY.
 - [ ] **S3-04** **Dispatch Register** — Ensure EWAY NO and EWAY EXPIRY columns are **pinned/visible by default** (not hidden).
 - [ ] **S3-05** **Hire Memo Entry** — Add `broker_id` selector (dropdown from Vendor Master, type=BROKER).
@@ -417,9 +417,9 @@ This analysis traces three layers:
 ### SPRINT 4 — New Screens (Week 3–4)
 
 - [ ] **S4-01** **Hire Memo Register** (`/operations/hirememo-register`) — Grid with columns: HM No, HM Date, Vehicle No, LR No (linked), Total Hire, Hire Paid (Advance), Payment Date, Balance Amount, Balance Payment Date, Capacitor, Broker Name, TDS Declaration (Yes/No). Filterable by FY, broker, date range. Editable: Payment Date, Balance Payment Date, Capacitor (manual cols).
-- [ ] **S4-02** **Invoice Creation** (`/finance/invoices/create`) — Form with: Party selector (BILL TO), FY selector, auto-generated invoice number, PO No + PO Date, With/Without Annexure toggle, LR selector (multi-select from Dispatch Register for current FY + party), per-LR charge editing (freight, seal cost, detention, unloading, other), reverse charge checkbox, HSN Code (default 996791), Bank Detail section (editable company-level config), PDF preview + download.
-- [ ] **S4-03** **Invoice Register** (`/finance/invoices`) — Replaces/extends BillBook. Columns: Invoice No, Invoice Date, Party, Total Amount, TDS, Other Deductions, Net Amount, Status, CM No, CM Date, Remarks. Filter by FY, party, status (DRAFT/SENT/PARTIALLY_PAID/PAID). Link to Payment Receipts.
-- [ ] **S4-04** **Payment Receipts Register** (`/finance/payment-receipts`) — Columns: Receipt No (auto), Receipt Date, Party Name, Invoice Ref, Amount, Mode (Cash/Bank/NEFT/RTGS), Bank Ref, FY, Remarks. Entry form. Triggers update of linked invoice status.
+- [ ] **S4-02** **Invoice Creation** (`/finance/invoices/create`) — Form with: client selector (BILL TO), FY selector, auto-generated invoice number, PO No + PO Date, With/Without Annexure toggle, LR selector (multi-select from Dispatch Register for current FY + client), per-LR charge editing (freight, seal cost, detention, unloading, other), reverse charge checkbox, HSN Code (default 996791), Bank Detail section (editable company-level config), PDF preview + download.
+- [ ] **S4-03** **Invoice Register** (`/finance/invoices`) — Replaces/extends BillBook. Columns: Invoice No, Invoice Date, client, Total Amount, TDS, Other Deductions, Net Amount, Status, CM No, CM Date, Remarks. Filter by FY, client, status (DRAFT/SENT/PARTIALLY_PAID/PAID). Link to Payment Receipts.
+- [ ] **S4-04** **Payment Receipts Register** (`/finance/payment-receipts`) — Columns: Receipt No (auto), Receipt Date, client Name, Invoice Ref, Amount, Mode (Cash/Bank/NEFT/RTGS), Bank Ref, FY, Remarks. Entry form. Triggers update of linked invoice status.
 
 ### SPRINT 5 — Quality & Cross-Cutting (Week 5)
 
@@ -447,7 +447,7 @@ This analysis traces three layers:
 | `vendors` | `tds_declaration` | BOOLEAN | Replace `tds_certificate_url` or add alongside |
 | `vendors` | ~~`gstin`~~ | **REMOVE** | Per Nikhil review |
 | `invoices` (NEW) | `invoice_no` | VARCHAR `{seq}/{fy}` | System-generated |
-| `invoices` | `party_id` | INT FK parties | Bill To address |
+| `invoices` | `client_id` | INT FK clients | Bill To address |
 | `invoices` | `po_number` | VARCHAR | Client PO reference |
 | `invoices` | `po_date` | DATE | Client PO date |
 | `invoices` | `hsn_code` | VARCHAR | Default `996791` |

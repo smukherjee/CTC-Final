@@ -57,7 +57,7 @@ def _invoice_to_dict(invoice: InvoiceModel, lines: List[InvoiceLineModel]) -> di
         "id": invoice.id,
         "invoice_no": invoice.invoice_no,
         "invoice_date": invoice.invoice_date,
-        "party_id": invoice.party_id,
+        "client_id": invoice.client_id,
         "financial_year": invoice.financial_year,
         "po_no": invoice.po_no,
         "po_date": invoice.po_date,
@@ -96,14 +96,14 @@ def _create_line(invoice_id: int, item: dict) -> InvoiceLineModel:
     )
 
 
-def list_invoices(fy: Optional[str] = None, party_id: Optional[int] = None) -> List[dict]:
+def list_invoices(fy: Optional[str] = None, client_id: Optional[int] = None) -> List[dict]:
     session = SessionLocal()
     try:
         query = session.query(InvoiceModel)
         if fy:
             query = query.filter(InvoiceModel.financial_year == fy)
-        if party_id is not None:
-            query = query.filter(InvoiceModel.party_id == party_id)
+        if client_id is not None:
+            query = query.filter(InvoiceModel.client_id == client_id)
         invoices = query.order_by(InvoiceModel.id.desc()).all()
 
         payload = []
@@ -142,7 +142,7 @@ def create_invoice(payload: dict) -> dict:
         invoice = InvoiceModel(
             invoice_no=invoice_no,
             invoice_date=invoice_date,
-            party_id=payload["party_id"],
+            client_id=payload["client_id"],
             financial_year=fy,
             po_no=payload.get("po_no"),
             po_date=_as_date(payload.get("po_date")),
@@ -179,7 +179,7 @@ def update_invoice(invoice_id: int, payload: dict) -> Optional[dict]:
             return None
 
         for key in (
-            "party_id",
+            "client_id",
             "po_no",
             "gst_paid_by",
             "hsn_code",

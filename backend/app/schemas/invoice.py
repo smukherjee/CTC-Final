@@ -39,7 +39,7 @@ class InvoiceLineResponse(InvoiceLineBase):
 
 class InvoiceBase(BaseModel):
     invoice_date: date
-    party_id: int
+    client_id: int
     financial_year: Optional[str] = None
     po_no: Optional[str] = None
     po_date: Optional[date] = None
@@ -58,7 +58,7 @@ class InvoiceCreate(InvoiceBase):
 
 class InvoiceUpdate(BaseModel):
     invoice_date: Optional[date] = None
-    party_id: Optional[int] = None
+    client_id: Optional[int] = None
     financial_year: Optional[str] = None
     po_no: Optional[str] = None
     po_date: Optional[date] = None

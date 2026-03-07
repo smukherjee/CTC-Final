@@ -1,6 +1,7 @@
 import Handlebars from 'handlebars';
 import { format } from 'date-fns';
 import { inrWords } from '@/utils/amountInWords';
+import { formatDisplayDate } from '@/utils/dateFormat';
 
 import hireMemoTemplateSource from '@/templates/hirememo-template.hbs?raw';
 
@@ -46,12 +47,8 @@ export function printHireMemo(data: Partial<HireMemoPrintData>) {
 
   const templateData = {
     ...data,
-    hire_memo_date: data.hire_memo_date
-      ? format(new Date(String(data.hire_memo_date)), 'dd/MM/yy')
-      : '',
-    lr_date: data.lr_date
-      ? format(new Date(String(data.lr_date)), 'dd/MM/yy')
-      : '',
+    hire_memo_date: formatDisplayDate(data.hire_memo_date, ''),
+    lr_date: formatDisplayDate(data.lr_date, ''),
     articles_count: data.articles_count || '',
     freight_weight: data.freight_weight || '',
     total_amount: formatMoney(totalAmount),

@@ -59,6 +59,7 @@ export default function MasterCrudGrid<T extends { id?: RowId }>({
     await axios.delete(`${listEndpoint}${id}`);
     setData((prev) => prev.filter((it) => String(it.id) !== String(id)));
   }, [listEndpoint, setData]);
+              {subtitle && <p className="mt-1 text-sm text-slate-600">{subtitle}</p>}
 
   const onCellValueChanged = useCallback(async (event: any) => {
     const row = event.data as T;
@@ -129,7 +130,6 @@ export default function MasterCrudGrid<T extends { id?: RowId }>({
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">{title}</h2>
-          <p className="text-sm text-slate-500 mt-1">{subtitle || `Manage ${title.toLowerCase()} centrally`} • {data.length} records</p>
         </div>
         <div className="flex gap-2">
           <button

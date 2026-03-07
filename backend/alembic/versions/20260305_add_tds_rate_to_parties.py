@@ -1,4 +1,4 @@
-"""add tds_rate to parties
+"""add tds_rate to clients
 
 Revision ID: 20260305_05
 Revises: 20260305_04
@@ -14,10 +14,10 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column('parties', sa.Column(
+    op.add_column('clients', sa.Column(
         'tds_rate', sa.Numeric(5, 2), nullable=False, server_default='0'
     ))
 
 
 def downgrade():
-    op.drop_column('parties', 'tds_rate')
+    op.drop_column('clients', 'tds_rate')

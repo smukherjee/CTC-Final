@@ -27,7 +27,7 @@ const lrSchema = z.object({
     destination: z.string().min(1, 'Destination is required'),
     through: z.string().optional(),
     through_id: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().optional()),
-    fob_party_id: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().optional()),
+    fob_client_id: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().optional()),
     delivery_at: z.string().optional(),
     vehicle_number: z.string().optional(),
     vehicle_id: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().optional()),
@@ -65,7 +65,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
     const [vendors, setVendors] = useState<any[]>([]);
     const [consignors, setConsignors] = useState<{ id: string; name: string }[]>([]);
     const [consignees, setConsignees] = useState<{ id: string; name: string }[]>([]);
-    const [fobParties, setFobParties] = useState<{ id: string; name: string }[]>([]);
+    const [fobClients, setFobClients] = useState<{ id: string; name: string }[]>([]);
     const [goodsItems, setGoodsItems] = useState<GoodsLineItem[]>([{
         id: '1',
         articles_count: 0,
@@ -89,7 +89,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
         destination: initialData?.destination || '',
         through: initialData?.through || '',
         through_id: initialData?.through_id ? Number(initialData.through_id) : undefined,
-        fob_party_id: (initialData as any)?.fob_party_id ? Number((initialData as any).fob_party_id) : undefined,
+        fob_client_id: (initialData as any)?.fob_client_id ? Number((initialData as any).fob_client_id) : undefined,
         delivery_at: '',
         vehicle_number: initialData?.vehicle_number || '',
         vehicle_id: initialData?.vehicle_id ? Number(initialData.vehicle_id) : undefined,
@@ -131,10 +131,10 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
         const loadData = async () => {
             try {
                 // 1. Load Master Lists in parallel
-                const [citiesRes, vendorsRes, partyRes, vehicleRes, optionsRes] = await Promise.all([
+                const [citiesRes, vendorsRes, clientRes, vehicleRes, optionsRes] = await Promise.all([
                     axios.get('/api/city/').catch(() => ({ data: [] })),
                     axios.get('/api/vendor/').catch(() => ({ data: [] })),
-                    axios.get('/api/party/').catch(() => ({ data: [] })),
+                    axios.get('/api/clients/').catch(() => ({ data: [] })),
                     axios.get('/api/vehicle/').catch(() => ({ data: [] })),
                     fetchFormOptions().catch(() => EMPTY_FORM_OPTIONS),
                 ]);
@@ -171,28 +171,28 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                     setVehiclesList(vList);
                 }
 
-                // Process Parties
+                // Process Clients
                 let loadedConsignors: { id: string, name: string }[] = [];
                 let loadedConsignees: { id: string, name: string }[] = [];
 
-                if (Array.isArray(partyRes.data)) {
-                    loadedConsignors = partyRes.data
+                if (Array.isArray(clientRes.data)) {
+                    loadedConsignors = clientRes.data
                         .filter((p: any) => {
-                            const partyType = String(p.type || '').toUpperCase();
-                            return partyType === 'CONSIGNOR' || partyType === 'BOTH';
+                            const clientType = String(p.type || '').toUpperCase();
+                            return clientType === 'CONSIGNOR' || clientType === 'BOTH';
                         })
                         .map((p: any) => ({ id: String(p.id), name: p.name }));
-                    loadedConsignees = partyRes.data
+                    loadedConsignees = clientRes.data
                         .filter((p: any) => {
-                            const partyType = String(p.type || '').toUpperCase();
-                            return partyType === 'CONSIGNEE' || partyType === 'BOTH';
+                            const clientType = String(p.type || '').toUpperCase();
+                            return clientType === 'CONSIGNEE' || clientType === 'BOTH';
                         })
                         .map((p: any) => ({ id: String(p.id), name: p.name }));
 
                     setConsignors(loadedConsignors);
                     setConsignees(loadedConsignees);
-                    setFobParties(
-                        partyRes.data.map((p: any) => ({ id: String(p.id), name: String(p.name || '') }))
+                    setFobClients(
+                        clientRes.data.map((p: any) => ({ id: String(p.id), name: String(p.name || '') }))
                     );
                 }
 
@@ -238,7 +238,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                         destination: normalizeCity(lrData?.destination || ''),
                         through: throughMatch.name || (lrData?.through || ''),
                         through_id: throughMatch.id ? Number(throughMatch.id) : undefined,
-                        fob_party_id: lrData?.fob_party_id ? Number(lrData.fob_party_id) : undefined,
+                        fob_client_id: lrData?.fob_client_id ? Number(lrData.fob_client_id) : undefined,
                         delivery_at: lrData?.delivery_at || '',
                         vehicle_number: lrData?.vehicle_number || '',
                         vehicle_id: lrData?.vehicle_id
@@ -437,7 +437,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
             delivery_at: fullLR.delivery_at,
             through: fullLR.through,
             through_id: toIntOrNull(fullLR.through_id),
-            fob_party_id: toIntOrNull((fullLR as any).fob_party_id),
+            fob_client_id: toIntOrNull((fullLR as any).fob_client_id),
             surcharge: Number(fullLR.surcharge || 0),
             hamali_charges: Number(fullLR.hamali_charges || 0),
             st_charges: Number(fullLR.st_charges || 0),
@@ -689,7 +689,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
 
                         <div className="h-px bg-slate-100" />
 
-                        {/* 2. Parties */}
+                        {/* 2. Clients */}
                         <div className="grid grid-cols-2 gap-8">
                             <div className="space-y-4">
                                 <div>
@@ -784,15 +784,15 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                                 </select>
                             </div>
                             <div>
-                                <label htmlFor="fob_party_id" className="block text-sm font-medium text-slate-700 mb-1.5">FOB Party</label>
+                                <label htmlFor="fob_client_id" className="block text-sm font-medium text-slate-700 mb-1.5">FOB Client</label>
                                 <select
-                                    id="fob_party_id"
-                                    {...register('fob_party_id')}
+                                    id="fob_client_id"
+                                    {...register('fob_client_id')}
                                     disabled={isReadOnly}
                                     className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
                                 >
-                                    <option value="">Select FOB Party</option>
-                                    {fobParties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                    <option value="">Select FOB Client</option>
+                                    {fobClients.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                                 </select>
                             </div>
                         </div>

@@ -28,7 +28,7 @@ def list_expiring_contracts(days: int = Query(default=30, ge=1, le=365)) -> List
                 {
                     "id": c.id,
                     "name": c.name,
-                    "party_id": c.party_id,
+                    "client_id": c.client_id,
                     "end_date": c.end_date,
                     "days_remaining": remaining,
                 }

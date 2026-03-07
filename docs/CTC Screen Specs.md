@@ -500,7 +500,7 @@
 * **Layout Structure:** A structured form mirroring the physical PDF.
     * **Header:** Company branding, LR No, Date.
     * **Vehicle & Route:** Truck No, Type, Origin, Destination.
-    * **Parties:** Side-by-side blocks for Consignor and Consignee details (Name, Address, GSTIN).
+    * **clients:** Side-by-side blocks for Consignor and Consignee details (Name, Address, GSTIN).
     * **Goods Grid:** Table with Pkgs, Packing Type, Description, Weight, Freight Basis.
     * **Financials & Tax:** Freight Rate (hidden for unauthorized roles) and GST Liability checkboxes showing RCM status.
     * **Footer:** Terms & Conditions text and signatory placeholder.

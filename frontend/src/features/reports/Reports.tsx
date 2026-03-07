@@ -1,16 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import AppAgGrid from '@/components/grid/AppAgGrid';
+import { formatDisplayDate } from '@/utils/dateFormat';
 import { generateFyDropdownOptions, getCurrentFy } from '@/utils/financialYear';
 
 type ReportTab = 'pending' | 'outstanding';
+
+interface PendingBillingRow {
+  lr_id: number;
+  lr_number?: string;
+  date?: string;
+  vehicle_number?: string;
+  consignor_name?: string;
+  consignee_name?: string;
+  origin?: string;
+  destination?: string;
+}
+
+interface OutstandingReceivableRow {
+  client_id: number;
+  client_name?: string;
+  invoice_count?: number;
+  outstanding_total?: number;
+}
 
 export default function Reports() {
   const currentFy = getCurrentFy();
   const fyOptions = generateFyDropdownOptions(currentFy);
   const [fy, setFy] = useState(currentFy);
   const [tab, setTab] = useState<ReportTab>('pending');
-  const [pendingRows, setPendingRows] = useState<any[]>([]);
-  const [outstandingRows, setOutstandingRows] = useState<any[]>([]);
+  const [pendingRows, setPendingRows] = useState<PendingBillingRow[]>([]);
+  const [outstandingRows, setOutstandingRows] = useState<OutstandingReceivableRow[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -31,11 +51,46 @@ export default function Reports() {
       .finally(() => setLoading(false));
   }, [fy]);
 
+  const pendingColDefs = useMemo<any[]>(() => [
+    { field: 'lr_number', headerName: 'LR No', minWidth: 140, flex: 1, editable: false },
+    {
+      field: 'date',
+      headerName: 'Date',
+      minWidth: 130,
+      flex: 1,
+      editable: false,
+      valueFormatter: (params: any) => formatDisplayDate(params.value),
+    },
+    { field: 'vehicle_number', headerName: 'Vehicle', minWidth: 150, flex: 1, editable: false, valueGetter: (params: any) => params.data.vehicle_number || '-' },
+    { field: 'consignor_name', headerName: 'Consignor', minWidth: 220, flex: 1.4, editable: false, valueGetter: (params: any) => params.data.consignor_name || '-' },
+    { field: 'consignee_name', headerName: 'Consignee', minWidth: 220, flex: 1.4, editable: false, valueGetter: (params: any) => params.data.consignee_name || '-' },
+    {
+      headerName: 'Route',
+      minWidth: 220,
+      flex: 1.3,
+      editable: false,
+      valueGetter: (params: any) => `${params.data.origin || '-'} to ${params.data.destination || '-'}`,
+    },
+  ], []);
+
+  const outstandingColDefs = useMemo<any[]>(() => [
+    { field: 'client_name', headerName: 'Client', minWidth: 220, flex: 1.5, editable: false },
+    { field: 'invoice_count', headerName: 'Invoices', minWidth: 130, flex: 1, editable: false },
+    {
+      field: 'outstanding_total',
+      headerName: 'Outstanding Total',
+      minWidth: 170,
+      flex: 1,
+      editable: false,
+      cellStyle: { textAlign: 'right' },
+      valueFormatter: (params: any) => Number(params.value || 0).toFixed(2),
+    },
+  ], []);
+
   return (
     <div className="space-y-4">
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-slate-900">Reports</h2>
-        <p className="text-sm text-slate-500">Pending Billing and Outstanding Receivables</p>
       </div>
 
       <div className="flex items-center gap-2">
@@ -57,63 +112,17 @@ export default function Reports() {
         <button type="button" onClick={() => setTab('outstanding')} className={`rounded px-3 py-1 text-sm ${tab === 'outstanding' ? 'bg-slate-900 text-white' : 'bg-white border text-slate-700'}`}>Outstanding Receivables</button>
       </div>
 
-      <div className="overflow-auto rounded border bg-white">
-        {loading && <div className="p-4 text-sm text-slate-500">Loading reports...</div>}
-
-        {!loading && tab === 'pending' && (
-          <table className="w-full text-sm">
-            <thead className="bg-slate-100 text-slate-700">
-              <tr>
-                <th className="px-3 py-2 text-left">LR No</th>
-                <th className="px-3 py-2 text-left">Date</th>
-                <th className="px-3 py-2 text-left">Vehicle</th>
-                <th className="px-3 py-2 text-left">Consignor</th>
-                <th className="px-3 py-2 text-left">Consignee</th>
-                <th className="px-3 py-2 text-left">Route</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pendingRows.length === 0 && (
-                <tr><td colSpan={6} className="px-3 py-4 text-slate-500">No pending billing rows.</td></tr>
-              )}
-              {pendingRows.map((row) => (
-                <tr key={row.lr_id} className="border-t border-slate-100">
-                  <td className="px-3 py-2">{row.lr_number}</td>
-                  <td className="px-3 py-2">{row.date ? new Date(row.date).toLocaleDateString() : '-'}</td>
-                  <td className="px-3 py-2">{row.vehicle_number || '-'}</td>
-                  <td className="px-3 py-2">{row.consignor_name || '-'}</td>
-                  <td className="px-3 py-2">{row.consignee_name || '-'}</td>
-                  <td className="px-3 py-2">{row.origin || '-'} to {row.destination || '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-
-        {!loading && tab === 'outstanding' && (
-          <table className="w-full text-sm">
-            <thead className="bg-slate-100 text-slate-700">
-              <tr>
-                <th className="px-3 py-2 text-left">Client</th>
-                <th className="px-3 py-2 text-left">Invoices</th>
-                <th className="px-3 py-2 text-left">Outstanding Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {outstandingRows.length === 0 && (
-                <tr><td colSpan={3} className="px-3 py-4 text-slate-500">No outstanding receivables.</td></tr>
-              )}
-              {outstandingRows.map((row) => (
-                <tr key={row.party_id} className="border-t border-slate-100">
-                  <td className="px-3 py-2">{row.party_name}</td>
-                  <td className="px-3 py-2">{row.invoice_count}</td>
-                  <td className="px-3 py-2">{Number(row.outstanding_total || 0).toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <AppAgGrid<PendingBillingRow | OutstandingReceivableRow>
+        rowData={tab === 'pending' ? pendingRows : outstandingRows}
+        columnDefs={tab === 'pending' ? pendingColDefs : outstandingColDefs}
+        loading={loading}
+        noRowsMessage={tab === 'pending' ? `No pending billing rows for FY ${fy}.` : `No outstanding receivables for FY ${fy}.`}
+        defaultColDef={{ editable: false }}
+        getRowId={(params: any) => String(params.data.lr_id ?? params.data.client_id)}
+        rowSelection={{ mode: 'singleRow', enableClickSelection: false, checkboxes: false }}
+        fitColumns={false}
+        alwaysShowHorizontalScroll={true}
+      />
     </div>
   );
 }

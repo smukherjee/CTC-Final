@@ -67,8 +67,8 @@ class LRCreate(BaseModel):
     status: Optional[str] = None
     # Financial year scoping
     financial_year: Optional[str] = None
-    # FOB party link
-    fob_party_id: Optional[int] = None
+    # FOB client link
+    fob_client_id: Optional[int] = None
     # POD
     pod_received: Optional[bool] = None
     pod_file_id: Optional[int] = None
@@ -126,7 +126,7 @@ class LRUpdate(BaseModel):
     status: Optional[str] = None
     # Financial year scoping
     financial_year: Optional[str] = None
-    fob_party_id: Optional[int] = None
+    fob_client_id: Optional[int] = None
     pod_received: Optional[bool] = None
     pod_file_id: Optional[int] = None
     eway_bill_no: Optional[str] = None

@@ -69,8 +69,8 @@ class LRModel(Base):
 
     # Financial year scoping
     financial_year = Column(String(7), nullable=False, default='2025-26')
-    # FOB party link
-    fob_party_id = Column(Integer, nullable=True)
+    # FOB client link
+    fob_client_id = Column(Integer, nullable=True)
 
     created_at = Column(DateTime(timezone=True), nullable=True)
     updated_at = Column(DateTime(timezone=True), nullable=True)

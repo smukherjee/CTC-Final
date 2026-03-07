@@ -6,7 +6,7 @@ import HireMemo from '@/features/hirememo/HireMemo';
 import HireMemoRegister from '@/features/hirememo/HireMemoRegister';
 import VehicleTracking from '@/features/tracking/VehicleTracking';
 import TrackingLog from '@/features/tracking/TrackingLog';
-import PartyMaster from '@/features/party/PartyMaster';
+import ClientMaster from '@/features/client/ClientMaster';
 import VendorMaster from '@/features/vendor/VendorMaster';
 import VehicleMaster from '@/features/vehicle/VehicleMaster';
 import ContractMaster from '@/features/contract/ContractMaster';
@@ -52,7 +52,7 @@ function App() {
           <Route path="reports" element={<Reports />} />
 
           <Route path="masters">
-            <Route path="parties" element={<PartyMaster />} />
+            <Route path="clients" element={<ClientMaster />} />
             <Route path="vendors" element={<VendorMaster />} />
             <Route path="vehicles" element={<VehicleMaster />} />
             <Route path="contracts" element={<ContractMaster />} />

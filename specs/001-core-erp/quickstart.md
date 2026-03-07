@@ -119,7 +119,7 @@ alembic upgrade head
 # Create two invoices and check they get sequential numbers
 curl -X POST http://localhost:8000/api/billing/invoices \
   -H "Content-Type: application/json" \
-  -d '{"party_id":1,"invoice_date":"2026-03-05","financial_year":"2025-26","lines":[]}'
+  -d '{"client_id":1,"invoice_date":"2026-03-05","financial_year":"2025-26","lines":[]}'
 
 # Expect invoice_no: "1/25-26"
 ```

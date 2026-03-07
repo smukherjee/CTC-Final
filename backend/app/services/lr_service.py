@@ -65,7 +65,7 @@ def _model_to_dict(m: LRModel) -> dict:
         'eway_bill_no': m.eway_bill_no,
         'eway_bill_expiry': m.eway_bill_expiry.isoformat() if m.eway_bill_expiry else None,
         'financial_year': m.financial_year,
-        'fob_party_id': m.fob_party_id,
+        'fob_client_id': m.fob_client_id,
     }
 
 def _map_eway_model(e: EWayBillModel) -> dict:
@@ -217,7 +217,7 @@ def create_lr(payload: LRCreate) -> dict:
             pod_file_id=payload_dict.get('pod_file_id'),
             eway_bill_no=payload_dict.get('eway_bill_no'),
             eway_bill_expiry=payload_dict.get('eway_bill_expiry'),
-            fob_party_id=payload_dict.get('fob_party_id'),
+            fob_client_id=payload_dict.get('fob_client_id'),
             # Always derive FY from LR date to enforce FY-scoped LR creation.
             financial_year=_fy_from_date(lr_date),
         )
@@ -230,12 +230,15 @@ def create_lr(payload: LRCreate) -> dict:
         db.close()
 
 
-def get_all_lrs(fy: str = None) -> List[dict]:
+def get_all_lrs(fy: str = None, client_id: int = None) -> List[dict]:
     db = SessionLocal()
     try:
         q = db.query(LRModel)
         if fy:
             q = q.filter(LRModel.financial_year == fy)
+        # use fob_client_id since LRModel has no direct client_id column
+        if client_id:
+            q = q.filter(LRModel.fob_client_id == client_id)
         rows = q.order_by(LRModel.id.desc()).all()
         payloads = [_model_to_dict(r) for r in rows]
         return _attach_eway_bills(db, payloads)

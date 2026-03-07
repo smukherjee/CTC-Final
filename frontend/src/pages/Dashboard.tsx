@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import { formatDisplayDate, formatDisplayDateTime } from '@/utils/dateFormat';
 
 interface EwayExpiringRow {
   id: number;
@@ -112,7 +113,7 @@ export default function Dashboard() {
             <div className="text-sm text-amber-900">
               <div className="font-semibold">LR {row.lr_number || row.id}</div>
               <div>
-                Date: {row.date ? new Date(row.date).toLocaleDateString() : '-'} | E-way: {row.eway_bill_no || '-'}
+                Date: {formatDisplayDate(row.date)} | E-way: {row.eway_bill_no || '-'}
               </div>
               <div>
                 {row.consignor_name || '-'} to {row.consignee_name || '-'}
@@ -120,7 +121,7 @@ export default function Dashboard() {
               <div>
                 {row.origin || '-'} to {row.destination || '-'} | Vehicle: {row.vehicle_number || '-'}
               </div>
-              <div>Expiry: {row.eway_bill_expiry ? new Date(row.eway_bill_expiry).toLocaleString() : '-'}</div>
+              <div>Expiry: {formatDisplayDateTime(row.eway_bill_expiry)}</div>
               <a
                 href={`/operations/lr/${row.id}`}
                 className="mt-1 inline-block text-xs font-medium text-amber-900 underline"
@@ -143,7 +144,7 @@ export default function Dashboard() {
           <div className="text-sm text-rose-900">
             <div className="font-semibold">Contract expiry: {row.name}</div>
             <div>
-              End Date: {row.end_date ? new Date(row.end_date).toLocaleDateString() : '-'} | Days Remaining: {row.days_remaining ?? '-'}
+              End Date: {formatDisplayDate(row.end_date)} | Days Remaining: {row.days_remaining ?? '-'}
             </div>
           </div>
           <button

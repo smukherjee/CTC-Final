@@ -14,8 +14,8 @@
 
 ### 3. Contract Expiry Report
 - **Purpose:** List contracts expiring within a configurable window (default: 30 days).
-- **Fields:** Contract No, Party, Start Date, End Date, Status, Alert Sent (Y/N)
-- **Filters:** Date range, Party, Status
+- **Fields:** Contract No, client, Start Date, End Date, Status, Alert Sent (Y/N)
+- **Filters:** Date range, client, Status
 
 ---
 

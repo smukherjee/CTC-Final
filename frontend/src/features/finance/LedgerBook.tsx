@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 
+import AppAgGrid from '@/components/grid/AppAgGrid';
+import { formatDisplayDate } from '@/utils/dateFormat';
 import { generateFyDropdownOptions, getCurrentFy } from '@/utils/financialYear';
 import { printVoucher } from '@/utils/printVoucher';
 
@@ -54,11 +56,73 @@ export default function LedgerBook() {
     });
   }, [rows]);
 
+  const colDefs = useMemo<any[]>(() => [
+    {
+      field: 'date',
+      headerName: 'Date',
+      minWidth: 130,
+      flex: 1,
+      editable: false,
+      valueFormatter: (params: any) => formatDisplayDate(params.value),
+    },
+    {
+      field: 'narration',
+      headerName: 'Narration',
+      minWidth: 260,
+      flex: 1.8,
+      editable: false,
+      valueGetter: (params: any) => params.data.narration || '-',
+    },
+    {
+      field: 'debit',
+      headerName: 'Debit',
+      minWidth: 130,
+      flex: 1,
+      editable: false,
+      cellStyle: { textAlign: 'right' },
+      valueFormatter: (params: any) => (params.value ? Number(params.value).toFixed(2) : '-'),
+    },
+    {
+      field: 'credit',
+      headerName: 'Credit',
+      minWidth: 130,
+      flex: 1,
+      editable: false,
+      cellStyle: { textAlign: 'right' },
+      valueFormatter: (params: any) => (params.value ? Number(params.value).toFixed(2) : '-'),
+    },
+    {
+      field: 'running_balance',
+      headerName: 'Running Balance',
+      minWidth: 150,
+      flex: 1,
+      editable: false,
+      cellStyle: { textAlign: 'right', fontWeight: 600 },
+      valueFormatter: (params: any) => Number(params.value || 0).toFixed(2),
+    },
+    {
+      headerName: 'Actions',
+      minWidth: 120,
+      flex: 0.8,
+      editable: false,
+      sortable: false,
+      filter: false,
+      cellRenderer: (params: any) => (
+        <button
+          type="button"
+          onClick={() => printVoucher(params.data)}
+          className="rounded border px-2 py-1 text-xs"
+        >
+          Print
+        </button>
+      ),
+    },
+  ], []);
+
   return (
     <div className="space-y-4">
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-slate-900">Ledger Book</h2>
-        <p className="text-sm text-slate-500">Cash Book and Bank Book with running balance from vouchers.</p>
       </div>
 
       <div className="flex items-center gap-2">
@@ -92,47 +156,17 @@ export default function LedgerBook() {
         </button>
       </div>
 
-      <div className="overflow-auto rounded border bg-white">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-100 text-slate-700">
-            <tr>
-              <th className="px-3 py-2 text-left">Date</th>
-              <th className="px-3 py-2 text-left">Narration</th>
-              <th className="px-3 py-2 text-left">Debit</th>
-              <th className="px-3 py-2 text-left">Credit</th>
-              <th className="px-3 py-2 text-left">Running Balance</th>
-              <th className="px-3 py-2 text-left">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr><td colSpan={6} className="px-3 py-4 text-slate-500">Loading...</td></tr>
-            )}
-            {!loading && ledgerRows.length === 0 && (
-              <tr><td colSpan={6} className="px-3 py-4 text-slate-500">No vouchers found.</td></tr>
-            )}
-            {!loading &&
-              ledgerRows.map((row) => (
-                <tr key={row.id} className="border-t border-slate-100">
-                  <td className="px-3 py-2">{new Date(row.date).toLocaleDateString()}</td>
-                  <td className="px-3 py-2">{row.narration || '-'}</td>
-                  <td className="px-3 py-2">{row.debit ? row.debit.toFixed(2) : '-'}</td>
-                  <td className="px-3 py-2">{row.credit ? row.credit.toFixed(2) : '-'}</td>
-                  <td className="px-3 py-2">{row.running_balance.toFixed(2)}</td>
-                  <td className="px-3 py-2">
-                    <button
-                      type="button"
-                      onClick={() => printVoucher(row)}
-                      className="rounded border px-2 py-1 text-xs"
-                    >
-                      Print
-                    </button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
+      <AppAgGrid<(VoucherRow & { debit: number; credit: number; running_balance: number })>
+        rowData={ledgerRows}
+        columnDefs={colDefs}
+        loading={loading}
+        noRowsMessage={`No ${book} book vouchers found for FY ${fy}.`}
+        defaultColDef={{ editable: false }}
+        getRowId={(params: any) => String(params.data.id)}
+        rowSelection={{ mode: 'singleRow', enableClickSelection: false, checkboxes: false }}
+        fitColumns={false}
+        alwaysShowHorizontalScroll={true}
+      />
     </div>
   );
 }

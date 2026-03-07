@@ -10,7 +10,10 @@ class HireMemoModel(Base):
     total_amount = Column(Numeric(12, 2), nullable=False, default=0)
     advance_cash = Column(Numeric(12, 2), nullable=True, default=0)
     advance_bank = Column(Numeric(12, 2), nullable=True, default=0)
+    # new payment tracking
+    advance_payment_date = Column(Date, nullable=True)
     balance = Column(Numeric(12, 2), nullable=True)
+    balance_payment_date = Column(Date, nullable=True)
     driver_name = Column(String(128), nullable=True)
     driver_mobile = Column(String(32), nullable=True)
     driver_license = Column(String(64), nullable=True)

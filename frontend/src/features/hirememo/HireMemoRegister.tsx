@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import AppAgGrid from '@/components/grid/AppAgGrid';
+import { formatDisplayDate } from '@/utils/dateFormat';
 import { generateFyDropdownOptions, getCurrentFy } from '@/utils/financialYear';
 
 interface HireMemoRow {
@@ -16,7 +17,9 @@ interface HireMemoRow {
   total_amount?: number;
   advance_cash?: number;
   advance_bank?: number;
+  advance_payment_date?: string;
   balance?: number;
+  balance_payment_date?: string;
 }
 
 export default function HireMemoRegister() {
@@ -71,6 +74,8 @@ export default function HireMemoRegister() {
         total_amount: Number(row.total_amount || 0),
         advance_cash: Number(row.advance_cash || 0),
         advance_bank: Number(row.advance_bank || 0),
+        advance_payment_date: row.advance_payment_date || null,
+        balance_payment_date: row.balance_payment_date || null,
       });
       await loadRows();
     } catch (err: any) {
@@ -105,6 +110,7 @@ export default function HireMemoRegister() {
       width: 120,
       editable: true,
       cellEditor: 'agDateCellEditor',
+      valueFormatter: (params: any) => formatDisplayDate(params.value, ''),
     },
     {
       field: 'lr_number',
@@ -159,6 +165,22 @@ export default function HireMemoRegister() {
       cellStyle: { textAlign: 'right' },
     },
     {
+      field: 'advance_payment_date',
+      headerName: 'Adv Pay Date',
+      width: 130,
+      editable: true,
+      cellEditor: 'agDateCellEditor',
+      valueFormatter: (params: any) => formatDisplayDate(params.value, ''),
+    },
+    {
+      field: 'balance_payment_date',
+      headerName: 'Balance Payment Date',
+      width: 180,
+      editable: true,
+      cellEditor: 'agDateCellEditor',
+      valueFormatter: (params: any) => formatDisplayDate(params.value, ''),
+    },
+    {
       field: 'balance',
       headerName: 'Balance',
       width: 130,
@@ -173,7 +195,6 @@ export default function HireMemoRegister() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">Hire Memo Register</h2>
-          <p className="text-sm text-slate-500">Track and edit hire memos by financial year.</p>
         </div>
         <select
           value={fy}
@@ -192,6 +213,7 @@ export default function HireMemoRegister() {
         columnDefs={colDefs}
         onCellValueChanged={onCellValueChanged}
         loading={loading}
+        noRowsMessage={`No hire memos found for FY ${fy}.`}
         editType="fullRow"
         paginationPageSize={20}
         paginationPageSizeSelector={[10, 20, 50, 100]}

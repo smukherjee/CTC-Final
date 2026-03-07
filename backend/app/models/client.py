@@ -2,8 +2,8 @@ from sqlalchemy import Column, Integer, String, Text, Numeric
 from ..db import engine, Base
 
 
-class PartyModel(Base):
-    __tablename__ = "parties"
+class ClientModel(Base):
+    __tablename__ = "clients"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(256), nullable=False)

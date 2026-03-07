@@ -25,10 +25,10 @@
 
 ### 1. Data Models (Core)
 - **User:** `id, role, name, branch_id`
-- **Party (Customer):** `id, name, address, type (CONSIGNOR/CONSIGNEE/BOTH)`
+- **client (Customer):** `id, name, address, type (CONSIGNOR/CONSIGNEE/BOTH)`
     - *Note: Single master table for both Consignors and Consignees.*
 - **Vendor (Supplier):** `id, name, kyc_docs (JSON), rating, vehicle_history` (For Brokers/Owners)
-- **Contract:** `id, party_id, origin, destination, rate, validity_start, validity_end`
+- **Contract:** `id, client_id, origin, destination, rate, validity_start, validity_end`
 - **Vehicle:** `id, number, type, capacity, owner_id (Vendor), status (AVAILABLE, IN_TRANSIT)`
 - **Dispatch (Trip):** `id, vehicle_id, driver_id, start_date, expected_delivery_date, status, lrs[]`
     - `status` enum: `SCHEDULED`, `IN_TRANSIT`, `COMPLETED`, `CANCELLED`
@@ -56,9 +56,9 @@
         *   **Alerts:** Rows highlighted in **RED** if `E-Way Expiry < Trip.ExpectedDelivery`.
     *   **Actions:** Right-click or Context Menu to -> "Record Delivery", "Bill", "View POD".
 *   **LR Creation Wizard:**
-    *   Clean multi-step form: Pick Customer (from Party Master) -> Enter Goods -> Assign Vehicle.
+    *   Clean multi-step form: Pick Customer (from Client Master) -> Enter Goods -> Assign Vehicle.
     *   **E-Way Bill Tracking & Alerts (Background Service):**
-        *   **File Uploads (Mandatory):** Upload LR image, Party Invoice, and E-Way Bill at creation time.
+        *   **File Uploads (Mandatory):** Upload LR image, client Invoice, and E-Way Bill at creation time.
         *   **Entity Logic:** E-Way Bill is an independent entity attached to the LR.
         *   **Validation Warning:** If `Valid Upto < Trip.ExpectedDelivery`, show "Risk of Expiry" warning immediately during creation.
         *   **Alert Logic (Cron Job):** Runs every 30 mins.
@@ -98,7 +98,7 @@
 *   **[NEW MODULE] Data Migration & Import (Centralized):**
     *   **Architecture:** Reusable `ExcelImportComponent` handling parsing, validation, and feedback.
     *   **Features:**
-        *   **Template Download:** "Download Template" button for every Master (Party, Vendor, Vehicle, Contract).
+        *   **Template Download:** "Download Template" button for every Master (client, Vendor, Vehicle, Contract).
         *   **Dry-Run Validation:** UI parses Excel client-side -> Validates against Schema -> Shows Error Grid (e.g., "Row 4: Invalid Mobile").
         *   **Bulk Insert:** Only allows commit if dry-run passes (or user actively ignores warnings).
     *   **Scope:** All Master Data (Customers, Vendors, Vehicles, Drivers, Contracts).

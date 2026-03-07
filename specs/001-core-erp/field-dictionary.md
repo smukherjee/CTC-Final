@@ -5,8 +5,8 @@
 | lr_number          | LorryReceipt  | string     | Unique LR number  |
 | date               | LorryReceipt  | date       | Date of LR        |
 | month              | LorryReceipt  | string     | Month (derived)   |
-| consignor_id       | Customer      | string/ref | Consignor party   |
-| consignee_id       | Customer      | string/ref | Consignee party   |
+| consignor_id       | Customer      | string/ref | Consignor client   |
+| consignee_id       | Customer      | string/ref | Consignee client   |
 | articles_count     | LorryReceipt  | integer    | Number of articles|
 | description        | LorryReceipt  | string     | Goods description |
 | vehicle_type       | Vehicle       | string     | Type of vehicle   |
@@ -32,8 +32,8 @@
 | deduction_reason   | HireMemo      | string     | Deduction reason  |
 | invoice_no         | Invoice       | string     | Invoice number    |
 | invoice_date       | Invoice       | date       | Invoice date      |
-| bill_to_id         | Customer      | string/ref | Bill to party     |
-| gstin              | Party/Vendor  | string     | GST number        |
+| bill_to_id         | Customer      | string/ref | Bill to client     |
+| gstin              | client/Vendor  | string     | GST number        |
 | particulars        | Invoice       | string     | Invoice details   |
 | amount             | Invoice       | decimal    | Invoice amount    |
 | total              | Invoice       | decimal    | Invoice total     |

@@ -91,7 +91,7 @@ frontend/src/utils/printVoucher.ts
 
 **Invoice print structure** (matches sample doc):
 1. Company header (name, PAN, GSTIN, address, ICICI bank details)
-2. "BILL TO" block (Party name, address, GSTIN)
+2. "BILL TO" block (client name, address, GSTIN)
 3. Invoice No (auto-generated), Invoice Date, PO No, PO Date
 4. HSN Code: `996791`
 5. 16-column annexure table per LR line (CSS landscape `@media print`)
@@ -120,7 +120,7 @@ frontend/src/utils/printVoucher.ts
 
 **Decision**: Two fields on `invoices`: `reverse_charge BOOLEAN DEFAULT FALSE` + `gst_paid_by VARCHAR(255)`
 
-**Rationale**: Sample invoice shows "GST PAYABLE BY [CLIENT NAME]" and "TAX PAYABLE ON REVERSE CHARGES: YES". A boolean captures the YES/NO, and `gst_paid_by` stores the party name string that appears on the invoice. This is sufficient for display; no GST calculation logic needed server-side (transport GST under RCM is paid by recipient).
+**Rationale**: Sample invoice shows "GST PAYABLE BY [CLIENT NAME]" and "TAX PAYABLE ON REVERSE CHARGES: YES". A boolean captures the YES/NO, and `gst_paid_by` stores the client name string that appears on the invoice. This is sufficient for display; no GST calculation logic needed server-side (transport GST under RCM is paid by recipient).
 
 **Alternatives considered**:
 - Enum `ReverseChargeType`: premature — only one type of RCM applies to transport services
@@ -130,11 +130,11 @@ frontend/src/utils/printVoucher.ts
 
 ## 6. Per-Client BillBook Tabs
 
-**Decision**: `party_id INTEGER FK` filter on `bills`/`invoices` table + tab UI in `BillBook.tsx`
+**Decision**: `client_id INTEGER FK` filter on `bills`/`invoices` table + tab UI in `BillBook.tsx`
 
-**Rationale**: `Party` model already exists with full name/GSTIN. No denormalization needed. Tab UI loads unique `party_id` values from Invoices and renders one tab per party, filtering the grid on selection.
+**Rationale**: `client` model already exists with full name/GSTIN. No denormalization needed. Tab UI loads unique `client_id` values from Invoices and renders one tab per client, filtering the grid on selection.
 
-**Implementation**: Backend `GET /api/billing/invoices?party_id=X&fy=2025-26`; frontend tabs built from `GET /api/party/` response filtered to parties that have invoices in the current FY.
+**Implementation**: Backend `GET /api/billing/invoices?client_id=X&fy=2025-26`; frontend tabs built from `GET /api/client/` response filtered to clients that have invoices in the current FY.
 
 ---
 
@@ -152,11 +152,11 @@ frontend/src/utils/printVoucher.ts
 
 ## 8. TDS Rate Source
 
-**Decision**: Configurable per-client value stored on `Party` or `Contract` model; not hardcoded
+**Decision**: Configurable per-client value stored on `client` or `Contract` model; not hardcoded
 
-**Rationale**: Different clients may have different TDS rates (typically 2% for freight under section 194C). Storing it on `Party.tds_rate` (or `Contract.tds_rate`) allows Accounts to enter it once and have it auto-populate when adding a bill.
+**Rationale**: Different clients may have different TDS rates (typically 2% for freight under section 194C). Storing it on `client.tds_rate` (or `Contract.tds_rate`) allows Accounts to enter it once and have it auto-populate when adding a bill.
 
-**Fields needed**: `tds_rate NUMERIC(5,2)` on `Party` or `Contract` (TBD — if contract-level rates differ by period, put on Contract; otherwise Party is simpler).
+**Fields needed**: `tds_rate NUMERIC(5,2)` on `client` or `Contract` (TBD — if contract-level rates differ by period, put on Contract; otherwise client is simpler).
 
 ---
 
@@ -164,7 +164,7 @@ frontend/src/utils/printVoucher.ts
 
 | Item | Resolution Needed |
 |------|--------------------|
-| TDS rate location | Party-level vs Contract-level (needs client confirmation; default: Party) |
+| TDS rate location | client-level vs Contract-level (needs client confirmation; default: client) |
 | HSN code override | Always `996791`? Or can it differ per invoice? (default: always 996791) |
 | Bill PDF storage | Store on filesystem or return as stream? (default: stream, do not persist PDF) |
 | ReportLab font | Use default Helvetica or embed custom? (default: Helvetica; embed later if needed) |

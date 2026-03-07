@@ -26,8 +26,11 @@ def list_eway_expiring(
 
 
 @router.get('/lr/')
-def list_lrs(fy: Optional[str] = Query(default=None)):
-    return get_all_lrs(fy=fy)
+def list_lrs(
+    fy: Optional[str] = Query(default=None),
+    client_id: Optional[int] = Query(default=None),
+):
+    return get_all_lrs(fy=fy, client_id=client_id)
 
 
 @router.get('/lr/{lr_id}')

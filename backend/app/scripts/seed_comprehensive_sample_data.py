@@ -37,7 +37,7 @@ from app.models.file_upload import FileUploadModel  # noqa: E402
 from app.models.hirememo import HireMemoModel  # noqa: E402
 from app.models.invoice import InvoiceLineModel, InvoiceModel  # noqa: E402
 from app.models.lr import LRModel  # noqa: E402
-from app.models.party import PartyModel  # noqa: E402
+from app.models.client import ClientModel  # noqa: E402
 from app.models.payment_receipt import PaymentReceiptModel  # noqa: E402
 from app.models.vehicle import VehicleModel  # noqa: E402
 from app.models.vehicle_location import VehicleLocationModel  # noqa: E402
@@ -349,13 +349,13 @@ def _ensure_pdf(path: Path) -> tuple[int, str]:
     return len(data), hashlib.sha256(data).hexdigest()
 
 
-def _upsert_party(session, name: str, p_type: str = "customer") -> PartyModel:
-    row = session.query(PartyModel).filter(PartyModel.name == name).first()
+def _upsert_client(session, name: str, p_type: str = "customer") -> ClientModel:
+    row = session.query(ClientModel).filter(ClientModel.name == name).first()
     if row:
         if row.type != p_type:
             row.type = p_type
         return row
-    row = PartyModel(name=name, type=p_type, tds_rate=Decimal("2.00"))
+    row = ClientModel(name=name, type=p_type, tds_rate=Decimal("2.00"))
     session.add(row)
     session.flush()
     return row
@@ -395,10 +395,10 @@ def _upsert_city(session, name: str, state: str) -> CityModel:
     return row
 
 
-def _upsert_contract(session, name: str, party_id: int, start_date: date, end_date: date, notes: str) -> ContractModel:
+def _upsert_contract(session, name: str, client_id: int, start_date: date, end_date: date, notes: str) -> ContractModel:
     row = session.query(ContractModel).filter(ContractModel.name == name).first()
     if row:
-        row.party_id = party_id
+        row.client_id = client_id
         row.start_date = start_date
         row.end_date = end_date
         row.expiry_alert_days = 30
@@ -406,7 +406,7 @@ def _upsert_contract(session, name: str, party_id: int, start_date: date, end_da
         return row
     row = ContractModel(
         name=name,
-        party_id=party_id,
+        client_id=client_id,
         start_date=start_date,
         end_date=end_date,
         expiry_alert_days=30,
@@ -493,7 +493,7 @@ def _upsert_hirememo(
     return hm
 
 
-def _upsert_invoice(session, lr: LRModel, party_id: int, scenario: Scenario, amount: Decimal) -> Optional[InvoiceModel]:
+def _upsert_invoice(session, lr: LRModel, client_id: int, scenario: Scenario, amount: Decimal) -> Optional[InvoiceModel]:
     if not scenario.invoice_status:
         # Keep this LR unbilled where required (used by pending billing report).
         return None
@@ -506,12 +506,12 @@ def _upsert_invoice(session, lr: LRModel, party_id: int, scenario: Scenario, amo
 
     inv = session.query(InvoiceModel).filter(InvoiceModel.invoice_no == invoice_no).first()
     if not inv:
-        inv = InvoiceModel(invoice_no=invoice_no, invoice_date=invoice_date, party_id=party_id)
+        inv = InvoiceModel(invoice_no=invoice_no, invoice_date=invoice_date, client_id=client_id)
         session.add(inv)
         session.flush()
 
     inv.invoice_date = invoice_date
-    inv.party_id = party_id
+    inv.client_id = client_id
     inv.financial_year = fy_from_date(invoice_date)
     inv.po_no = f"PO-{scenario.idx:03d}"
     inv.po_date = scenario.lr_date
@@ -765,7 +765,7 @@ def _seed(session):
         raise RuntimeError("Could not read bill notebook sample rows from workbook")
 
     table_flags = {
-        "parties": _table_exists(session, "parties"),
+        "clients": _table_exists(session, "clients"),
         "lrs": _table_exists(session, "lrs"),
         "invoices": _table_exists(session, "invoices"),
         "invoice_lines": _table_exists(session, "invoice_lines"),
@@ -780,7 +780,7 @@ def _seed(session):
         "file_uploads": _table_exists(session, "file_uploads"),
         "vehicle_locations": _table_exists(session, "vehicle_locations"),
     }
-    required = ["parties", "lrs", "invoices", "invoice_lines", "payment_receipts", "hirememos"]
+    required = ["clients", "lrs", "invoices", "invoice_lines", "payment_receipts", "hirememos"]
     missing_required = [t for t in required if not table_flags[t]]
     if missing_required:
         raise RuntimeError(f"Required tables missing after migration: {', '.join(missing_required)}")
@@ -813,9 +813,9 @@ def _seed(session):
         consignee_name = customer_name
         vendor_name = f"Vendor Seed {scenario.idx:02d}"
 
-        customer = _upsert_party(session, customer_name, "customer")
-        _upsert_party(session, consignor_name, "consignor")
-        _upsert_party(session, consignee_name, "consignee")
+        customer = _upsert_client(session, customer_name, "customer")
+        _upsert_client(session, consignor_name, "consignor")
+        _upsert_client(session, consignee_name, "consignee")
         vehicle = None
         if has_vehicle:
             vendor = _upsert_vendor(session, vendor_name)
@@ -880,7 +880,7 @@ def _seed(session):
                 "eway_bill_no": None,
                 "eway_bill_expiry": None,
                 "financial_year": fy,
-                "fob_party_id": customer.id,
+                "fob_client_id": customer.id,
             },
         )
 
@@ -918,7 +918,7 @@ def _seed(session):
             _upsert_contract(
                 session,
                 name=f"SEED-CONTRACT-{scenario.idx:03d}",
-                party_id=customer.id,
+                client_id=customer.id,
                 start_date=scenario.lr_date - timedelta(days=90),
                 end_date=scenario.lr_date + timedelta(days=(15 - scenario.idx)),
                 notes=f"{SEED_TAG} Contract for {customer_name}",
@@ -950,12 +950,12 @@ def _seed(session):
         else:
             continue
 
-        party = session.query(PartyModel).filter(PartyModel.id == inv.party_id).first()
+        client = session.query(ClientModel).filter(ClientModel.id == inv.client_id).first()
         rec = _upsert_receipt(
             session,
             payment_date=inv.invoice_date + timedelta(days=20),
             amount=amount,
-            received_from=party.name if party else f"Party-{inv.party_id}",
+            received_from=client.name if client else f"Client-{inv.client_id}",
             notes=f"{SEED_TAG} INVOICE-{inv.invoice_no}",
         )
         if has_voucher:

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { confirmDestructiveAction } from '@/utils/destructiveAction';
+import { formatDisplayDateTime } from '@/utils/dateFormat';
 
 type DocumentType = 'LR' | 'INVOICE' | 'EWAY_BILL' | 'POD';
 
@@ -214,7 +215,7 @@ export default function FileUpload({
                 </td>
                 <td className="px-3 py-2">{doc.document_type}</td>
                 <td className="px-3 py-2">{formatBytes(doc.file_size)}</td>
-                <td className="px-3 py-2">{new Date(doc.created_at).toLocaleString()}</td>
+                <td className="px-3 py-2">{formatDisplayDateTime(doc.created_at)}</td>
                 <td className="px-3 py-2">
                   {allowArchive && !doc.is_archived && (
                     <button

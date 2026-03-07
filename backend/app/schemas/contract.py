@@ -6,7 +6,7 @@ from datetime import date
 class Contract(BaseModel):
     id: int
     name: str
-    party_id: Optional[int] = None
+    client_id: Optional[int] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     expiry_alert_days: Optional[int] = None
@@ -15,7 +15,7 @@ class Contract(BaseModel):
 
 class ContractCreate(BaseModel):
     name: str
-    party_id: Optional[int] = None
+    client_id: Optional[int] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     expiry_alert_days: Optional[int] = None
@@ -24,7 +24,7 @@ class ContractCreate(BaseModel):
 
 class ContractUpdate(BaseModel):
     name: Optional[str] = None
-    party_id: Optional[int] = None
+    client_id: Optional[int] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     expiry_alert_days: Optional[int] = None

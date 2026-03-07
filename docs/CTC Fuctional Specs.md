@@ -90,7 +90,7 @@ so that we maintain numerical integrity and prevent duplicate entries.
 
 ### EPIC 3: Vendor Hiring & Financials
 
-* **Description:** Managing the contractual and financial relationship with third-party truck owners and brokers, including freight calculations and statutory deductions.
+* **Description:** Managing the contractual and financial relationship with third-client truck owners and brokers, including freight calculations and statutory deductions.
 * **BRD Links:** FR-2.1, FR-3.1, FR-3.2
 
 #### User Stories:

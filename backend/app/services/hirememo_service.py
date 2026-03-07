@@ -1,6 +1,7 @@
 from typing import Optional
 from datetime import date
 from ..models.hirememo import HireMemoModel
+from ..models.lr import LRModel
 from ..db import SessionLocal
 from ..core.financial_year_utils import fy_from_date as _fy_from_date, next_hirememo_seq as _next_hirememo_seq
 from ..services.voucher_service import sync_hirememo_advance_vouchers as _sync_hirememo_advance_vouchers
@@ -10,6 +11,20 @@ def calculate_balance(total: float, cash: Optional[float], bank: Optional[float]
     cash = cash or 0
     bank = bank or 0
     return float(total) - float(cash) - float(bank)
+
+
+def _linked_lr_hamali(session, lr_id: Optional[int]) -> float:
+    if not lr_id:
+        return 0.0
+    lr = session.query(LRModel).filter(LRModel.id == lr_id).first()
+    if not lr or lr.hamali_charges is None:
+        return 0.0
+    return float(lr.hamali_charges)
+
+
+def _sync_lr_financials(hm: HireMemoModel, session) -> None:
+    hm.hamali = _linked_lr_hamali(session, hm.lr_id)
+    hm.mamul = 0.0
 
 
 def get_all_hirememos(lr_id: Optional[int] = None, fy: Optional[str] = None):
@@ -33,7 +48,7 @@ def get_hirememo_by_id(hm_id: int):
         session.close()
 
 
-def _apply_payload(hm: HireMemoModel, payload: dict, partial: bool = False):
+def _apply_payload(hm: HireMemoModel, payload: dict, session, partial: bool = False):
     if partial:
         for field in (
             "lr_id",
@@ -55,9 +70,10 @@ def _apply_payload(hm: HireMemoModel, payload: dict, partial: bool = False):
             "total_amount",
             "advance_cash",
             "advance_bank",
+            "advance_payment_date",
+            "balance",
+            "balance_payment_date",
             "commission",
-            "hamali",
-            "mamul",
             "other_deductions",
             "ack_status",
             "notes",
@@ -89,14 +105,15 @@ def _apply_payload(hm: HireMemoModel, payload: dict, partial: bool = False):
         hm.total_amount = payload.get("total_amount", 0)
         hm.advance_cash = payload.get("advance_cash", 0)
         hm.advance_bank = payload.get("advance_bank", 0)
+        hm.advance_payment_date = payload.get("advance_payment_date")
         # Deductions
         hm.commission = payload.get("commission", 0)
-        hm.hamali = payload.get("hamali", 0)
-        hm.mamul = payload.get("mamul", 0)
         hm.other_deductions = payload.get("other_deductions", 0)
         hm.ack_status = payload.get("ack_status", "PENDING")
         hm.notes = payload.get("notes")
+        hm.balance_payment_date = payload.get("balance_payment_date")
 
+    _sync_lr_financials(hm, session)
     hm.balance = calculate_balance(hm.total_amount, hm.advance_cash, hm.advance_bank)
 
 
@@ -120,12 +137,12 @@ def create_hirememo(payload: dict):
             existing = session.query(HireMemoModel).filter(HireMemoModel.lr_id == lr_id).first()
 
         if existing:
-            _apply_payload(existing, payload, partial=False)
+            _apply_payload(existing, payload, session, partial=False)
             existing.financial_year = fy
             hm = existing
         else:
             hm = HireMemoModel(lr_id=lr_id)
-            _apply_payload(hm, payload, partial=False)
+            _apply_payload(hm, payload, session, partial=False)
             hm.financial_year = fy
             # Auto-assign hire memo sequence scoped to financial year.
             seq = _next_hirememo_seq(session, fy)
@@ -159,7 +176,7 @@ def update_hirememo(hm_id: int, payload: dict):
         hm = session.query(HireMemoModel).filter(HireMemoModel.id == hm_id).first()
         if not hm:
             return None
-        _apply_payload(hm, payload, partial=True)
+        _apply_payload(hm, payload, session, partial=True)
         session.flush()
         _sync_hirememo_advance_vouchers(
             session,

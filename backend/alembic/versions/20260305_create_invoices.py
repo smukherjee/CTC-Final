@@ -25,7 +25,7 @@ def upgrade():
             sa.Column("id", sa.Integer(), primary_key=True, nullable=False),
             sa.Column("invoice_no", sa.String(length=64), nullable=False),
             sa.Column("invoice_date", sa.Date(), nullable=False),
-            sa.Column("party_id", sa.Integer(), nullable=False),
+            sa.Column("client_id", sa.Integer(), nullable=False),
             sa.Column("financial_year", sa.String(length=7), nullable=False, server_default="2025-26"),
             sa.Column("po_no", sa.String(length=64), nullable=True),
             sa.Column("po_date", sa.Date(), nullable=True),

@@ -1,7 +1,7 @@
 """add pan and rename gst/contact to gstin/mobile
 
 Revision ID: 0002_add_pan_and_rename_columns
-Revises: 0001_create_parties_vendors
+Revises: 0001_create_clients_vendors
 Create Date: 2026-02-14 07:50:00.000000
 """
 from alembic import op
@@ -9,14 +9,14 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '0002_add_pan_and_rename_columns'
-down_revision = '0001_create_parties_vendors'
+down_revision = '0001_create_clients_vendors'
 branch_labels = None
 depends_on = None
 
 
 def upgrade():
-    # Rename columns in parties
-    with op.batch_alter_table('parties') as batch_op:
+    # Rename columns in clients
+    with op.batch_alter_table('clients') as batch_op:
         batch_op.alter_column('gst_no', new_column_name='gstin', existing_type=sa.String(length=64))
         batch_op.alter_column('contact', new_column_name='mobile', existing_type=sa.String(length=64))
 
@@ -34,7 +34,7 @@ def downgrade():
         batch_op.alter_column('mobile', new_column_name='contact', existing_type=sa.String(length=64))
         batch_op.alter_column('gstin', new_column_name='gst_no', existing_type=sa.String(length=64))
 
-    # Revert parties
-    with op.batch_alter_table('parties') as batch_op:
+    # Revert clients
+    with op.batch_alter_table('clients') as batch_op:
         batch_op.alter_column('mobile', new_column_name='contact', existing_type=sa.String(length=64))
         batch_op.alter_column('gstin', new_column_name='gst_no', existing_type=sa.String(length=64))

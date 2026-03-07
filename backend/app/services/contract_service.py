@@ -8,7 +8,7 @@ def _model_to_contract(m: ContractModel) -> Contract:
     return Contract(
         id=m.id,
         name=m.name,
-        party_id=m.party_id,
+        client_id=m.client_id,
         start_date=m.start_date,
         end_date=m.end_date,
         expiry_alert_days=m.expiry_alert_days,

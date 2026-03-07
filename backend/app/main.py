@@ -23,7 +23,7 @@ def read_root():
     return {"message": "CTC-ERP Backend is running"}
 
 # Mount API routers (use service-backed routers in app/api)
-from app.api.party import router as party_router
+from app.api.client import router as client_router
 from app.api.vendor import router as vendor_router
 from app.api.vehicle import router as vehicle_router
 from app.api.contract import router as contract_router
@@ -42,7 +42,7 @@ from app.api.vouchers import router as vouchers_router
 from app.api.reports import router as reports_router
 
 
-app.include_router(party_router, prefix="/api")
+app.include_router(client_router, prefix="/api")
 app.include_router(vendor_router, prefix="/api")
 app.include_router(vehicle_router, prefix="/api")
 app.include_router(contract_router, prefix="/api")

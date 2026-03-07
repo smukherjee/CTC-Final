@@ -20,7 +20,7 @@ class InvoiceModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     invoice_no = Column(String(64), nullable=False)
     invoice_date = Column(Date, nullable=False)
-    party_id = Column(Integer, nullable=False)
+    client_id = Column(Integer, nullable=False)
     financial_year = Column(String(7), nullable=False, default="2025-26")
     po_no = Column(String(64), nullable=True)
     po_date = Column(Date, nullable=True)

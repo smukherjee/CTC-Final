@@ -9,14 +9,14 @@
 ## Entity Relationship Overview
 
 ```
-Party ──────────────────────────────────┐
+client ──────────────────────────────────┐
   │ (1:N invoices, 1:N lrs)             │
   │                                     ▼
 LR (lrs) ──── HireMemo (hirememos)   Invoice (invoices)
   │                                     │ 1:N
   └────────────────────────────────► InvoiceLine (invoice_lines)
 
-PaymentReceipt (payment_receipts) — standalone, linked to party by name only
+PaymentReceipt (payment_receipts) — standalone, linked to client by name only
 Voucher (vouchers) — FY-scoped; auto-created from HireMemo advances
 Vehicle (vehicles) — referenced by LR
 Vendor (vendors) — referenced by LR (through/broker)
@@ -32,15 +32,15 @@ Vendor (vendors) — referenced by LR (through/broker)
 | `lr_no` | VARCHAR(50) | NOT NULL | Manual entry |
 | `date` | DATE | NOT NULL | Dispatch date |
 | `financial_year` | VARCHAR(7) | NOT NULL DEFAULT '2025-26' | **NEW** e.g. `2025-26` |
-| `consignor_id` | INTEGER | FK → parties.id | |
-| `consignee_id` | INTEGER | FK → parties.id | |
+| `consignor_id` | INTEGER | FK → clients.id | |
+| `consignee_id` | INTEGER | FK → clients.id | |
 | `origin` | VARCHAR(100) | | |
 | `destination` | VARCHAR(100) | | |
 | `qty` | INTEGER | | |
 | `vehicle_no` | VARCHAR(20) | | |
 | `driver_mobile` | VARCHAR(15) | | Grid-visible column |
 | `through_id` | INTEGER | FK → vendors.id | Broker/Vendor |
-| `fob_party_id` | INTEGER | FK → parties.id | FOB → Party Master |
+| `fob_client_id` | INTEGER | FK → clients.id | FOB → Client Master |
 | `bill_no` | VARCHAR(50) | | |
 | `remarks` | TEXT | | |
 | `eway_bill_no` | VARCHAR(50) | | Inline-editable in grid |
@@ -103,7 +103,7 @@ Vendor (vendors) — referenced by LR (through/broker)
 | `lr_date` | DATE | | **NEW** |
 | `origin` | VARCHAR(100) | | **NEW** |
 | `destination` | VARCHAR(100) | | **NEW** |
-| `party_id` | INTEGER | FK → parties.id | Customer |
+| `client_id` | INTEGER | FK → clients.id | Customer |
 | `amount` | NUMERIC(12,2) | | Billed amount |
 | `amount_passed` | NUMERIC(12,2) | | Cleared amount |
 | `deductions` | NUMERIC(12,2) | | |
@@ -123,13 +123,13 @@ Vendor (vendors) — referenced by LR (through/broker)
 | `id` | SERIAL | PK | |
 | `invoice_no` | VARCHAR(20) | NOT NULL | Auto: `{seq}/YY-YY` e.g. `1543/25-26` |
 | `invoice_date` | DATE | NOT NULL | |
-| `party_id` | INTEGER | FK → parties.id | Bill-to party |
+| `client_id` | INTEGER | FK → clients.id | Bill-to client |
 | `financial_year` | VARCHAR(7) | NOT NULL | e.g. `2025-26` |
 | `po_no` | VARCHAR(100) | | Client PO number |
 | `po_date` | DATE | | Client PO date |
 | `hsn_code` | VARCHAR(10) | DEFAULT '996791' | HSN for transport services |
 | `reverse_charge` | BOOLEAN | DEFAULT FALSE | RCM applies? |
-| `gst_paid_by` | VARCHAR(255) | | Party name paying GST |
+| `gst_paid_by` | VARCHAR(255) | | Client name paying GST |
 | `total_amount` | NUMERIC(12,2) | NOT NULL | Sum of line item totals |
 | `tds_amount` | NUMERIC(12,2) | DEFAULT 0 | |
 | `net_amount` | NUMERIC(12,2) | GENERATED | `total_amount - tds_amount` |

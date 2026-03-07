@@ -91,10 +91,10 @@ export default function DispatchRegister() {
     // Vendors master list (for Through dropdown)
     const [vendorIds, setVendorIds] = useState<number[]>([]);
     const [vendorNameById, setVendorNameById] = useState<Record<string, string>>({});
-    // Consignors and Consignees from party master
+    // Consignors and Consignees from client master
     const [consignorsList, setConsignorsList] = useState<{ id: number; name: string }[]>([]);
     const [consigneesList, setConsigneesList] = useState<{ id: number; name: string }[]>([]);
-    const [partyList, setPartyList] = useState<{ id: number; name: string }[]>([]);
+    const [clientList, setClientList] = useState<{ id: number; name: string }[]>([]);
     // Vehicle master: number -> type map for auto-population
     const [vehicleMap, setVehicleMap] = useState<Record<string, string>>({});
     const [vehicleIdByNumber, setVehicleIdByNumber] = useState<Record<string, number>>({});
@@ -152,32 +152,32 @@ export default function DispatchRegister() {
                 console.debug('Failed to load vehicle master', err);
             });
 
-        axios.get('/api/party/')
+        axios.get('/api/clients/')
             .then(res => {
                 const data = res.data;
                 if (!mounted) return;
                 if (Array.isArray(data)) {
-                    setPartyList(data.map((p: any) => ({ id: Number(p.id), name: String(p.name || '') })));
+                    setClientList(data.map((c: any) => ({ id: Number(c.id), name: String(c.name || '') })));
                     setConsignorsList(
                         data
                             .filter((p: any) => {
-                                const partyType = String(p.type || '').toUpperCase();
-                                return partyType === 'CONSIGNOR' || partyType === 'BOTH';
+                                const clientType = String(p.type || '').toUpperCase();
+                                return clientType === 'CONSIGNOR' || clientType === 'BOTH';
                             })
                             .map((p: any) => ({ id: p.id, name: p.name }))
                     );
                     setConsigneesList(
                         data
                             .filter((p: any) => {
-                                const partyType = String(p.type || '').toUpperCase();
-                                return partyType === 'CONSIGNEE' || partyType === 'BOTH';
+                                const clientType = String(p.type || '').toUpperCase();
+                                return clientType === 'CONSIGNEE' || clientType === 'BOTH';
                             })
                             .map((p: any) => ({ id: p.id, name: p.name }))
                     );
                 }
             })
             .catch(err => {
-                console.debug('Failed to load party master', err);
+                console.debug('Failed to load client master', err);
             });
 
         return () => { mounted = false; };
@@ -504,23 +504,23 @@ export default function DispatchRegister() {
         },
         // 12. FOB
         {
-            field: 'fob_party_id',
-            headerName: 'FOB PARTY',
+            field: 'fob_client_id',
+            headerName: 'FOB CLIENT',
             width: 180,
             editable: editableWhenWritable,
             cellEditor: 'agSelectCellEditor',
-            cellEditorParams: { values: partyList.map((p) => p.id) },
+            cellEditorParams: { values: clientList.map((c) => c.id) },
             valueFormatter: (params: { value: number }) => {
-                const party = partyList.find((p) => p.id === Number(params.value));
-                return party ? party.name : '';
+                const client = clientList.find((c) => c.id === Number(params.value));
+                return client ? client.name : '';
             },
             valueSetter: (params: any) => {
                 const newId = params.newValue === '' || params.newValue === null || params.newValue === undefined
                     ? undefined
                     : Number(params.newValue);
-                params.data.fob_party_id = newId;
-                const party = partyList.find((p) => p.id === Number(newId));
-                params.data.fob = party ? party.name : '';
+                params.data.fob_client_id = newId;
+                const client = clientList.find((c) => c.id === Number(newId));
+                params.data.fob = client ? client.name : '';
                 return true;
             },
         },
@@ -674,7 +674,7 @@ export default function DispatchRegister() {
                 </div>
             ),
         },
-    ], [handleDelete, handleOpenLrModal, handleOpenTrackingModal, editableWhenWritable, citiesList, vendorIds, vendorNameById, vehicleMap, vehicleIdByNumber, vehicleNumbers, consignorsList, consigneesList, statusOptions, partyList]);
+    ], [handleDelete, handleOpenLrModal, handleOpenTrackingModal, editableWhenWritable, citiesList, vendorIds, vendorNameById, vehicleMap, vehicleIdByNumber, vehicleNumbers, consignorsList, consigneesList, statusOptions, clientList]);
 
     // Default column settings
     const defaultColDef = useMemo(() => ({
@@ -695,15 +695,12 @@ export default function DispatchRegister() {
             <div className="flex justify-between items-center">
                 <div>
                     <h2 className="text-2xl font-bold tracking-tight text-slate-900">Dispatch Register</h2>
-                    <p className="text-sm text-slate-500 mt-1">
-                        Track all LRs and dispatches • {filteredRowData.length} of {rowData.length} records
-                    </p>
                 </div>
                 <div className="flex gap-2">
                     <input
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search LR / Party / POD..."
+                        placeholder="Search LR / Client / POD..."
                         className="w-64 px-3 py-2 border border-slate-200 rounded-lg text-sm"
                     />
                     <select

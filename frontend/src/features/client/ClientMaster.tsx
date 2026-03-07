@@ -1,6 +1,6 @@
 import MasterCrudGrid from '@/components/grid/MasterCrudGrid';
 
-interface Party {
+interface Client {
   id?: number;
   name: string;
   type: 'CUSTOMER' | 'CONSIGNOR' | 'CONSIGNEE' | 'BOTH';
@@ -10,14 +10,14 @@ interface Party {
   tds_rate?: number;
 }
 
-export default function PartyMaster() {
+export default function ClientMaster() {
   return (
-    <MasterCrudGrid<Party>
-      title="Party Master"
-      endpoint="/api/party/"
+    <MasterCrudGrid<Client>
+      title="Client Master"
+      endpoint="/api/clients/"
       mapItem={(item: any) => ({ ...item, type: String(item.type || '').toUpperCase() })}
       createDraft={() => ({
-        name: 'New Party',
+        name: 'New Client',
         type: 'CONSIGNOR',
         gstin: '',
         mobile: '',

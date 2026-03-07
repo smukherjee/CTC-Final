@@ -5,6 +5,7 @@ import { MapPin, History, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import AppAgGrid from '@/components/grid/AppAgGrid';
+import { formatDisplayDate, formatDisplayDateTime } from '@/utils/dateFormat';
 
 const DEFAULT_TRACKING_STATUS = 'IN_TRANSIT';
 const TRACKING_STATUS_OPTIONS = [
@@ -225,7 +226,7 @@ export default function VehicleTracking() {
             width: 110,
             valueFormatter: (params: any) => {
                 if (!params.value) return '';
-                return format(parseISO(params.value), 'dd/MM/yyyy');
+                return formatDisplayDate(params.value, '');
             },
         },
         {
@@ -283,7 +284,7 @@ export default function VehicleTracking() {
             width: 150,
             valueFormatter: (params: any) => {
                 if (!params.value) return '';
-                return format(parseISO(params.value), 'dd/MM HH:mm');
+                return formatDisplayDateTime(params.value, '');
             },
         },
         {
@@ -327,9 +328,6 @@ export default function VehicleTracking() {
                         <MapPin className="text-blue-600" />
                         Vehicle Tracking
                     </h2>
-                    <p className="text-sm text-slate-500 mt-1">
-                        Track vehicle locations • {rowData.length} active vehicles
-                    </p>
                 </div>
                 <Button
                     onClick={loadLatestLocations}
@@ -399,7 +397,7 @@ export default function VehicleTracking() {
                                                 {item.notes && <p className="text-sm text-slate-600 mt-1">{item.notes}</p>}
                                             </div>
                                             <div className="text-right text-xs text-slate-500">
-                                                <p>{format(parseISO(item.reported_at), 'dd MMM yyyy')}</p>
+                                                <p>{formatDisplayDate(item.reported_at, '')}</p>
                                                 <p>{format(parseISO(item.reported_at), 'HH:mm')}</p>
                                                 {item.reported_by && <p className="mt-1">by {item.reported_by}</p>}
                                             </div>

@@ -1,9 +1,10 @@
 import MasterCrudGrid from '@/components/grid/MasterCrudGrid';
+import { formatDisplayDate } from '@/utils/dateFormat';
 
 interface Contract {
   id?: number;
   name: string;
-  party_id?: number | null;
+  client_id?: number | null;
   start_date?: string | null;
   end_date?: string | null;
   expiry_alert_days?: number | null;
@@ -17,7 +18,7 @@ export default function ContractMaster() {
       endpoint="/api/contract/"
       createDraft={() => ({
         name: 'New Contract',
-        party_id: null,
+        client_id: null,
         start_date: null,
         end_date: null,
         expiry_alert_days: null,
@@ -25,7 +26,7 @@ export default function ContractMaster() {
       })}
       toCreatePayload={(row) => ({
         name: row.name,
-        party_id: row.party_id ? Number(row.party_id) : null,
+        client_id: row.client_id ? Number(row.client_id) : null,
         start_date: row.start_date || null,
         end_date: row.end_date || null,
         expiry_alert_days: row.expiry_alert_days ? Number(row.expiry_alert_days) : null,
@@ -33,7 +34,7 @@ export default function ContractMaster() {
       })}
       toUpdatePayload={(row) => ({
         name: row.name,
-        party_id: row.party_id ? Number(row.party_id) : null,
+        client_id: row.client_id ? Number(row.client_id) : null,
         start_date: row.start_date || null,
         end_date: row.end_date || null,
         expiry_alert_days: row.expiry_alert_days ? Number(row.expiry_alert_days) : null,
@@ -43,15 +44,29 @@ export default function ContractMaster() {
         { field: 'id', headerName: 'ID', width: 90, editable: false, pinned: 'left' },
         { field: 'name', headerName: 'NAME', width: 220, editable: true },
         {
-          field: 'party_id',
-          headerName: 'PARTY ID',
+          field: 'client_id',
+          headerName: 'CLIENT ID',
           width: 120,
           editable: true,
           cellDataType: 'number',
           valueParser: (params: any) => (params.newValue ? Number(params.newValue) : null),
         },
-        { field: 'start_date', headerName: 'START DATE', width: 130, editable: true, cellEditor: 'agDateStringCellEditor' },
-        { field: 'end_date', headerName: 'END DATE', width: 130, editable: true, cellEditor: 'agDateStringCellEditor' },
+        {
+          field: 'start_date',
+          headerName: 'START DATE',
+          width: 130,
+          editable: true,
+          cellEditor: 'agDateStringCellEditor',
+          valueFormatter: (params: any) => formatDisplayDate(params.value, ''),
+        },
+        {
+          field: 'end_date',
+          headerName: 'END DATE',
+          width: 130,
+          editable: true,
+          cellEditor: 'agDateStringCellEditor',
+          valueFormatter: (params: any) => formatDisplayDate(params.value, ''),
+        },
         {
           field: 'expiry_alert_days',
           headerName: 'EXPIRY ALERT (DAYS)',

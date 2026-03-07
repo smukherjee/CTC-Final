@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import AppAgGrid from '@/components/grid/AppAgGrid';
+import { formatDisplayDateTime } from '@/utils/dateFormat';
 import { generateFyDropdownOptions, getCurrentFy } from '@/utils/financialYear';
 
 interface TrackingFeedRow {
@@ -83,6 +85,49 @@ export default function TrackingLog({ initialLrId, lockLrId = false, embedded = 
     void loadFeed();
   }, [loadFeed]);
 
+  const colDefs = useMemo<any[]>(() => [
+    {
+      field: 'lr_number',
+      headerName: 'LR',
+      minWidth: 140,
+      flex: 1,
+      editable: false,
+      valueGetter: (params: any) => params.data.lr_number || '-',
+    },
+    {
+      field: 'vehicle_number',
+      headerName: 'Vehicle',
+      minWidth: 150,
+      flex: 1,
+      editable: false,
+      valueGetter: (params: any) => params.data.vehicle_number || '-',
+    },
+    {
+      field: 'location',
+      headerName: 'Location',
+      minWidth: 180,
+      flex: 1.2,
+      editable: false,
+      valueGetter: (params: any) => params.data.location || '-',
+    },
+    {
+      field: 'status',
+      headerName: 'Status',
+      minWidth: 170,
+      flex: 1,
+      editable: false,
+      valueGetter: (params: any) => params.data.status || '-',
+    },
+    {
+      field: 'reported_at',
+      headerName: 'Reported At',
+      minWidth: 190,
+      flex: 1,
+      editable: false,
+      valueFormatter: (params: any) => formatDisplayDateTime(params.value),
+    },
+  ], []);
+
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     const parsedLrId = await resolveLrId(lrId);
@@ -115,7 +160,6 @@ export default function TrackingLog({ initialLrId, lockLrId = false, embedded = 
       {!embedded && (
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">Tracking Log</h2>
-          <p className="text-sm text-slate-500">Submit daily LR location/status updates and review latest feed.</p>
         </div>
       )}
 
@@ -177,45 +221,17 @@ export default function TrackingLog({ initialLrId, lockLrId = false, embedded = 
         </button>
       </form>
 
-      <div className="overflow-auto rounded border bg-white">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-100 text-slate-700">
-            <tr>
-              <th className="px-3 py-2 text-left">LR</th>
-              <th className="px-3 py-2 text-left">Vehicle</th>
-              <th className="px-3 py-2 text-left">Location</th>
-              <th className="px-3 py-2 text-left">Status</th>
-              <th className="px-3 py-2 text-left">Reported At</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr>
-                <td colSpan={5} className="px-3 py-4 text-slate-500">
-                  Loading feed...
-                </td>
-              </tr>
-            )}
-            {!loading && rows.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-3 py-4 text-slate-500">
-                  No tracking entries found.
-                </td>
-              </tr>
-            )}
-            {!loading &&
-              rows.map((row, idx) => (
-                <tr key={`${row.lr_id || 0}-${row.reported_at || idx}`} className="border-t border-slate-100">
-                  <td className="px-3 py-2">{row.lr_number || '-'}</td>
-                  <td className="px-3 py-2">{row.vehicle_number || '-'}</td>
-                  <td className="px-3 py-2">{row.location || '-'}</td>
-                  <td className="px-3 py-2">{row.status || '-'}</td>
-                  <td className="px-3 py-2">{row.reported_at ? new Date(row.reported_at).toLocaleString() : '-'}</td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
+      <AppAgGrid<TrackingFeedRow>
+        rowData={rows}
+        columnDefs={colDefs}
+        loading={loading}
+        noRowsMessage={`No tracking entries found for FY ${fy}.`}
+        defaultColDef={{ editable: false }}
+        getRowId={(params: any) => String(params.data.reported_at || `${params.data.lr_id || 'row'}-${params.data.location || ''}-${params.rowIndex}`)}
+        rowSelection={{ mode: 'singleRow', enableClickSelection: false, checkboxes: false }}
+        fitColumns={false}
+        alwaysShowHorizontalScroll={true}
+      />
     </div>
   );
 }

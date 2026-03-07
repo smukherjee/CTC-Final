@@ -30,6 +30,16 @@ interface AppAgGridProps<T> {
   fitColumns?: boolean;
   alwaysShowHorizontalScroll?: boolean;
   pagination?: boolean;
+  noRowsMessage?: string;
+}
+
+function escapeOverlayText(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 export default function AppAgGrid<T>({
@@ -55,6 +65,7 @@ export default function AppAgGrid<T>({
   fitColumns = false,
   alwaysShowHorizontalScroll = true,
   pagination = true,
+  noRowsMessage,
 }: AppAgGridProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<AgGridReact<T>>(null);
@@ -92,6 +103,26 @@ export default function AppAgGrid<T>({
     }),
     [defaultColDef],
   );
+
+  const overlayNoRowsTemplate = useMemo(() => {
+    if (!noRowsMessage?.trim()) return undefined;
+    const safeMessage = escapeOverlayText(noRowsMessage.trim());
+    return `<div class="ag-overlay-no-rows-center"><span>${safeMessage}</span></div>`;
+  }, [noRowsMessage]);
+
+  useEffect(() => {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    if (loading) {
+      api.hideOverlay();
+      return;
+    }
+    if (rowData.length === 0 && overlayNoRowsTemplate) {
+      api.showNoRowsOverlay();
+      return;
+    }
+    api.hideOverlay();
+  }, [loading, overlayNoRowsTemplate, rowData]);
 
   return (
     <div ref={containerRef} className={`flex-1 min-h-[500px] rounded-lg overflow-hidden border border-slate-200 ag-theme-alpine dispatch-grid ${className || ''}`}>
@@ -147,9 +178,13 @@ export default function AppAgGrid<T>({
         rowSelection={mergedRowSelection}
         groupDisplayType={groupDisplayType}
         multiSortKey={multiSortKey}
+        overlayNoRowsTemplate={overlayNoRowsTemplate}
         onFirstDataRendered={(params) => {
           if (fitColumns) {
             params.api.sizeColumnsToFit();
+          }
+          if (!loading && rowData.length === 0 && overlayNoRowsTemplate) {
+            params.api.showNoRowsOverlay();
           }
           onFirstDataRendered?.(params);
         }}

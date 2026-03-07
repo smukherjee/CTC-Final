@@ -32,9 +32,9 @@ export interface InvoicePrintData {
   po_no?: string;
   po_date?: string;
   hsn_code?: string;
-  party_name?: string;
-  party_address?: string;
-  party_gstin?: string;
+  client_name?: string;
+  client_address?: string;
+  client_gstin?: string;
   reverse_charge?: boolean;
   gst_paid_by?: string;
   total_amount?: number;
@@ -66,9 +66,9 @@ export function printInvoice(data: InvoicePrintData) {
     po_no: data.po_no || '',
     po_date: dateText(data.po_date),
     hsn_code: data.hsn_code || '996791',
-    party_name: data.party_name || '',
-    party_address: data.party_address || '',
-    party_gstin: data.party_gstin || '',
+    client_name: data.client_name || '',
+    client_address: data.client_address || '',
+    client_gstin: data.client_gstin || '',
     reverse_charge_label: data.reverse_charge ? 'Yes' : 'No',
     gst_paid_by: data.gst_paid_by || '',
     total_amount: money(totalAmount),

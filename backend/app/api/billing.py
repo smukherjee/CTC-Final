@@ -17,9 +17,9 @@ router = APIRouter(prefix="/billing/invoices", tags=["billing"])
 @router.get("/", response_model=List[InvoiceResponse])
 def list_billing_invoices(
     fy: Optional[str] = Query(default=None),
-    party_id: Optional[int] = Query(default=None),
+    client_id: Optional[int] = Query(default=None),
 ):
-    return list_invoices(fy=fy, party_id=party_id)
+    return list_invoices(fy=fy, client_id=client_id)
 
 
 @router.get("/{invoice_id}", response_model=InvoiceResponse)

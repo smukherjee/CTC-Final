@@ -7,7 +7,7 @@
 
 CTC-ERP is a web-based logistics ERP replacing manual paper registers with a centralized digital system. The core feature set covers 10 functional areas: Dispatch/LR, Hire Memo, Tracking, POD, Billing/Invoice, Payment Receipts, Vouchers, Master Data, Security, and Reporting.
 
-The system is a **React + FastAPI + PostgreSQL** stack. A partial backend (models + API routes for LR, HireMemo, Party, Vendor, City, Contract, EwayBill, Vehicle) already exists. The primary remaining gaps (Mar 2026) are: Invoice model + service, PaymentReceipt model + service, `financial_year` on all register entities, BillBook enhancements (TDS/NET columns, per-client tabs), HireMemo enhancements (auto-numbering, 2-copy print), DispatchRegister enhancements (`driver_mobile`, inline eway, FY filter), and shared utilities (`financial_year_utils`, `amount_in_words`).
+The system is a **React + FastAPI + PostgreSQL** stack. A partial backend (models + API routes for LR, HireMemo, client, Vendor, City, Contract, EwayBill, Vehicle) already exists. The primary remaining gaps (Mar 2026) are: Invoice model + service, PaymentReceipt model + service, `financial_year` on all register entities, BillBook enhancements (TDS/NET columns, per-client tabs), HireMemo enhancements (auto-numbering, 2-copy print), DispatchRegister enhancements (`driver_mobile`, inline eway, FY filter), and shared utilities (`financial_year_utils`, `amount_in_words`).
 
 ## Technical Context
 
@@ -97,7 +97,7 @@ frontend/src/
 ├── features/
 │   ├── operations/
 │   │   ├── DispatchRegister.tsx       # MODIFY: driver_mobile, inline eway, FY filter
-│   │   └── CreateLR.tsx               # MODIFY: FOB -> Party Master
+│   │   └── CreateLR.tsx               # MODIFY: FOB -> client Master
 │   ├── hirememo/
 │   │   ├── HireMemo.tsx               # MODIFY: 2-copy print, amount_in_words
 │   │   └── HireMemoRegister.tsx       # NEW
@@ -134,9 +134,9 @@ No constitution violations apply. No over-engineering warranted.
 | Invoice/Voucher print | Handlebars frontend template + `window.print()` | Matches existing `printHireMemo.ts` + `printLR.ts` pattern; zero new dependencies |
 | `financial_year` format | `YYYY-YY` string e.g. `2025-26` | Matches sample documents; lexicographically sortable |
 | Reverse charge | `reverse_charge BOOLEAN` + `gst_paid_by VARCHAR` | Matches sample invoice exactly |
-| Per-client BillBook tabs | `party_id` filter + tab UI | Party model exists; no denormalization needed |
+| Per-client BillBook tabs | `client_id` filter + tab UI | client model exists; no denormalization needed |
 | HireMemo 2-copy print | CSS `@media print` two-section layout | Zero extra dependencies |
-| TDS rate | Configurable per-client (on Party/Contract) | Not hardcoded; client requirement |
+| TDS rate | Configurable per-client (on client/Contract) | Not hardcoded; client requirement |
 
 ---
 
@@ -180,11 +180,11 @@ No constitution violations apply. No over-engineering warranted.
 ### Milestone 1 — Foundational Utilities (blocks all others)
 **Tasks**: T004–T012, T071
 - `financial_year_utils.py`, `amount_in_words.py`, `amountInWords.ts`, `financialYear.ts`
-- Alembic migrations: `financial_year` on `lrs`, `hirememos`, `bills`; DROP `gstin` from `vendors`; `tds_rate` on `parties`
+- Alembic migrations: `financial_year` on `lrs`, `hirememos`, `bills`; DROP `gstin` from `vendors`; `tds_rate` on `clients`
 
 ### Milestone 2 — Dispatch Register Enhancements (US1)
 **Tasks**: T017–T023
-- DispatchRegister: `driver_mobile` column, inline E-way bill editing, FOB→Party Master, FY filter
+- DispatchRegister: `driver_mobile` column, inline E-way bill editing, FOB→client Master, FY filter
 
 ### Milestone 3 — Hire Memo Enhancements (US2)
 **Tasks**: T024–T030

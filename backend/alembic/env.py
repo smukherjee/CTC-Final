@@ -33,7 +33,7 @@ from app.models import (
     city,
     vehicle,
     vendor,
-    party,
+    client,
     user,
     template,
     contract,

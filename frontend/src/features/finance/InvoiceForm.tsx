@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import { generateFyDropdownOptions, getCurrentFy } from '@/utils/financialYear';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 
-import { getCurrentFy } from '@/utils/financialYear';
 import { printInvoice } from '@/utils/printInvoice';
 
-interface PartyItem {
+interface ClientItem {
   id: number;
   name: string;
   address?: string;
@@ -52,37 +52,41 @@ function lineTotal(line: InvoiceLineDraft): number {
 }
 
 export default function InvoiceForm() {
-  const [fy, setFy] = useState(getCurrentFy());
+  const currentFy = getCurrentFy();
+  const fyOptions = generateFyDropdownOptions(currentFy);
+  const [fy, setFy] = useState(currentFy);
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
-  const [partyId, setPartyId] = useState('');
+  const [clientId, setClientId] = useState('');
   const [poNo, setPoNo] = useState('');
   const [poDate, setPoDate] = useState('');
   const [tdsAmount, setTdsAmount] = useState(0);
 
-  const [parties, setParties] = useState<PartyItem[]>([]);
+  const [clients, setClients] = useState<ClientItem[]>([]);
   const [lrs, setLrs] = useState<LrItem[]>([]);
   const [selectedLrIds, setSelectedLrIds] = useState<number[]>([]);
   const [lines, setLines] = useState<InvoiceLineDraft[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    axios.get('/api/party/')
+    axios.get('/api/clients/')
       .then((res) => {
         const data = Array.isArray(res.data) ? res.data : [];
-        setParties(data.map((party: any) => ({
-          id: Number(party.id),
-          name: String(party.name || party.party_name || `Party ${party.id}`),
-          address: party.address || '',
-          gstin: party.gstin || '',
+        setClients(data.map((client: any) => ({
+          id: Number(client.id),
+          name: String(client.name || client.client_name || `Client ${client.id}`),
+          address: client.address || '',
+          gstin: client.gstin || '',
         })));
       })
       .catch((err) => {
-        console.error('Failed to load parties', err);
+        console.error('Failed to load Clients', err);
       });
   }, []);
 
   useEffect(() => {
-    axios.get('/api/lr/', { params: { fy } })
+    const params: any = { fy };
+    if (clientId) params.client_id = clientId;
+    axios.get('/api/lr/', { params })
       .then((res) => {
         const data = Array.isArray(res.data) ? res.data : [];
         setLrs(data);
@@ -91,7 +95,7 @@ export default function InvoiceForm() {
         console.error('Failed to load LRs', err);
         setLrs([]);
       });
-  }, [fy]);
+  }, [fy, clientId]);
 
   useEffect(() => {
     const selectedLrs = lrs.filter((lr) => selectedLrIds.includes(Number(lr.id)));
@@ -117,9 +121,9 @@ export default function InvoiceForm() {
   const totalAmount = useMemo(() => lines.reduce((sum, line) => sum + lineTotal(line), 0), [lines]);
   const netAmount = useMemo(() => totalAmount - Number(tdsAmount || 0), [totalAmount, tdsAmount]);
 
-  const selectedParty = useMemo(
-    () => parties.find((party) => party.id === Number(partyId)),
-    [parties, partyId],
+  const selectedClient = useMemo(
+    () => clients.find((client) => client.id === Number(clientId)),
+    [clients, clientId],
   );
 
   const toggleLr = (id: number) => {
@@ -131,14 +135,14 @@ export default function InvoiceForm() {
   };
 
   const handlePrint = async () => {
-    if (!Number(partyId) || lines.length === 0) {
-      alert('Select party and at least one LR');
+    if (!Number(clientId) || lines.length === 0) {
+      alert('Select client and at least one LR');
       return;
     }
 
     const payload = {
       invoice_date: invoiceDate,
-      party_id: Number(partyId),
+      client_id: Number(clientId),
       financial_year: fy,
       po_no: poNo || null,
       po_date: poDate || null,
@@ -162,9 +166,9 @@ export default function InvoiceForm() {
         po_no: invoice.po_no || '',
         po_date: invoice.po_date || '',
         hsn_code: invoice.hsn_code || '996791',
-        party_name: selectedParty?.name || '',
-        party_address: selectedParty?.address || '',
-        party_gstin: selectedParty?.gstin || '',
+        client_name: selectedClient?.name || '',
+        client_address: selectedClient?.address || '',
+        client_gstin: selectedClient?.gstin || '',
         reverse_charge: Boolean(invoice.reverse_charge),
         gst_paid_by: invoice.gst_paid_by || '',
         total_amount: Number(invoice.total_amount || 0),
@@ -203,25 +207,33 @@ export default function InvoiceForm() {
         <h2 className="text-2xl font-bold tracking-tight text-slate-900">Invoice Form</h2>
         <p className="text-sm text-slate-500">Create invoice from selected LRs and print using invoice template.</p>
         <Link to="/finance/invoices" className="mt-2 inline-block text-sm text-blue-700 hover:underline">
-          Back to Bill Notebook
+          Back to Invoice Register
         </Link>
       </div>
 
       <div className="grid grid-cols-1 gap-3 rounded border bg-white p-4 md:grid-cols-6">
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600">FY</label>
-          <input value={fy} onChange={(e) => setFy(e.target.value)} className="w-full rounded border px-2 py-2" />
+          <select
+            value={fy}
+            onChange={(e) => setFy(e.target.value)}
+            className="w-full rounded border px-2 py-2"
+          >
+            {fyOptions.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600">Invoice Date</label>
           <input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} className="w-full rounded border px-2 py-2" />
         </div>
         <div className="md:col-span-2">
-          <label className="mb-1 block text-xs font-medium text-slate-600">Party</label>
-          <select value={partyId} onChange={(e) => setPartyId(e.target.value)} className="w-full rounded border px-2 py-2">
-            <option value="">Select party</option>
-            {parties.map((party) => (
-              <option key={party.id} value={party.id}>{party.name}</option>
+          <label className="mb-1 block text-xs font-medium text-slate-600">Client</label>
+          <select value={clientId} onChange={(e) => setClientId(e.target.value)} className="w-full rounded border px-2 py-2">
+            <option value="">Select client</option>
+            {clients.map((client) => (
+              <option key={client.id} value={client.id}>{client.name}</option>
             ))}
           </select>
         </div>

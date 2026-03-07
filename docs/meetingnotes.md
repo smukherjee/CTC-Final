@@ -14,12 +14,12 @@ Initial Entry: The process begins with an order being logged in the Day Book.
 
 LR Generation: Once a vehicle is loaded at the site, a Lorry Receipt (LR) is created.
 
-Document Uploads: The system must allow the site writer to upload digital copies of the LR, Party Invoice, and E-way Bill immediately upon dispatch.
+Document Uploads: The system must allow the site writer to upload digital copies of the LR, client Invoice, and E-way Bill immediately upon dispatch.
 
 LR Data Capture: Essential fields include LR No, Date, Consignor, Consignee, Qty, Vehicle No, and Origin/Destination.
 
 2.2. Hire Memo & Vendor Costing (Phase 2: Execution)
-The "Bhada Parchi": For third-party vehicles, a Hire Memo is generated to record the agreed freight rate with the broker.
+The "Bhada Parchi": For third-client vehicles, a Hire Memo is generated to record the agreed freight rate with the broker.
 
 Financial Terms: The system must capture the Total Hire Amount, any Advance Paid (Cash or Bank), and auto-calculate the Balance Due.
 
@@ -76,7 +76,7 @@ meeting 2
 A. Dispatch & LR Generation
 Initial Entry: Every shipment begins with an order being logged. Once a vehicle is loaded, an LR (Lorry Receipt) is generated at the site.
 
-Digital Attachments: At the point of LR creation, users must upload digital copies of the LR, the Party Invoice, and the E-way Bill to the portal.
+Digital Attachments: At the point of LR creation, users must upload digital copies of the LR, the client Invoice, and the E-way Bill to the portal.
 
 Data Fields: Key fields include LR No, Date, Consignor, Consignee, No. of Articles, Vehicle No, and Route (From/To).
 

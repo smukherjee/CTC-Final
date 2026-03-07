@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import AppAgGrid from '@/components/grid/AppAgGrid';
 import { confirmDestructiveAction } from '@/utils/destructiveAction';
+import { formatDisplayDateTime } from '@/utils/dateFormat';
 import { generateFyDropdownOptions, getCurrentFy } from '@/utils/financialYear';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 
@@ -55,6 +57,123 @@ export default function PODVerification() {
     void loadRows();
   }, [loadRows]);
 
+  const handleArchive = useCallback(async (id: number) => {
+    if (!confirmDestructiveAction({ action: 'Archive POD file' })) return;
+    try {
+      await axios.post(`/api/files/${id}/archive`);
+      await loadRows();
+    } catch (err: any) {
+      alert(`Archive failed: ${err?.response?.data?.detail || err?.message || 'Unknown error'}`);
+    }
+  }, [loadRows]);
+
+  const colDefs = useMemo<any[]>(() => [
+    {
+      field: 'lr_number',
+      headerName: 'LR No',
+      minWidth: 150,
+      flex: 1,
+      editable: false,
+      cellRenderer: (params: any) => {
+        const row = params.data as PodFileRow;
+        if (!row.lr_id) {
+          return row.lr_number || '-';
+        }
+        return (
+          <a
+            href={`/operations/lr/${row.lr_id}`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-blue-700 hover:underline font-medium"
+          >
+            {row.lr_number || `LR-${row.lr_id}`}
+          </a>
+        );
+      },
+    },
+    {
+      field: 'consignor_name',
+      headerName: 'Consignor',
+      minWidth: 190,
+      flex: 1.2,
+      editable: false,
+      valueGetter: (params: any) => params.data.consignor_name || '-',
+    },
+    {
+      field: 'consignee_name',
+      headerName: 'Consignee',
+      minWidth: 190,
+      flex: 1.2,
+      editable: false,
+      valueGetter: (params: any) => params.data.consignee_name || '-',
+    },
+    {
+      field: 'original_filename',
+      headerName: 'File',
+      minWidth: 220,
+      flex: 1.4,
+      editable: false,
+      cellRenderer: (params: any) => (
+        <a href={params.data.file_url} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline">
+          {params.data.original_filename}
+        </a>
+      ),
+    },
+    {
+      field: 'created_at',
+      headerName: 'Uploaded',
+      minWidth: 180,
+      flex: 1,
+      editable: false,
+      valueFormatter: (params: any) => formatDisplayDateTime(params.value),
+    },
+    {
+      headerName: 'POD Status',
+      minWidth: 140,
+      flex: 1,
+      editable: false,
+      valueGetter: (params: any) => {
+        const row = params.data as PodFileRow;
+        if (row.is_archived) return 'Archived';
+        if (row.pod_verified_at) return 'Verified';
+        return 'Pending';
+      },
+    },
+    {
+      headerName: 'Actions',
+      minWidth: 220,
+      flex: 1.2,
+      editable: false,
+      sortable: false,
+      filter: false,
+      cellRenderer: (params: any) => {
+        const row = params.data as PodFileRow;
+        return (
+          <div className="flex h-full items-center gap-2">
+            {!row.is_archived && !row.pod_verified_at && (
+              <button
+                type="button"
+                className="inline-flex items-center rounded-md px-3 py-1 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                onClick={() => setVerifyPreview(row)}
+              >
+                Review & Verify
+              </button>
+            )}
+            {!row.is_archived && (
+              <button
+                type="button"
+                className="inline-flex items-center rounded-md px-3 py-1 text-red-700 hover:bg-red-50 hover:text-red-800"
+                onClick={() => handleArchive(row.id)}
+              >
+                Archive
+              </button>
+            )}
+          </div>
+        );
+      },
+    },
+  ], [handleArchive]);
+
   const handleUpload = async () => {
     if (!lrNumber.trim() || !selectedFile) return;
     setUploading(true);
@@ -94,22 +213,11 @@ export default function PODVerification() {
     }
   };
 
-  const handleArchive = async (id: number) => {
-    if (!confirmDestructiveAction({ action: 'Archive POD file' })) return;
-    try {
-      await axios.post(`/api/files/${id}/archive`);
-      await loadRows();
-    } catch (err: any) {
-      alert(`Archive failed: ${err?.response?.data?.detail || err?.message || 'Unknown error'}`);
-    }
-  };
-
   return (
     <div className="h-full flex flex-col gap-4">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">POD Management</h2>
-          <p className="text-sm text-slate-500 mt-1">Upload, search, verify, and archive POD documents</p>
         </div>
       </div>
 
@@ -162,89 +270,22 @@ export default function PODVerification() {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search LR No / Party / File name"
+          placeholder="Search LR No / Client / File name"
           className="w-full md:w-96 border rounded px-3 py-2"
         />
       </div>
 
-      <div className="bg-white border rounded-lg overflow-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-100 text-slate-700">
-            <tr>
-              <th className="text-left px-3 py-2">LR No</th>
-              <th className="text-left px-3 py-2">Consignor</th>
-              <th className="text-left px-3 py-2">Consignee</th>
-              <th className="text-left px-3 py-2">File</th>
-              <th className="text-left px-3 py-2">Uploaded</th>
-              <th className="text-left px-3 py-2">POD Status</th>
-              <th className="text-left px-3 py-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr>
-                <td colSpan={7} className="px-3 py-4 text-slate-500">Loading POD files...</td>
-              </tr>
-            )}
-            {!loading && rows.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-3 py-4 text-slate-500">No POD files found.</td>
-              </tr>
-            )}
-            {!loading && rows.map((row) => (
-              <tr key={row.id} className="border-t border-slate-100">
-                <td className="px-3 py-2 font-medium">
-                  {row.lr_id ? (
-                    <a
-                      href={`/operations/lr/${row.lr_id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-700 hover:underline"
-                    >
-                      {row.lr_number || `LR-${row.lr_id}`}
-                    </a>
-                  ) : (
-                    row.lr_number || '-'
-                  )}
-                </td>
-                <td className="px-3 py-2">{row.consignor_name || '-'}</td>
-                <td className="px-3 py-2">{row.consignee_name || '-'}</td>
-                <td className="px-3 py-2">
-                  <a href={row.file_url} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline">
-                    {row.original_filename}
-                  </a>
-                </td>
-                <td className="px-3 py-2">{new Date(row.created_at).toLocaleString()}</td>
-                <td className="px-3 py-2">
-                  {row.is_archived && <span className="text-slate-500">Archived</span>}
-                  {!row.is_archived && row.pod_verified_at && <span className="text-emerald-700 font-medium">Verified</span>}
-                  {!row.is_archived && !row.pod_verified_at && <span className="text-amber-700 font-medium">Pending</span>}
-                </td>
-                <td className="px-3 py-2 space-x-3">
-                  {!row.is_archived && !row.pod_verified_at && (
-                    <button
-                      type="button"
-                      className="inline-flex h-11 items-center rounded-md px-3 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
-                      onClick={() => setVerifyPreview(row)}
-                    >
-                      Review & Verify
-                    </button>
-                  )}
-                  {!row.is_archived && (
-                    <button
-                      type="button"
-                      className="inline-flex h-11 items-center rounded-md px-3 text-red-700 hover:bg-red-50 hover:text-red-800"
-                      onClick={() => handleArchive(row.id)}
-                    >
-                      Archive
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <AppAgGrid<PodFileRow>
+        rowData={rows}
+        columnDefs={colDefs}
+        loading={loading}
+        noRowsMessage={`No POD files found for FY ${fy}.`}
+        defaultColDef={{ editable: false }}
+        getRowId={(params: any) => String(params.data.id)}
+        rowSelection={{ mode: 'singleRow', enableClickSelection: false, checkboxes: false }}
+        fitColumns={false}
+        alwaysShowHorizontalScroll={true}
+      />
 
       <Dialog open={Boolean(verifyPreview)} onOpenChange={(open) => !open && setVerifyPreview(null)}>
         <DialogContent className="max-w-5xl h-[90vh] overflow-hidden p-0">
