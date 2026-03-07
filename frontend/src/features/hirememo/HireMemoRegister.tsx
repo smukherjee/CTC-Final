@@ -142,6 +142,7 @@ export default function HireMemoRegister() {
       headerName: 'Total Hire',
       width: 140,
       editable: true,
+      currencyTotal: true,
       valueParser: (params: any) => Number(params.newValue || 0),
       valueFormatter: (params: any) => Number(params.value || 0).toFixed(2),
       cellStyle: { textAlign: 'right' },
@@ -151,6 +152,7 @@ export default function HireMemoRegister() {
       headerName: 'Adv Cash',
       width: 120,
       editable: true,
+      currencyTotal: true,
       valueParser: (params: any) => Number(params.newValue || 0),
       valueFormatter: (params: any) => Number(params.value || 0).toFixed(2),
       cellStyle: { textAlign: 'right' },
@@ -160,6 +162,7 @@ export default function HireMemoRegister() {
       headerName: 'Adv Bank',
       width: 120,
       editable: true,
+      currencyTotal: true,
       valueParser: (params: any) => Number(params.newValue || 0),
       valueFormatter: (params: any) => Number(params.value || 0).toFixed(2),
       cellStyle: { textAlign: 'right' },
@@ -185,6 +188,7 @@ export default function HireMemoRegister() {
       headerName: 'Balance',
       width: 130,
       editable: false,
+      currencyTotal: true,
       valueFormatter: (params: any) => Number(params.value || 0).toFixed(2),
       cellStyle: { textAlign: 'right', backgroundColor: '#f8fafc', fontWeight: 600 },
     },
@@ -218,6 +222,8 @@ export default function HireMemoRegister() {
         paginationPageSize={20}
         paginationPageSizeSelector={[10, 20, 50, 100]}
         rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
+        showCurrencyTotals={true}
+        currencyTotalLabelField="hire_memo_no"
         fitColumns={false}
         alwaysShowHorizontalScroll={true}
       />

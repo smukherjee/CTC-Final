@@ -43,6 +43,7 @@ from app.models.vehicle import VehicleModel  # noqa: E402
 from app.models.vehicle_location import VehicleLocationModel  # noqa: E402
 from app.models.vendor import VendorModel  # noqa: E402
 from app.models.voucher import VoucherModel  # noqa: E402
+from app.services.billing_service import sync_invoice_payment_status  # noqa: E402
 from app.services.voucher_service import sync_hirememo_advance_vouchers  # noqa: E402
 
 
@@ -83,14 +84,14 @@ SCENARIOS: List[Scenario] = [
     Scenario(4, "pod_uploaded_invoice_draft", date(2025, 6, 14), "POD_UPLOADED", "uploaded", "draft", True, "PENDING", "active", "UNLOADING", "2025-26"),
     Scenario(5, "dispatch_unbilled_expired_eway", date(2025, 7, 1), "DISPATCHED", "none", None, False, "PENDING", "expired", "LOADING", "2025-26"),
     Scenario(6, "dispatch_unbilled_active", date(2025, 8, 15), "DISPATCHED", "none", None, True, "PENDING", "active", "IN_TRANSIT", "2025-26"),
-    Scenario(7, "invoice_overdue", date(2025, 9, 9), "BILLED", "verified", "overdue", True, "RECEIVED", "expiring", "AT_DESTINATION", "2025-26"),
+    Scenario(7, "invoice_outstanding", date(2025, 9, 9), "BILLED", "verified", "issued", True, "RECEIVED", "expiring", "AT_DESTINATION", "2025-26"),
     Scenario(8, "cancelled_trip", date(2025, 10, 3), "CANCELLED", "none", None, False, "PENDING", "active", "CANCELLED", "2025-26"),
-    Scenario(9, "submitted_invoice", date(2025, 11, 18), "DELIVERED", "uploaded", "submitted", True, "CLOSED", "active", "DELIVERED", "2025-26"),
+    Scenario(9, "issued_invoice", date(2025, 11, 18), "DELIVERED", "uploaded", "issued", True, "CLOSED", "active", "DELIVERED", "2025-26"),
     Scenario(10, "prior_fy_paid", date(2024, 4, 12), "BILLED", "verified", "paid", True, "CLOSED", "active", "DELIVERED", "2024-25"),
     Scenario(11, "prior_fy_partial", date(2024, 7, 22), "BILLED", "verified", "partially_paid", True, "RECEIVED", "expired", "AT_HUB", "2024-25"),
-    Scenario(12, "prior_fy_unpaid", date(2024, 12, 30), "BILLED", "verified", "unpaid", True, "PENDING", "expired", "IN_TRANSIT", "2024-25"),
+    Scenario(12, "prior_fy_outstanding", date(2024, 12, 30), "BILLED", "verified", "issued", True, "PENDING", "expired", "IN_TRANSIT", "2024-25"),
     Scenario(13, "older_fy_paid", date(2023, 8, 10), "BILLED", "verified", "paid", True, "CLOSED", "expired", "DELIVERED", "2023-24"),
-    Scenario(14, "oldest_fy_unpaid", date(2022, 11, 19), "BILLED", "verified", "unpaid", True, "PENDING", "expired", "AT_DESTINATION", "2022-23"),
+    Scenario(14, "oldest_fy_outstanding", date(2022, 11, 19), "BILLED", "verified", "issued", True, "PENDING", "expired", "AT_DESTINATION", "2022-23"),
     Scenario(15, "recent_fy_mix", date(2026, 2, 20), "POD_UPLOADED", "uploaded", "partially_paid", True, "RECEIVED", "expiring", "IN_TRANSIT", "2025-26"),
 ]
 
@@ -304,14 +305,42 @@ def _extract_receipt_rows(raw_sheets: Dict[str, List[List[Optional[str]]]]) -> L
         payment_date = _parse_date(r[0])
         if not payment_date:
             continue
+        total_billed_amount = _parse_decimal(r[1], Decimal("0"))
+        tds_deducted = _parse_decimal(r[3], Decimal("0")) if len(r) > 3 else (total_billed_amount * Decimal("0.02")).quantize(Decimal("0.01"))
+        other_deduction = _parse_decimal(r[5], Decimal("0")) if len(r) > 5 else Decimal("0")
+        net_amount = (total_billed_amount - tds_deducted - other_deduction).quantize(Decimal("0.01"))
+        deduction_remarks = (r[6] or "").strip() if len(r) > 6 and r[6] else None
+        payment_mode = (r[7] or "BANK").strip().upper() if len(r) > 7 and r[7] else "BANK"
         rows.append(
             {
                 "payment_date": payment_date,
-                "amount": _parse_decimal(r[1], Decimal("0")),
+                "total_billed_amount": total_billed_amount,
                 "received_from": (r[2] or "UNKNOWN").strip(),
+                "tds_deducted": tds_deducted,
+                "net_amount": net_amount,
+                "other_deduction": other_deduction,
+                "deduction_remarks": deduction_remarks,
+                "payment_mode": payment_mode,
+                "notes": f"{SEED_TAG} Workbook receipt{f' - {deduction_remarks}' if deduction_remarks else ''}",
             }
         )
     return rows
+
+
+def _receipt_seed_mode(scenario: Scenario) -> str:
+    modes = ["BANK", "NEFT", "RTGS", "IMPS", "CHEQUE"]
+    return modes[(scenario.idx - 1) % len(modes)]
+
+
+def _receipt_seed_remarks(scenario: Scenario, tds_deducted: Decimal, other_deduction: Decimal) -> Optional[str]:
+    parts: List[str] = []
+    if tds_deducted > 0:
+        parts.append("TDS adjusted")
+    if other_deduction > 0:
+        parts.append("other deductions adjusted")
+    if scenario.invoice_status == "partially_paid":
+        parts.append("partial settlement")
+    return "; ".join(parts) if parts else None
 
 
 def _table_exists(session, table_name: str) -> bool:
@@ -352,13 +381,31 @@ def _ensure_pdf(path: Path) -> tuple[int, str]:
 def _upsert_client(session, name: str, p_type: str = "customer") -> ClientModel:
     row = session.query(ClientModel).filter(ClientModel.name == name).first()
     if row:
-        if row.type != p_type:
+        if p_type == "customer" and row.type != "customer":
             row.type = p_type
         return row
     row = ClientModel(name=name, type=p_type, tds_rate=Decimal("2.00"))
     session.add(row)
     session.flush()
     return row
+
+
+def _require_existing_customer_master(session, name: str) -> ClientModel:
+    row = session.query(ClientModel).filter(ClientModel.name == name).first()
+    if not row:
+        raise RuntimeError(f"Seed receipt customer master missing: {name}")
+    if row.type != "customer":
+        row.type = "customer"
+        session.flush()
+    return row
+
+
+def _prime_receipt_customer_masters(session, receipt_rows: List[dict]):
+    for receipt in receipt_rows:
+        received_from = (receipt.get("received_from") or "").strip()
+        if not received_from:
+            continue
+        _upsert_client(session, received_from, "customer")
 
 
 def _upsert_vendor(session, name: str) -> VendorModel:
@@ -548,18 +595,48 @@ def _upsert_invoice(session, lr: LRModel, client_id: int, scenario: Scenario, am
     return inv
 
 
-def _upsert_receipt(session, payment_date: date, amount: Decimal, received_from: str, notes: str) -> PaymentReceiptModel:
+def _upsert_receipt(
+    session,
+    payment_date: date,
+    total_billed_amount: Decimal,
+    received_from: str,
+    notes: str,
+    invoice_id: Optional[int] = None,
+    tds_deducted: Decimal = Decimal("0.00"),
+    other_deduction: Decimal = Decimal("0.00"),
+    deduction_remarks: Optional[str] = None,
+    payment_mode: str = "BANK",
+) -> PaymentReceiptModel:
     row = session.query(PaymentReceiptModel).filter(PaymentReceiptModel.notes == notes).first()
+    received_from_client = _require_existing_customer_master(session, received_from)
+    net_amount = (total_billed_amount - tds_deducted - other_deduction).quantize(Decimal("0.01"))
     if row:
         row.payment_date = payment_date
-        row.amount = amount
-        row.received_from = received_from
+        row.amount = net_amount
+        row.invoice_id = invoice_id
+        row.received_from_id = received_from_client.id
+        row.received_from = received_from_client.name
+        row.total_billed_amount = total_billed_amount
+        row.tds_deducted = tds_deducted
+        row.net_amount = net_amount
+        row.other_deduction = other_deduction
+        row.deduction_remarks = deduction_remarks
+        row.payment_mode = payment_mode
         row.financial_year = fy_from_date(payment_date)
+        row.notes = notes
         return row
     row = PaymentReceiptModel(
         payment_date=payment_date,
-        amount=amount,
-        received_from=received_from,
+        amount=net_amount,
+        invoice_id=invoice_id,
+        received_from_id=received_from_client.id,
+        received_from=received_from_client.name,
+        total_billed_amount=total_billed_amount,
+        tds_deducted=tds_deducted,
+        net_amount=net_amount,
+        other_deduction=other_deduction,
+        deduction_remarks=deduction_remarks,
+        payment_mode=payment_mode,
         financial_year=fy_from_date(payment_date),
         notes=notes,
     )
@@ -578,9 +655,10 @@ def _upsert_voucher_for_receipt(session, receipt: PaymentReceiptModel):
         .first()
     )
     narration = f"{SEED_TAG} Receipt from {receipt.received_from}"
+    voucher_amount = Decimal(receipt.net_amount or receipt.amount or 0)
     if row:
         row.voucher_type = "bank_credit"
-        row.amount = receipt.amount
+        row.amount = voucher_amount
         row.date = receipt.payment_date
         row.financial_year = receipt.financial_year
         row.narration = narration
@@ -590,7 +668,7 @@ def _upsert_voucher_for_receipt(session, receipt: PaymentReceiptModel):
             voucher_type="bank_credit",
             reference_type="PAYMENT_RECEIPT",
             reference_id=receipt.id,
-            amount=receipt.amount,
+            amount=voucher_amount,
             date=receipt.payment_date,
             financial_year=receipt.financial_year,
             narration=narration,
@@ -756,9 +834,9 @@ def _seed(session):
             {"bill_no": "365", "bill_date": date(2025, 6, 14), "lr_no": "46245", "lr_date": date(2025, 5, 30), "origin": "SRICITY", "destination": "THANJAVUR", "customer": "FLYJAC LOGISTICS P LTD, CHENNAI", "amount": Decimal("33000"), "amount_passed": Decimal("0"), "deductions": "NIL", "cm_no": "", "cm_date": None},
         ]
         receipt_rows = [
-            {"payment_date": date(2025, 11, 27), "amount": Decimal("591897"), "received_from": "FLIPKART INDIA P LTD"},
-            {"payment_date": date(2025, 12, 16), "amount": Decimal("3202800"), "received_from": "INSTAKART SERVICES P LTD"},
-            {"payment_date": date(2025, 12, 16), "amount": Decimal("1862214"), "received_from": "FLIPKART INDIA P LTD"},
+            {"payment_date": date(2025, 11, 27), "total_billed_amount": Decimal("603977.00"), "received_from": "FLIPKART INDIA P LTD", "tds_deducted": Decimal("12079.54"), "net_amount": Decimal("591897.46"), "other_deduction": Decimal("0.00"), "deduction_remarks": None, "payment_mode": "NEFT", "notes": f"{SEED_TAG} Workbook fallback receipt 1"},
+            {"payment_date": date(2025, 12, 16), "total_billed_amount": Decimal("3268163.27"), "received_from": "INSTAKART SERVICES P LTD", "tds_deducted": Decimal("65363.27"), "net_amount": Decimal("3202800.00"), "other_deduction": Decimal("0.00"), "deduction_remarks": None, "payment_mode": "RTGS", "notes": f"{SEED_TAG} Workbook fallback receipt 2"},
+            {"payment_date": date(2025, 12, 16), "total_billed_amount": Decimal("1900814.00"), "received_from": "FLIPKART INDIA P LTD", "tds_deducted": Decimal("38016.28"), "net_amount": Decimal("1862214.00"), "other_deduction": Decimal("583.72"), "deduction_remarks": "Bank charges adjusted", "payment_mode": "BANK", "notes": f"{SEED_TAG} Workbook fallback receipt 3"},
         ]
         print("Workbook not mounted in this runtime; using notebook-derived fallback sample rows.")
     if not bill_rows:
@@ -926,14 +1004,21 @@ def _seed(session):
 
         created_lrs.append(lr)
 
+    _prime_receipt_customer_masters(session, receipt_rows)
+
     # Seed standalone payment receipts from sample Sheet4.
     for i, rr in enumerate(receipt_rows, start=1):
         rec = _upsert_receipt(
             session,
             payment_date=rr["payment_date"],
-            amount=rr["amount"],
+            total_billed_amount=rr["total_billed_amount"],
             received_from=rr["received_from"],
-            notes=f"{SEED_TAG} SAMPLE-SHEET4-{i}",
+            notes=rr.get("notes") or f"{SEED_TAG} SAMPLE-SHEET4-{i}",
+            invoice_id=None,
+            tds_deducted=rr.get("tds_deducted", Decimal("0.00")),
+            other_deduction=rr.get("other_deduction", Decimal("0.00")),
+            deduction_remarks=rr.get("deduction_remarks"),
+            payment_mode=rr.get("payment_mode", "BANK"),
         )
         if has_voucher:
             _upsert_voucher_for_receipt(session, rec)
@@ -944,9 +1029,13 @@ def _seed(session):
         if not inv:
             continue
         if inv.status == "paid":
-            amount = Decimal(inv.net_amount or inv.total_amount or 0)
-        elif inv.status in {"partially_paid", "submitted"}:
-            amount = (Decimal(inv.net_amount or inv.total_amount or 0) * Decimal("0.55")).quantize(Decimal("0.01"))
+            total_billed_amount = Decimal(inv.total_amount or inv.net_amount or 0)
+            tds_deducted = Decimal(inv.tds_amount or 0)
+            other_deduction = Decimal("0.00")
+        elif inv.status == "partially_paid":
+            total_billed_amount = (Decimal(inv.net_amount or inv.total_amount or 0) * Decimal("0.55")).quantize(Decimal("0.01"))
+            tds_deducted = Decimal("0.00")
+            other_deduction = Decimal("0.00")
         else:
             continue
 
@@ -954,10 +1043,16 @@ def _seed(session):
         rec = _upsert_receipt(
             session,
             payment_date=inv.invoice_date + timedelta(days=20),
-            amount=amount,
+            total_billed_amount=total_billed_amount,
             received_from=client.name if client else f"Client-{inv.client_id}",
             notes=f"{SEED_TAG} INVOICE-{inv.invoice_no}",
+            invoice_id=inv.id,
+            tds_deducted=tds_deducted,
+            other_deduction=other_deduction,
+            deduction_remarks=_receipt_seed_remarks(scenario, tds_deducted, other_deduction),
+            payment_mode=_receipt_seed_mode(scenario),
         )
+        sync_invoice_payment_status(session, inv)
         if has_voucher:
             _upsert_voucher_for_receipt(session, rec)
 

@@ -49,6 +49,10 @@
 - [X] T014 [P] [US8] Remove GSTIN input field from VendorMaster form UI (frontend/src/features/vendor/VendorMaster.tsx)
 - [X] T015 [US8] Add `tds_rate` to `clientCreate`/`clientResponse` Pydantic schemas; update client API to accept and return it (backend/app/schemas/client.py, backend/app/api/client.py)
 - [X] T016 [P] [US8] Add TDS Rate numeric input to clientMaster form UI (frontend/src/features/client/clientMaster.tsx)
+- [X] T016a [P] [US8] Hide city code column from City Master UI and remove code from create/update payloads (frontend/src/features/city/CityMaster.tsx, backend/app/schemas/city.py)
+- [X] T016b [P] [US8] Generate unique city code server‑side on creation; enforce uniqueness via new DB migration (backend/app/services/city_service.py, backend/alembic/versions/20260307_add_unique_code_to_cities.py)
+- [X] T016c [P] [US8] Hide primary ID columns across all master grids while keeping server-generated record IDs for CRUD operations (frontend/src/components/grid/MasterCrudGrid.tsx)
+- [X] T016d [P] [US8] Replace remaining relation ID master fields with name-based dropdown selectors for editable foreign keys (frontend/src/features/contract/ContractMaster.tsx, frontend/src/features/vehicle/VehicleMaster.tsx)
 
 ---
 
@@ -143,6 +147,8 @@
 - [X] T054 [US6] Add Payment Receipts API router: `GET/POST /api/payment-receipts/` (with `?fy=` filter), `PUT/DELETE /api/payment-receipts/{id}`; register in main.py (backend/app/api/payment_receipts.py, backend/app/main.py)
 - [X] T055 [US6] Create `PaymentReceiptsRegister.tsx`: grid with PAYMENT DATE, AMOUNT, RECEIVED FROM, NOTES; FY filter dropdown (current + 3 prior years, default to current); call `GET /api/payment-receipts/?fy={selected}`; inline add/edit/delete row actions (frontend/src/features/finance/PaymentReceiptsRegister.tsx)
 - [X] T056 [US6] Add `/payment-receipts` route to frontend router; add nav link under Finance section (frontend/src/App.tsx)
+- [X] T056a [US6] Expand payment receipts for deduction tracking: add customer-master linkage, total billed, TDS deducted, net amount, other deduction, deduction remarks, payment mode, and comprehensive seed coverage (backend/alembic/versions/20260307_02_enhance_payment_receipts_register.py, backend/app/models/payment_receipt.py, backend/app/services/payment_receipt_service.py, frontend/src/features/finance/PaymentReceiptsRegister.tsx, backend/app/scripts/seed_comprehensive_sample_data.py)
+- [X] T056b [US6] Link payment receipts to invoices so receipt allocation updates invoice status and outstanding balances automatically, and expose received/outstanding values in registers and reports (backend/alembic/versions/20260307_03_link_payment_receipts_to_invoices.py, backend/app/services/payment_receipt_service.py, backend/app/services/billing_service.py, frontend/src/features/finance/PaymentReceiptsRegister.tsx, frontend/src/features/finance/BillBook.tsx, backend/app/api/reports.py)
 
 ---
 

@@ -13,6 +13,7 @@ interface MasterCrudGridProps<T extends { id?: RowId }> {
   subtitle?: string;
   endpoint: string;
   columns: any[];
+  showIdColumn?: boolean;
   createDraft: () => Omit<T, 'id'>;
   toCreatePayload: (row: Omit<T, 'id'>) => Record<string, unknown>;
   toUpdatePayload: (row: T) => Record<string, unknown>;
@@ -28,6 +29,7 @@ export default function MasterCrudGrid<T extends { id?: RowId }>({
   subtitle,
   endpoint,
   columns,
+  showIdColumn = false,
   createDraft,
   toCreatePayload,
   toUpdatePayload,
@@ -59,7 +61,6 @@ export default function MasterCrudGrid<T extends { id?: RowId }>({
     await axios.delete(`${listEndpoint}${id}`);
     setData((prev) => prev.filter((it) => String(it.id) !== String(id)));
   }, [listEndpoint, setData]);
-              {subtitle && <p className="mt-1 text-sm text-slate-600">{subtitle}</p>}
 
   const onCellValueChanged = useCallback(async (event: any) => {
     const row = event.data as T;
@@ -90,8 +91,12 @@ export default function MasterCrudGrid<T extends { id?: RowId }>({
   }, [listEndpoint, mapItem, refetch, setData, setSaving, title, toUpdatePayload]);
 
   const colDefs = useMemo(() => {
+    const visibleColumns = showIdColumn
+      ? columns
+      : columns.filter((column) => column?.field !== 'id');
+
     return [
-      ...columns,
+      ...visibleColumns,
       {
         headerName: 'ACT',
         width: 96,
@@ -119,7 +124,7 @@ export default function MasterCrudGrid<T extends { id?: RowId }>({
         },
       },
     ];
-  }, [columns, onDelete, savingIds]);
+  }, [columns, onDelete, savingIds, showIdColumn]);
 
   if (error) {
     console.error(`Failed to load ${title}:`, error);
@@ -130,6 +135,7 @@ export default function MasterCrudGrid<T extends { id?: RowId }>({
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">{title}</h2>
+          {subtitle && <p className="mt-1 text-sm text-slate-600">{subtitle}</p>}
         </div>
         <div className="flex gap-2">
           <button

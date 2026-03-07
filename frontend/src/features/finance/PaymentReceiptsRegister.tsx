@@ -1,17 +1,80 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import { Trash2 } from 'lucide-react';
 
 import AppAgGrid from '@/components/grid/AppAgGrid';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { formatDisplayDate } from '@/utils/dateFormat';
 import { generateFyDropdownOptions, getCurrentFy } from '@/utils/financialYear';
+import { confirmDestructiveAction } from '@/utils/destructiveAction';
 
 interface PaymentReceiptRow {
   id: number;
   payment_date: string;
-  amount: number;
+  invoice_id?: number | null;
+  received_from_id?: number | null;
   received_from: string;
+  total_billed_amount: number;
+  tds_deducted: number;
+  net_amount: number;
+  other_deduction: number;
+  deduction_remarks?: string | null;
+  payment_mode: string;
   financial_year: string;
-  notes?: string | null;
+}
+
+interface ClientOption {
+  id: number;
+  name: string;
+}
+
+interface InvoiceOption {
+  id: number;
+  invoice_no: string;
+  client_id: number;
+  total_amount: number;
+  tds_amount: number;
+  net_amount: number;
+  amount_received?: number;
+  outstanding_amount?: number;
+  status?: string;
+}
+
+function normalizePaymentReceiptRow(row: Record<string, unknown>): PaymentReceiptRow {
+  return {
+    id: Number(row?.id || 0),
+    payment_date: String(row?.payment_date || ''),
+    invoice_id: row?.invoice_id != null ? Number(row.invoice_id) : null,
+    received_from_id: row?.received_from_id != null ? Number(row.received_from_id) : null,
+    received_from: String(row?.received_from || ''),
+    total_billed_amount: Number(row?.total_billed_amount || 0),
+    tds_deducted: Number(row?.tds_deducted || 0),
+    net_amount: Number(row?.net_amount || 0),
+    other_deduction: Number(row?.other_deduction || 0),
+    deduction_remarks: row?.deduction_remarks ? String(row.deduction_remarks) : null,
+    payment_mode: String(row?.payment_mode || 'BANK'),
+    financial_year: String(row?.financial_year || ''),
+  };
+}
+
+function normalizePaymentDate(value: unknown, fallback = ''): string {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return fallback;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString().slice(0, 10);
+    }
+  }
+
+  return fallback;
 }
 
 export default function PaymentReceiptsRegister() {
@@ -19,20 +82,140 @@ export default function PaymentReceiptsRegister() {
   const fyOptions = generateFyDropdownOptions(currentFy);
   const [fy, setFy] = useState(currentFy);
   const [rows, setRows] = useState<PaymentReceiptRow[]>([]);
+  const [clients, setClients] = useState<ClientOption[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceOption[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [form, setForm] = useState({
     payment_date: new Date().toISOString().slice(0, 10),
-    amount: '',
-    received_from: '',
-    notes: '',
+    invoice_id: '',
+    received_from_id: '',
+    total_billed_amount: '',
+    tds_deducted: '0',
+    other_deduction: '0',
+    deduction_remarks: '',
+    payment_mode: 'BANK',
   });
-  const [editingId, setEditingId] = useState<number | null>(null);
+
+  useEffect(() => {
+    axios.get('/api/clients/')
+      .then((res) => {
+        const data = Array.isArray(res.data) ? res.data : [];
+        setClients(
+          data
+            .map((client) => {
+              const typedClient = client as Record<string, unknown>;
+              return {
+                id: Number(typedClient.id),
+                name: String(typedClient.name || typedClient.client_name || '').trim(),
+              };
+            })
+            .filter((client: ClientOption) => Number.isFinite(client.id) && client.id > 0 && client.name),
+        );
+      })
+      .catch((err) => {
+        console.error('Failed to load customers for payment receipts', err);
+        setClients([]);
+      });
+  }, []);
+
+  useEffect(() => {
+    axios.get('/api/billing/invoices/', { params: { fy } })
+      .then((res) => {
+        const data = Array.isArray(res.data) ? res.data : [];
+        setInvoices(
+          data.map((invoice) => {
+            const typedInvoice = invoice as Record<string, unknown>;
+            return {
+              id: Number(typedInvoice.id),
+              invoice_no: String(typedInvoice.invoice_no || ''),
+              client_id: Number(typedInvoice.client_id || 0),
+              total_amount: Number(typedInvoice.total_amount || 0),
+              tds_amount: Number(typedInvoice.tds_amount || 0),
+              net_amount: Number(typedInvoice.net_amount || 0),
+              amount_received: Number(typedInvoice.amount_received || 0),
+              outstanding_amount: Number(typedInvoice.outstanding_amount || 0),
+              status: String(typedInvoice.status || 'issued'),
+            };
+          }),
+        );
+      })
+      .catch((err) => {
+        console.error('Failed to load invoices for payment receipts', err);
+        setInvoices([]);
+      });
+  }, [fy]);
+
+  const clientIdByName = useMemo(() => {
+    const mapping: Record<string, number> = {};
+    clients.forEach((client) => {
+      mapping[client.name] = client.id;
+    });
+    return mapping;
+  }, [clients]);
+
+  const clientNameById = useMemo(() => {
+    const mapping: Record<number, string> = {};
+    clients.forEach((client) => {
+      mapping[client.id] = client.name;
+    });
+    return mapping;
+  }, [clients]);
+
+  const invoiceById = useMemo(() => {
+    const mapping: Record<number, InvoiceOption> = {};
+    invoices.forEach((invoice) => {
+      mapping[invoice.id] = invoice;
+    });
+    return mapping;
+  }, [invoices]);
+
+  const invoiceByNo = useMemo(() => {
+    const mapping: Record<string, InvoiceOption> = {};
+    invoices.forEach((invoice) => {
+      mapping[invoice.invoice_no] = invoice;
+    });
+    return mapping;
+  }, [invoices]);
+
+  const computedNetAmount = useMemo(() => {
+    const totalBilledAmount = Number(form.total_billed_amount || 0);
+    const tdsDeducted = Number(form.tds_deducted || 0);
+    const otherDeduction = Number(form.other_deduction || 0);
+    return totalBilledAmount - tdsDeducted - otherDeduction;
+  }, [form.other_deduction, form.tds_deducted, form.total_billed_amount]);
+
+  const filteredInvoices = useMemo(() => {
+    const customerId = Number(form.received_from_id || 0);
+    return invoices.filter((invoice) => {
+      if (customerId && invoice.client_id !== customerId) return false;
+      return (invoice.outstanding_amount ?? 0) > 0.009 || String(invoice.id) === form.invoice_id;
+    });
+  }, [form.invoice_id, form.received_from_id, invoices]);
+
+  const selectedInvoice = useMemo(
+    () => invoices.find((invoice) => String(invoice.id) === form.invoice_id),
+    [form.invoice_id, invoices],
+  );
+
+  useEffect(() => {
+    if (!selectedInvoice) return;
+    setForm((prev) => ({
+      ...prev,
+      received_from_id: String(selectedInvoice.client_id),
+      total_billed_amount: selectedInvoice.outstanding_amount != null
+        ? String(Number(selectedInvoice.outstanding_amount).toFixed(2))
+        : prev.total_billed_amount,
+      tds_deducted: '0',
+      other_deduction: '0',
+    }));
+  }, [clientNameById, selectedInvoice]);
 
   const loadRows = useCallback(async () => {
     setLoading(true);
     try {
       const res = await axios.get('/api/payment-receipts/', { params: { fy } });
-      setRows(Array.isArray(res.data) ? res.data : []);
+      setRows(Array.isArray(res.data) ? res.data.map(normalizePaymentReceiptRow) : []);
     } catch (err) {
       console.error('Failed to load payment receipts', err);
       setRows([]);
@@ -45,116 +228,312 @@ export default function PaymentReceiptsRegister() {
     void loadRows();
   }, [loadRows]);
 
-  const totalAmount = useMemo(
-    () => rows.reduce((sum, row) => sum + Number(row.amount || 0), 0),
-    [rows],
-  );
-
   const resetForm = () => {
     setForm({
       payment_date: new Date().toISOString().slice(0, 10),
-      amount: '',
-      received_from: '',
-      notes: '',
+      invoice_id: '',
+      received_from_id: '',
+      total_billed_amount: '',
+      tds_deducted: '0',
+      other_deduction: '0',
+      deduction_remarks: '',
+      payment_mode: 'BANK',
     });
-    setEditingId(null);
   };
 
+  const handleOpenCreateModal = () => {
+    resetForm();
+    setIsCreateModalOpen(true);
+  };
+
+  const buildPaymentReceiptPayload = useCallback((row: {
+    payment_date: string;
+    invoice_id?: number | string | null;
+    received_from_id?: number | string | null;
+    received_from?: string;
+    total_billed_amount: number | string;
+    tds_deducted: number | string;
+    other_deduction: number | string;
+    deduction_remarks?: string | null;
+    payment_mode: string;
+    financial_year?: string;
+  }) => {
+    const explicitReceivedFromId = row.received_from_id != null && row.received_from_id !== ''
+      ? Number(row.received_from_id)
+      : null;
+    const receivedFromId = explicitReceivedFromId && Number.isFinite(explicitReceivedFromId) && explicitReceivedFromId > 0
+      ? explicitReceivedFromId
+      : Number(clientIdByName[String(row.received_from || '')] || 0);
+    const totalBilledAmount = Number(row.total_billed_amount || 0);
+    const tdsDeducted = Number(row.tds_deducted || 0);
+    const otherDeduction = Number(row.other_deduction || 0);
+
+    return {
+      payment_date: row.payment_date,
+      invoice_id: row.invoice_id != null && row.invoice_id !== '' ? Number(row.invoice_id) : null,
+      received_from_id: receivedFromId,
+      total_billed_amount: totalBilledAmount,
+      tds_deducted: tdsDeducted,
+      other_deduction: otherDeduction,
+      net_amount: totalBilledAmount - tdsDeducted - otherDeduction,
+      deduction_remarks: row.deduction_remarks?.trim() || null,
+      payment_mode: row.payment_mode || 'BANK',
+      financial_year: row.financial_year || fy,
+    };
+  }, [clientIdByName, fy]);
+
   const submit = async () => {
-    if (!form.payment_date || !form.amount || !form.received_from.trim()) {
-      alert('Payment date, amount and received from are required');
+    if (!form.payment_date || !form.received_from_id || !form.total_billed_amount) {
+      alert('Payment date, received from, and allocated billed amount are required');
       return;
     }
 
-    const payload = {
-      payment_date: form.payment_date,
-      amount: Number(form.amount),
-      received_from: form.received_from.trim(),
-      financial_year: fy,
-      notes: form.notes.trim() || null,
-    };
+    if (computedNetAmount < 0) {
+      alert('Net amount cannot be negative');
+      return;
+    }
+
+    const payload = buildPaymentReceiptPayload(form);
 
     try {
-      if (editingId) {
-        await axios.put(`/api/payment-receipts/${editingId}`, payload);
-      } else {
-        await axios.post('/api/payment-receipts/', payload);
-      }
+      await axios.post('/api/payment-receipts/', payload);
       resetForm();
+      setIsCreateModalOpen(false);
       await loadRows();
-    } catch (err: any) {
-      alert(`Failed to save payment receipt: ${err?.response?.data?.detail || err?.message || 'Unknown error'}`);
+    } catch (err: unknown) {
+      const message = axios.isAxiosError(err) ? err.response?.data?.detail || err.message : 'Unknown error';
+      alert(`Failed to save payment receipt: ${message}`);
     }
   };
 
-  const editRow = (row: PaymentReceiptRow) => {
-    setEditingId(row.id);
-    setForm({
-      payment_date: row.payment_date ? String(row.payment_date).slice(0, 10) : '',
-      amount: String(row.amount ?? ''),
-      received_from: row.received_from || '',
-      notes: row.notes || '',
-    });
-  };
+  const onCellValueChanged = useCallback(async (event: { data?: PaymentReceiptRow }) => {
+    const row = event?.data;
+    if (!row?.id) return;
 
-  const removeRow = async (id: number) => {
-    if (!window.confirm('Delete this payment receipt?')) return;
+    const existingRow = rows.find((item) => item.id === row.id);
+    const mergedRow: PaymentReceiptRow = {
+      ...(existingRow || row),
+      ...row,
+      payment_date: normalizePaymentDate(row.payment_date, existingRow?.payment_date || ''),
+      invoice_id: row.invoice_id ?? existingRow?.invoice_id ?? null,
+      received_from_id: row.received_from_id ?? existingRow?.received_from_id ?? null,
+      received_from: String(row.received_from || existingRow?.received_from || '').trim(),
+      total_billed_amount: Number(row.total_billed_amount ?? existingRow?.total_billed_amount ?? 0),
+      tds_deducted: Number(row.tds_deducted ?? existingRow?.tds_deducted ?? 0),
+      other_deduction: Number(row.other_deduction ?? existingRow?.other_deduction ?? 0),
+      deduction_remarks: row.deduction_remarks ?? existingRow?.deduction_remarks ?? null,
+      payment_mode: String(row.payment_mode || existingRow?.payment_mode || 'BANK'),
+      financial_year: String(row.financial_year || existingRow?.financial_year || fy),
+      net_amount: Number(row.net_amount ?? existingRow?.net_amount ?? 0),
+    };
+
+    const payload = buildPaymentReceiptPayload(mergedRow);
+    if (!payload.payment_date) {
+      alert('Payment date is required');
+      await loadRows();
+      return;
+    }
+    if (!payload.received_from_id && !mergedRow.received_from) {
+      alert('Received from is required');
+      await loadRows();
+      return;
+    }
+    if (payload.net_amount < 0) {
+      alert('Net amount cannot be negative');
+      await loadRows();
+      return;
+    }
+
+    try {
+      await axios.put(`/api/payment-receipts/${row.id}`, payload);
+      await loadRows();
+    } catch (err: unknown) {
+      const message = axios.isAxiosError(err) ? err.response?.data?.detail || err.message : 'Unknown error';
+      alert(`Failed to update payment receipt: ${message}`);
+      await loadRows();
+    }
+  }, [buildPaymentReceiptPayload, fy, loadRows, rows]);
+
+  const removeRow = useCallback(async (id: number) => {
+    const row = rows.find((item) => item.id === id);
+    const subject = row?.received_from || `Receipt ${id}`;
+    if (!confirmDestructiveAction({ action: 'Delete this payment receipt', subject })) return;
     try {
       await axios.delete(`/api/payment-receipts/${id}`);
       await loadRows();
-    } catch (err: any) {
-      alert(`Failed to delete: ${err?.response?.data?.detail || err?.message || 'Unknown error'}`);
+    } catch (err: unknown) {
+      const message = axios.isAxiosError(err) ? err.response?.data?.detail || err.message : 'Unknown error';
+      alert(`Failed to delete: ${message}`);
     }
-  };
+  }, [loadRows, rows]);
 
-  const colDefs = useMemo<any[]>(() => [
+  const colDefs = useMemo(() => [
     {
       field: 'payment_date',
       headerName: 'PAYMENT DATE',
       minWidth: 150,
       flex: 1,
-      editable: false,
-      valueFormatter: (params: any) => formatDisplayDate(params.value),
+      editable: true,
+      cellDataType: 'dateString',
+      cellEditor: 'agDateStringCellEditor',
+      valueSetter: (params: { data: PaymentReceiptRow; newValue: unknown; oldValue: unknown }) => {
+        const fallback = normalizePaymentDate(params.oldValue, normalizePaymentDate(params.data.payment_date, ''));
+        const nextValue = normalizePaymentDate(params.newValue, fallback);
+        if (!nextValue) {
+          return false;
+        }
+        if (nextValue === params.data.payment_date) {
+          return false;
+        }
+        params.data.payment_date = nextValue;
+        return true;
+      },
+      valueFormatter: (params: { value: unknown; node?: { rowPinned?: boolean } }) => {
+        if (params.node?.rowPinned) {
+          return String(params.value || '');
+        }
+        return formatDisplayDate(params.value as string | Date | null | undefined);
+      },
     },
     {
-      field: 'amount',
-      headerName: 'AMOUNT',
+      field: 'invoice_id',
+      headerName: 'INVOICE REF',
       minWidth: 140,
       flex: 1,
-      editable: false,
-      cellStyle: { textAlign: 'right' },
-      valueFormatter: (params: any) => Number(params.value || 0).toFixed(2),
+      editable: true,
+      cellEditor: 'agSelectCellEditor',
+      cellEditorParams: {
+        values: ['', ...invoices.map((invoice) => invoice.invoice_no)],
+      },
+      valueGetter: (params: { data: PaymentReceiptRow }) => {
+        const invoiceId = Number(params.data.invoice_id || 0);
+        if (!Number.isFinite(invoiceId) || invoiceId <= 0) return '';
+        return invoiceById[invoiceId]?.invoice_no || '';
+      },
+      valueSetter: (params: { data: PaymentReceiptRow; newValue: unknown }): boolean => {
+        const selectedInvoiceNo = String(params.newValue || '').trim();
+        const invoice = selectedInvoiceNo ? invoiceByNo[selectedInvoiceNo] : undefined;
+        const previousInvoiceId = params.data.invoice_id ?? null;
+
+        params.data.invoice_id = invoice?.id ?? null;
+
+        if (invoice) {
+          const clientName = clientNameById[invoice.client_id] || params.data.received_from || '';
+          params.data.received_from_id = invoice.client_id;
+          params.data.received_from = clientName;
+          params.data.total_billed_amount = Number(invoice.outstanding_amount || 0);
+          params.data.tds_deducted = 0;
+          params.data.other_deduction = 0;
+        }
+
+        return (params.data.invoice_id ?? null) !== previousInvoiceId;
+      },
     },
     {
       field: 'received_from',
       headerName: 'RECEIVED FROM',
       minWidth: 220,
-      flex: 1.3,
-      editable: false,
+      flex: 1.4,
+      editable: true,
+      cellEditor: 'agSelectCellEditor',
+      cellEditorParams: { values: clients.map((client) => client.name) },
+      valueSetter: (params: { data: PaymentReceiptRow; newValue: unknown }) => {
+        const clientName = String(params.newValue || '').trim();
+        params.data.received_from = clientName;
+        params.data.received_from_id = clientName ? clientIdByName[clientName] ?? null : null;
+        return true;
+      },
     },
     {
-      field: 'notes',
-      headerName: 'NOTES',
-      minWidth: 220,
-      flex: 1.5,
-      editable: false,
-      valueGetter: (params: any) => params.data.notes || '-',
-    },
-    {
-      headerName: 'ACTIONS',
-      minWidth: 170,
+      field: 'total_billed_amount',
+      headerName: 'ALLOCATED BILLED AMOUNT',
+      minWidth: 190,
       flex: 1,
+      editable: true,
+      currencyTotal: true,
+      valueParser: (params: { newValue: unknown }) => Number(params.newValue || 0),
+      cellStyle: { textAlign: 'right' },
+      valueFormatter: (params: { value: unknown }) => Number(params.value || 0).toFixed(2),
+    },
+    {
+      field: 'tds_deducted',
+      headerName: 'TDS DEDUCTED',
+      minWidth: 150,
+      flex: 1,
+      editable: true,
+      currencyTotal: true,
+      valueParser: (params: { newValue: unknown }) => Number(params.newValue || 0),
+      cellStyle: { textAlign: 'right' },
+      valueFormatter: (params: { value: unknown }) => Number(params.value || 0).toFixed(2),
+    },
+    {
+      field: 'other_deduction',
+      headerName: 'ANY OTHER DEDUCTION',
+      minWidth: 190,
+      flex: 1,
+      editable: true,
+      currencyTotal: true,
+      valueParser: (params: { newValue: unknown }) => Number(params.newValue || 0),
+      cellStyle: { textAlign: 'right' },
+      valueFormatter: (params: { value: unknown }) => Number(params.value || 0).toFixed(2),
+    },
+    {
+      field: 'net_amount',
+      headerName: 'NET AMOUNT',
+      minWidth: 150,
+      flex: 1,
+      editable: false,
+      currencyTotal: true,
+      valueGetter: (params: { data: PaymentReceiptRow }) => {
+        const totalBilledAmount = Number(params.data.total_billed_amount || 0);
+        const tdsDeducted = Number(params.data.tds_deducted || 0);
+        const otherDeduction = Number(params.data.other_deduction || 0);
+        return totalBilledAmount - tdsDeducted - otherDeduction;
+      },
+      cellStyle: { textAlign: 'right' },
+      valueFormatter: (params: { value: unknown }) => Number(params.value || 0).toFixed(2),
+    },
+    {
+      field: 'payment_mode',
+      headerName: 'MODE OF PAYMENT',
+      minWidth: 150,
+      flex: 1,
+      editable: true,
+      cellEditor: 'agSelectCellEditor',
+      cellEditorParams: {
+        values: ['BANK', 'CHEQUE', 'CASH', 'NEFT', 'RTGS', 'IMPS', 'UPI'],
+      },
+    },
+    {
+      field: 'deduction_remarks',
+      headerName: 'REMARKS FOR DEDUCTIONS',
+      minWidth: 220,
+      flex: 1.4,
+      editable: true,
+      valueFormatter: (params: { value: unknown }) => String(params.value || '-'),
+    },
+    {
+      headerName: 'ACT',
+      width: 96,
+      pinned: 'right',
       editable: false,
       sortable: false,
       filter: false,
-      cellRenderer: (params: any) => (
-        <div className="flex h-full items-center gap-2">
-          <button type="button" onClick={() => editRow(params.data)} className="rounded border px-2 py-1 text-xs">Edit</button>
-          <button type="button" onClick={() => removeRow(params.data.id)} className="rounded border px-2 py-1 text-xs text-red-700">Delete</button>
+      cellRenderer: (params: { data: PaymentReceiptRow }) => (
+        <div className="flex items-center justify-center h-full gap-1">
+          <button
+            type="button"
+            onClick={() => removeRow(params.data.id)}
+            className="h-11 w-11 inline-flex items-center justify-center rounded-md hover:bg-red-100 text-red-600 transition-colors"
+            title="Delete"
+            aria-label="Delete payment receipt"
+          >
+            <Trash2 size={16} />
+          </button>
         </div>
       ),
     },
-  ], [editRow, removeRow]);
+  ], [clientIdByName, clientNameById, clients, invoiceById, invoiceByNo, invoices, removeRow]);
 
   return (
     <div className="space-y-4">
@@ -162,9 +541,13 @@ export default function PaymentReceiptsRegister() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">Payment Receipts Register</h2>
         </div>
-        <div className="text-right text-sm">
-          <div>Total Receipts: <span className="font-semibold">Rs. {totalAmount.toFixed(2)}</span></div>
-        </div>
+        <button
+          type="button"
+          onClick={handleOpenCreateModal}
+          className="bg-slate-900 text-white hover:bg-slate-800 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+        >
+          + New Payment Receipt
+        </button>
       </div>
 
       <div className="flex items-center gap-2">
@@ -181,34 +564,108 @@ export default function PaymentReceiptsRegister() {
         </select>
       </div>
 
-      <div className="grid grid-cols-1 gap-2 rounded border bg-white p-4 md:grid-cols-6">
-        <input type="date" value={form.payment_date} onChange={(e) => setForm((p) => ({ ...p, payment_date: e.target.value }))} className="rounded border px-2 py-2" />
-        <input type="number" placeholder="Amount" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} className="rounded border px-2 py-2" />
-        <input placeholder="Received From" value={form.received_from} onChange={(e) => setForm((p) => ({ ...p, received_from: e.target.value }))} className="rounded border px-2 py-2 md:col-span-2" />
-        <input placeholder="Notes" value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} className="rounded border px-2 py-2 md:col-span-2" />
-        <div className="flex gap-2 md:col-span-6">
-          <button type="button" onClick={submit} className="rounded bg-slate-900 px-4 py-2 text-white">
-            {editingId ? 'Update' : 'Add'}
-          </button>
-          {editingId && (
-            <button type="button" onClick={resetForm} className="rounded border px-4 py-2 text-slate-700">
-              Cancel
-            </button>
-          )}
-        </div>
-      </div>
-
       <AppAgGrid<PaymentReceiptRow>
         rowData={rows}
         columnDefs={colDefs}
         loading={loading}
         noRowsMessage={`No payment receipts found for FY ${fy}.`}
         defaultColDef={{ editable: false }}
-        getRowId={(params: any) => String(params.data.id)}
+        getRowId={(params: { data: PaymentReceiptRow }) => String(params.data.id)}
         rowSelection={{ mode: 'singleRow', enableClickSelection: false, checkboxes: false }}
+        onCellValueChanged={onCellValueChanged}
+        editType="fullRow"
+        showCurrencyTotals={true}
+        currencyTotalLabelField="payment_date"
         fitColumns={false}
         alwaysShowHorizontalScroll={true}
       />
+
+      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <DialogContent className="max-w-5xl">
+          <DialogTitle>New Payment Receipt</DialogTitle>
+          <DialogDescription>
+            Create a payment receipt.
+          </DialogDescription>
+          <div className="grid grid-cols-1 gap-2 rounded border bg-white p-4 md:grid-cols-12">
+            <div className="space-y-1 md:col-span-2">
+              <label htmlFor="receipt_payment_date" className="text-sm font-medium text-slate-700">Payment date</label>
+              <input id="receipt_payment_date" type="date" value={form.payment_date} onChange={(e) => setForm((p) => ({ ...p, payment_date: e.target.value }))} className="w-full rounded border px-2 py-2" />
+            </div>
+            <div className="space-y-1 md:col-span-3">
+              <label htmlFor="receipt_invoice_id" className="text-sm font-medium text-slate-700">Invoice reference</label>
+              <select id="receipt_invoice_id" value={form.invoice_id} onChange={(e) => setForm((p) => ({ ...p, invoice_id: e.target.value }))} className="w-full rounded border px-2 py-2">
+                <option value="">Unlinked receipt</option>
+                {filteredInvoices.map((invoice) => (
+                  <option key={invoice.id} value={invoice.id}>
+                    {invoice.invoice_no} | Outstanding {Number(invoice.outstanding_amount || 0).toFixed(2)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1 md:col-span-4">
+              <label htmlFor="receipt_received_from" className="text-sm font-medium text-slate-700">Received from</label>
+              <select
+                id="receipt_received_from"
+                value={form.received_from_id}
+                onChange={(e) => {
+                  const nextId = e.target.value;
+                  setForm((p) => ({
+                    ...p,
+                    received_from_id: nextId,
+                  }));
+                }}
+                className="w-full rounded border px-2 py-2"
+              >
+                <option value="">Select Client</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>{client.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1 md:col-span-3">
+              <label htmlFor="receipt_total_billed_amount" className="text-sm font-medium text-slate-700">Allocated billed amount</label>
+              <input id="receipt_total_billed_amount" type="number" value={form.total_billed_amount} onChange={(e) => setForm((p) => ({ ...p, total_billed_amount: e.target.value }))} className="w-full rounded border px-2 py-2" />
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <label htmlFor="receipt_tds_deducted" className="text-sm font-medium text-slate-700">TDS deducted</label>
+              <input id="receipt_tds_deducted" type="number" value={form.tds_deducted} onChange={(e) => setForm((p) => ({ ...p, tds_deducted: e.target.value }))} className="w-full rounded border px-2 py-2" />
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <label htmlFor="receipt_other_deduction" className="text-sm font-medium text-slate-700">Any other deduction</label>
+              <input id="receipt_other_deduction" type="number" value={form.other_deduction} onChange={(e) => setForm((p) => ({ ...p, other_deduction: e.target.value }))} className="w-full rounded border px-2 py-2" />
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <label htmlFor="receipt_net_amount" className="text-sm font-medium text-slate-700">Net amount</label>
+              <input id="receipt_net_amount" type="number" value={computedNetAmount.toFixed(2)} readOnly className="w-full rounded border bg-slate-50 px-2 py-2 text-slate-600" />
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <label htmlFor="receipt_payment_mode" className="text-sm font-medium text-slate-700">Mode of payment</label>
+              <select id="receipt_payment_mode" value={form.payment_mode} onChange={(e) => setForm((p) => ({ ...p, payment_mode: e.target.value }))} className="w-full rounded border px-2 py-2">
+                {['BANK', 'CHEQUE', 'CASH', 'NEFT', 'RTGS', 'IMPS', 'UPI'].map((mode) => (
+                  <option key={mode} value={mode}>{mode}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1 md:col-span-8">
+              <label htmlFor="receipt_deduction_remarks" className="text-sm font-medium text-slate-700">Remarks for deductions</label>
+              <input id="receipt_deduction_remarks" value={form.deduction_remarks} onChange={(e) => setForm((p) => ({ ...p, deduction_remarks: e.target.value }))} className="w-full rounded border px-2 py-2" />
+            </div>
+            {selectedInvoice && (
+              <div className="rounded border bg-slate-50 px-3 py-2 text-sm text-slate-700 md:col-span-4">
+                Status: <span className="font-medium">{selectedInvoice.status || 'issued'}</span> | Received: <span className="font-medium">{Number(selectedInvoice.amount_received || 0).toFixed(2)}</span> | Outstanding: <span className="font-medium">{Number(selectedInvoice.outstanding_amount || 0).toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex gap-2 md:col-span-12">
+              <button type="button" onClick={submit} className="rounded bg-slate-900 px-4 py-2 text-white">
+                Add
+              </button>
+              <button type="button" onClick={() => { resetForm(); setIsCreateModalOpen(false); }} className="rounded border px-4 py-2 text-slate-700">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

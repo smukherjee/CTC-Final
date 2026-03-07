@@ -2,6 +2,8 @@ from datetime import date
 from decimal import Decimal
 from typing import List, Optional
 
+from sqlalchemy import func
+
 from ..core.financial_year_utils import (
     format_invoice_no as _format_invoice_no,
     fy_from_date as _fy_from_date,
@@ -9,6 +11,7 @@ from ..core.financial_year_utils import (
 )
 from ..db import SessionLocal
 from ..models.invoice import InvoiceLineModel, InvoiceModel
+from ..models.payment_receipt import PaymentReceiptModel
 
 
 def _to_float(value) -> Optional[float]:
@@ -52,7 +55,41 @@ def _line_to_dict(line: InvoiceLineModel) -> dict:
     }
 
 
+def compute_invoice_receipt_summary(session, invoice_id: int) -> tuple[float, float]:
+    receipt_total = (
+        session.query(func.coalesce(func.sum(PaymentReceiptModel.net_amount), 0))
+        .filter(PaymentReceiptModel.invoice_id == invoice_id)
+        .scalar()
+    )
+    amount_received = _to_float(receipt_total) or 0.0
+    invoice = session.query(InvoiceModel).filter(InvoiceModel.id == invoice_id).first()
+    if not invoice:
+        return amount_received, 0.0
+    invoice_net = _to_float(invoice.net_amount) or _to_float(invoice.total_amount) or 0.0
+    outstanding_amount = max(invoice_net - amount_received, 0.0)
+    return amount_received, outstanding_amount
+
+
+def sync_invoice_payment_status(session, invoice: InvoiceModel) -> InvoiceModel:
+    amount_received, outstanding_amount = compute_invoice_receipt_summary(session, invoice.id)
+
+    if amount_received <= 0:
+        if invoice.status in {None, "", "partially_paid", "paid"}:
+            invoice.status = "issued"
+    elif outstanding_amount <= 0.009:
+        invoice.status = "paid"
+    else:
+        invoice.status = "partially_paid"
+
+    return invoice
+
+
 def _invoice_to_dict(invoice: InvoiceModel, lines: List[InvoiceLineModel]) -> dict:
+    summary_session = SessionLocal()
+    try:
+        amount_received, outstanding_amount = compute_invoice_receipt_summary(summary_session, invoice.id)
+    finally:
+        summary_session.close()
     return {
         "id": invoice.id,
         "invoice_no": invoice.invoice_no,
@@ -67,6 +104,8 @@ def _invoice_to_dict(invoice: InvoiceModel, lines: List[InvoiceLineModel]) -> di
         "total_amount": _to_float(invoice.total_amount) or 0,
         "tds_amount": _to_float(invoice.tds_amount) or 0,
         "net_amount": _to_float(invoice.net_amount) or 0,
+        "amount_received": amount_received,
+        "outstanding_amount": outstanding_amount,
         "status": invoice.status,
         "lines": [_line_to_dict(line) for line in lines],
     }
@@ -152,7 +191,7 @@ def create_invoice(payload: dict) -> dict:
             total_amount=total_amount,
             tds_amount=tds_amount,
             net_amount=net_amount,
-            status=payload.get("status") or "draft",
+            status=payload.get("status") or "issued",
         )
         session.add(invoice)
         session.flush()
@@ -160,6 +199,7 @@ def create_invoice(payload: dict) -> dict:
         for item in payload.get("lines", []):
             session.add(_create_line(invoice.id, item))
 
+        sync_invoice_payment_status(session, invoice)
         session.commit()
         session.refresh(invoice)
         lines = session.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).all()
@@ -208,6 +248,7 @@ def update_invoice(invoice_id: int, payload: dict) -> Optional[dict]:
             for item in payload["lines"]:
                 session.add(_create_line(invoice.id, item))
 
+        sync_invoice_payment_status(session, invoice)
         session.commit()
         session.refresh(invoice)
         lines = session.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).all()

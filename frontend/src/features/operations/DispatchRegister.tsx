@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import axios from 'axios';
 import type { LR } from '@/types';
 import { format, isBefore, addHours, parseISO } from 'date-fns';
-import { Trash2, Truck, MapPin } from 'lucide-react';
+import { Trash2, Truck } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import CreateLR from './CreateLR';
 import TrackingLog from '@/features/tracking/TrackingLog';
@@ -104,7 +104,7 @@ export default function DispatchRegister() {
     const [defaultStatus, setDefaultStatus] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState('');
     const [fyFilter, setFyFilter] = useState<string>(currentFy);
-    const [podFilter, setPodFilter] = useState<'ALL' | 'UPLOADED' | 'VERIFIED' | 'MISSING'>('ALL');
+    const [podFilter] = useState<'ALL' | 'UPLOADED' | 'VERIFIED' | 'MISSING'>('ALL');
 
 
 
@@ -637,7 +637,7 @@ export default function DispatchRegister() {
             sortable: false,
             cellRenderer: (params: { data: LR }) => (
                 <div className="flex items-center justify-center h-full gap-2">
-                    <button
+                    {/* <button
                         type="button"
                         onClick={() => handleOpenTrackingModal(params.data)}
                         className="h-11 w-11 inline-flex items-center justify-center rounded-md hover:bg-green-100 text-green-700 transition-colors"
@@ -645,7 +645,7 @@ export default function DispatchRegister() {
                         aria-label="Track vehicle"
                     >
                         <MapPin size={16} />
-                    </button>
+                    </button> */}
                     <button
                         type="button"
                         onClick={() => {
@@ -711,7 +711,7 @@ export default function DispatchRegister() {
                     >
                         {fyOptions.map((fy) => <option key={fy} value={fy}>{fy}</option>)}
                     </select>
-                    <select
+                    {/* <select
                         value={podFilter}
                         onChange={(e) => setPodFilter(e.target.value as 'ALL' | 'UPLOADED' | 'VERIFIED' | 'MISSING')}
                         className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
@@ -721,7 +721,7 @@ export default function DispatchRegister() {
                         <option value="UPLOADED">POD Uploaded</option>
                         <option value="VERIFIED">POD Verified</option>
                         <option value="MISSING">POD Missing</option>
-                    </select>
+                    </select> */}
                     <button
                         onClick={() => handleCreateLr()}
                         className="bg-slate-900 text-white hover:bg-slate-800 px-4 py-2 rounded-lg text-sm font-medium transition-colors"

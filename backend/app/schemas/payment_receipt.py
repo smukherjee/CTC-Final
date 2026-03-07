@@ -6,10 +6,16 @@ from pydantic import BaseModel
 
 class PaymentReceiptBase(BaseModel):
     payment_date: date
-    amount: float
-    received_from: str
+    invoice_id: Optional[int] = None
+    received_from_id: Optional[int] = None
+    received_from: Optional[str] = None
+    total_billed_amount: float
+    tds_deducted: float = 0
+    net_amount: Optional[float] = None
+    other_deduction: float = 0
+    deduction_remarks: Optional[str] = None
+    payment_mode: str = "BANK"
     financial_year: Optional[str] = None
-    notes: Optional[str] = None
 
 
 class PaymentReceiptCreate(PaymentReceiptBase):
@@ -18,10 +24,16 @@ class PaymentReceiptCreate(PaymentReceiptBase):
 
 class PaymentReceiptUpdate(BaseModel):
     payment_date: Optional[date] = None
-    amount: Optional[float] = None
+    invoice_id: Optional[int] = None
+    received_from_id: Optional[int] = None
     received_from: Optional[str] = None
+    total_billed_amount: Optional[float] = None
+    tds_deducted: Optional[float] = None
+    net_amount: Optional[float] = None
+    other_deduction: Optional[float] = None
+    deduction_remarks: Optional[str] = None
+    payment_mode: Optional[str] = None
     financial_year: Optional[str] = None
-    notes: Optional[str] = None
 
 
 class PaymentReceiptResponse(PaymentReceiptBase):

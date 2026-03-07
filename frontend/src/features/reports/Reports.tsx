@@ -82,6 +82,7 @@ export default function Reports() {
       minWidth: 170,
       flex: 1,
       editable: false,
+      currencyTotal: true,
       cellStyle: { textAlign: 'right' },
       valueFormatter: (params: any) => Number(params.value || 0).toFixed(2),
     },
@@ -120,6 +121,8 @@ export default function Reports() {
         defaultColDef={{ editable: false }}
         getRowId={(params: any) => String(params.data.lr_id ?? params.data.client_id)}
         rowSelection={{ mode: 'singleRow', enableClickSelection: false, checkboxes: false }}
+        showCurrencyTotals={tab === 'outstanding'}
+        currencyTotalLabelField="client_name"
         fitColumns={false}
         alwaysShowHorizontalScroll={true}
       />

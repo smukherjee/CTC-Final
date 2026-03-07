@@ -133,7 +133,7 @@ Vendor (vendors) — referenced by LR (through/broker)
 | `total_amount` | NUMERIC(12,2) | NOT NULL | Sum of line item totals |
 | `tds_amount` | NUMERIC(12,2) | DEFAULT 0 | |
 | `net_amount` | NUMERIC(12,2) | GENERATED | `total_amount - tds_amount` |
-| `status` | VARCHAR(20) | DEFAULT 'draft' | `draft`, `issued`, `paid` |
+| `status` | VARCHAR(20) | DEFAULT 'issued' | `draft`, `issued`, `partially_paid`, `paid` |
 | `created_at` | TIMESTAMP | DEFAULT now() | |
 
 **Constraints**:
@@ -176,8 +176,16 @@ One row per LR within an invoice (16-column annexure structure).
 |--------|------|-------------|-------|
 | `id` | SERIAL | PK | |
 | `payment_date` | DATE | NOT NULL | |
-| `amount` | NUMERIC(12,2) | NOT NULL | |
-| `received_from` | VARCHAR(255) | NOT NULL | Client name (free text) |
+| `amount` | NUMERIC(12,2) | NOT NULL | Legacy compatibility field storing the effective net receipt amount |
+| `invoice_id` | INTEGER | FK → invoices.id | **NEW** Optional linkage to Invoice Register |
+| `received_from_id` | INTEGER | FK → clients.id | **NEW** Customer Master linkage |
+| `received_from` | VARCHAR(255) | NOT NULL | Snapshot of customer name for display/export |
+| `total_billed_amount` | NUMERIC(12,2) | NOT NULL | **NEW** Manual entry |
+| `tds_deducted` | NUMERIC(12,2) | DEFAULT 0 | **NEW** |
+| `other_deduction` | NUMERIC(12,2) | DEFAULT 0 | **NEW** |
+| `net_amount` | NUMERIC(12,2) | NOT NULL | **NEW** `total_billed_amount - tds_deducted - other_deduction` |
+| `deduction_remarks` | TEXT | | **NEW** Remarks for deductions |
+| `payment_mode` | VARCHAR(32) | NOT NULL DEFAULT 'BANK' | **NEW** |
 | `financial_year` | VARCHAR(7) | NOT NULL | e.g. `2025-26` |
 | `notes` | TEXT | | Optional remarks |
 | `created_at` | TIMESTAMP | DEFAULT now() | |
@@ -245,9 +253,7 @@ Implements `inr_words(amount: Decimal) -> str` using Indian numbering (lakh, cro
 
 ### Invoice Status
 ```
-draft → issued → paid
-               ↗
-         partial
+draft → issued → partially_paid → paid
 ```
 
 ### LR/POD Status

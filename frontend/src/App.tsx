@@ -19,15 +19,15 @@ import PaymentReceiptsRegister from '@/features/finance/PaymentReceiptsRegister'
 import LedgerBook from '@/features/finance/LedgerBook';
 import PODManagement from '@/features/pod/PODManagement';
 import Reports from '@/features/reports/Reports';
-import Dashboard from '@/pages/Dashboard';
+/* dashboard page not used after navigation change */
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<AppLayout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
+          <Route index element={<Navigate to="/operations/dispatch" replace />} />
+          {/* dashboard route removed - users now start on dispatch register */}
           <Route path="pod" element={<PODManagement />} />
           <Route path="hire-memo-register" element={<Navigate to="/operations/hire-memo-register" replace />} />
 

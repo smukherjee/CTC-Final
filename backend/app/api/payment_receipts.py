@@ -25,17 +25,22 @@ def list_payment_receipts(fy: Optional[str] = Query(default=None)):
 @router.post("/", response_model=PaymentReceiptResponse)
 def create_payment_receipt(payload: PaymentReceiptCreate):
     try:
-        return create(payload.dict())
+        return create(payload.model_dump())
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.put("/{receipt_id}", response_model=PaymentReceiptResponse)
 def update_payment_receipt(receipt_id: int, payload: PaymentReceiptUpdate):
-    updated = update(receipt_id, payload.dict(exclude_unset=True))
-    if not updated:
-        raise HTTPException(status_code=404, detail="Payment receipt not found")
-    return updated
+    try:
+        updated = update(receipt_id, payload.model_dump(exclude_unset=True))
+        if not updated:
+            raise HTTPException(status_code=404, detail="Payment receipt not found")
+        return updated
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.delete("/{receipt_id}")

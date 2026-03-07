@@ -90,9 +90,6 @@ export default function Dashboard() {
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Dashboard</h1>
-        <p className="text-sm text-slate-500">
-          E-way bill alerts (next 3 months, POD pending)
-        </p>
       </div>
 
       {loading && (

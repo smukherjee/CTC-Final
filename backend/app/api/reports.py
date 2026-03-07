@@ -2,11 +2,13 @@ from datetime import date, timedelta
 from typing import Dict, List
 
 from fastapi import APIRouter, Query
+from sqlalchemy import func
 
 from ..db import SessionLocal
 from ..models.invoice import InvoiceLineModel, InvoiceModel
 from ..models.lr import LRModel
 from ..models.client import ClientModel
+from ..models.payment_receipt import PaymentReceiptModel
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -52,16 +54,24 @@ def outstanding_receivables(fy: str | None = Query(default=None)) -> List[dict]:
     session = SessionLocal()
     try:
         rows = (
-            session.query(InvoiceModel, ClientModel)
+            session.query(
+                InvoiceModel,
+                ClientModel,
+                func.coalesce(func.sum(PaymentReceiptModel.net_amount), 0).label("amount_received"),
+            )
             .outerjoin(ClientModel, ClientModel.id == InvoiceModel.client_id)
-            .filter(InvoiceModel.status != "paid")
+            .outerjoin(PaymentReceiptModel, PaymentReceiptModel.invoice_id == InvoiceModel.id)
+            .group_by(InvoiceModel.id, ClientModel.id)
         )
         if fy:
             rows = rows.filter(InvoiceModel.financial_year == fy)
         rows = rows.all()
 
         grouped: Dict[int, dict] = {}
-        for invoice, client in rows:
+        for invoice, client, amount_received in rows:
+            outstanding = max(float(invoice.net_amount or invoice.total_amount or 0) - float(amount_received or 0), 0.0)
+            if outstanding <= 0.009:
+                continue
             key = int(invoice.client_id or 0)
             if key not in grouped:
                 grouped[key] = {
@@ -71,7 +81,7 @@ def outstanding_receivables(fy: str | None = Query(default=None)) -> List[dict]:
                     "outstanding_total": 0.0,
                 }
             grouped[key]["invoice_count"] += 1
-            grouped[key]["outstanding_total"] += float(invoice.net_amount or invoice.total_amount or 0)
+            grouped[key]["outstanding_total"] += outstanding
 
         return sorted(grouped.values(), key=lambda item: item["outstanding_total"], reverse=True)
     finally:

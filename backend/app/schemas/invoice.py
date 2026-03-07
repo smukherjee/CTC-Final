@@ -75,6 +75,8 @@ class InvoiceUpdate(BaseModel):
 class InvoiceResponse(InvoiceBase):
     id: int
     invoice_no: str
+    amount_received: float = 0
+    outstanding_amount: float = 0
     lines: List[InvoiceLineResponse] = []
 
     class Config:

@@ -20,7 +20,7 @@ paths:
           description: Financial year filter (defaults to current FY)
         - name: status
           in: query
-          schema: { type: string, enum: [draft, issued, paid] }
+          schema: { type: string, enum: [draft, issued, partially_paid, paid] }
       responses:
         "200":
           description: List of invoices
@@ -155,6 +155,8 @@ components:
         total_amount: { type: number }
         tds_amount: { type: number }
         net_amount: { type: number }
+        amount_received: { type: number }
+        outstanding_amount: { type: number }
         status: { type: string }
         lines:
           type: array

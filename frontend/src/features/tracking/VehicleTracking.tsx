@@ -110,7 +110,8 @@ export default function VehicleTracking() {
                 const names = res.data
                     .map((city: any) => {
                         if (typeof city === 'string') return city;
-                        return city?.name || city?.code || city?.city || '';
+                        // we no longer expose or care about the opaque `code` field
+                        return city?.name || city?.city || '';
                     })
                     .map((name: string) => name.trim())
                     .filter(Boolean);

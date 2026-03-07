@@ -79,6 +79,7 @@ export default function LedgerBook() {
       minWidth: 130,
       flex: 1,
       editable: false,
+      currencyTotal: true,
       cellStyle: { textAlign: 'right' },
       valueFormatter: (params: any) => (params.value ? Number(params.value).toFixed(2) : '-'),
     },
@@ -88,6 +89,7 @@ export default function LedgerBook() {
       minWidth: 130,
       flex: 1,
       editable: false,
+      currencyTotal: true,
       cellStyle: { textAlign: 'right' },
       valueFormatter: (params: any) => (params.value ? Number(params.value).toFixed(2) : '-'),
     },
@@ -97,6 +99,8 @@ export default function LedgerBook() {
       minWidth: 150,
       flex: 1,
       editable: false,
+      currencyTotal: true,
+      currencyTotalMode: 'last',
       cellStyle: { textAlign: 'right', fontWeight: 600 },
       valueFormatter: (params: any) => Number(params.value || 0).toFixed(2),
     },
@@ -164,6 +168,8 @@ export default function LedgerBook() {
         defaultColDef={{ editable: false }}
         getRowId={(params: any) => String(params.data.id)}
         rowSelection={{ mode: 'singleRow', enableClickSelection: false, checkboxes: false }}
+        showCurrencyTotals={true}
+        currencyTotalLabelField="narration"
         fitColumns={false}
         alwaysShowHorizontalScroll={true}
       />

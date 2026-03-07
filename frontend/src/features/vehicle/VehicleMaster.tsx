@@ -9,6 +9,7 @@ interface Vehicle {
   type?: string;
   capacity?: string;
   owner_id?: number | null;
+  owner_name?: string;
 }
 
 interface VendorOption {
@@ -51,8 +52,16 @@ export default function VehicleMaster() {
     return map;
   }, [vendors]);
 
+  const vendorIdByName = useMemo(() => {
+    const map: Record<string, number> = {};
+    vendors.forEach((vendor) => {
+      map[vendor.name] = vendor.id;
+    });
+    return map;
+  }, [vendors]);
+
   const vendorEditorValues = useMemo(
-    () => vendors.map((vendor) => String(vendor.id)),
+    () => ['', ...vendors.map((vendor) => vendor.name)],
     [vendors],
   );
 
@@ -85,20 +94,23 @@ export default function VehicleMaster() {
         { field: 'type', headerName: 'TYPE', width: 170, editable: true },
         { field: 'capacity', headerName: 'CAPACITY', width: 140, editable: true },
         {
-          field: 'owner_id',
+          field: 'owner_name',
           headerName: 'VENDOR',
           width: 220,
           editable: true,
           cellEditor: 'agSelectCellEditor',
           cellEditorParams: { values: vendorEditorValues },
-          valueFormatter: (params: any) => {
-            const ownerId = Number(params.value);
+          valueGetter: (params: any) => {
+            const ownerId = Number(params.data?.owner_id);
             if (!Number.isFinite(ownerId) || ownerId <= 0) return '';
-            return vendorNameById[ownerId] || `Vendor ${ownerId}`;
+            return vendorNameById[ownerId] || '';
           },
-          valueParser: (params: any) => {
-            const value = Number(params.newValue);
-            return Number.isFinite(value) && value > 0 ? value : null;
+          valueSetter: (params: any) => {
+            const vendorName = String(params.newValue || '').trim();
+            const vendorId = vendorName ? vendorIdByName[vendorName] ?? null : null;
+            params.data.owner_id = vendorId;
+            params.data.owner_name = vendorName || '';
+            return true;
           },
         },
       ]}

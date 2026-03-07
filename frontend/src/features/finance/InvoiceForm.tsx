@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { generateFyDropdownOptions, getCurrentFy } from '@/utils/financialYear';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 import { printInvoice } from '@/utils/printInvoice';
@@ -134,7 +134,10 @@ export default function InvoiceForm() {
     setLines((prev) => prev.map((line, idx) => (idx === index ? { ...line, [key]: Number(value || 0) } : line)));
   };
 
+  const navigate = useNavigate();
+
   const handlePrint = async () => {
+    // create record then open printer view (stay on form)
     if (!Number(clientId) || lines.length === 0) {
       alert('Select client and at least one LR');
       return;
@@ -196,6 +199,39 @@ export default function InvoiceForm() {
       });
     } catch (err: any) {
       alert(`Failed to create/print invoice: ${err?.response?.data?.detail || err?.message || 'Unknown error'}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!Number(clientId) || lines.length === 0) {
+      alert('Select client and at least one LR');
+      return;
+    }
+
+    const payload = {
+      invoice_date: invoiceDate,
+      client_id: Number(clientId),
+      financial_year: fy,
+      po_no: poNo || null,
+      po_date: poDate || null,
+      total_amount: totalAmount,
+      tds_amount: Number(tdsAmount || 0),
+      lines: lines.map((line) => ({
+        ...line,
+        qty: 1,
+        particulars: 'Transport Service',
+        total: lineTotal(line),
+      })),
+    };
+
+    setSaving(true);
+    try {
+      await axios.post('/api/billing/invoices/', payload);
+      navigate('/finance/invoices');
+    } catch (err: any) {
+      alert(`Failed to save invoice: ${err?.response?.data?.detail || err?.message || 'Unknown error'}`);
     } finally {
       setSaving(false);
     }
@@ -310,12 +346,26 @@ export default function InvoiceForm() {
         <div className="text-sm">Net: <span className="font-semibold">{netAmount.toFixed(2)}</span></div>
         <button
           type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60"
+        >
+          {saving ? 'Saving...' : 'Save'}
+        </button>
+        <button
+          type="button"
           onClick={handlePrint}
           disabled={saving}
           className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-60"
         >
           {saving ? 'Processing...' : 'Print'}
         </button>
+        <Link
+          to="/finance/invoices"
+          className="px-4 py-2 border rounded text-sm"
+        >
+          Cancel
+        </Link>
       </div>
     </div>
   );

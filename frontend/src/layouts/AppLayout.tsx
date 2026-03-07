@@ -4,14 +4,11 @@ import {
     LayoutDashboard,
     Truck,
     FileText,
-    CheckSquare,
     Banknote,
-    Settings,
     Menu,
     ChevronLeft,
     ChevronDown,
-    ChevronRight,
-    MapPin
+    ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -21,13 +18,18 @@ export default function AppLayout() {
     const [mastersOpen, setMastersOpen] = useState(false);
 
     const navItems = [
-        { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+        // Dashboard hidden per request; default landing page is Dispatch Register
         { label: 'Dispatch Register', icon: Truck, path: '/operations/dispatch' },
-        { label: 'Create LR', icon: FileText, path: '/operations/create-lr' },
+        // { label: 'Create LR', icon: FileText, path: '/operations/create-lr' },
         { label: 'Hire Memo Register', icon: FileText, path: '/operations/hire-memo-register' },
-        { label: 'Vehicle Tracking', icon: MapPin, path: '/operations/tracking' },
-        { label: 'Tracking Log', icon: MapPin, path: '/operations/tracking-log' },
-        { label: 'POD Management', icon: CheckSquare, path: '/pod' },
+        // { label: 'Vehicle Tracking', icon: MapPin, path: '/operations/tracking' },
+        // { label: 'Tracking Log', icon: MapPin, path: '/operations/tracking-log' },
+        // { label: 'POD Management', icon: CheckSquare, path: '/pod' },
+        { label: 'Invoice Register', icon: Banknote, path: '/finance/invoices' },
+        { label: 'Payment Receipts', icon: Banknote, path: '/finance/payment-receipts' },
+        // { label: 'Ledger Book', icon: Banknote, path: '/finance/vouchers' },
+        // { label: 'Reports', icon: LayoutDashboard, path: '/reports' },
+        // { label: 'Settings', icon: Settings, path: '/admin/settings' },
         {
             label: 'Masters',
             icon: LayoutDashboard,
@@ -36,16 +38,12 @@ export default function AppLayout() {
                 { label: 'Clients', path: '/masters/clients' },
                 { label: 'Vendors', path: '/masters/vendors' },
                 { label: 'Vehicles', path: '/masters/vehicles' },
-                { label: 'Contracts', path: '/masters/contracts' },
-                { label: 'Users', path: '/masters/users' },
+                // { label: 'Contracts', path: '/masters/contracts' },
+                // { label: 'Users', path: '/masters/users' },
                 { label: 'Cities', path: '/masters/cities' },
             ]
         },
-        { label: 'Bill Notebook', icon: Banknote, path: '/finance/invoices' },
-        { label: 'Payment Receipts', icon: Banknote, path: '/finance/payment-receipts' },
-        { label: 'Ledger Book', icon: Banknote, path: '/finance/vouchers' },
-        { label: 'Reports', icon: LayoutDashboard, path: '/reports' },
-        { label: 'Settings', icon: Settings, path: '/admin/settings' },
+        
     ];
 
     return (

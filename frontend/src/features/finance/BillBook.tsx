@@ -12,7 +12,9 @@ interface BillBookRow {
   invoice_date: string;
   client_id: number;
   client_name: string;
+  // status column is no longer shown in the grid but we keep it here for completeness
   status: string;
+  lr_id?: number;
   lr_number: string;
   lr_date: string;
   origin: string;
@@ -20,6 +22,8 @@ interface BillBookRow {
   amount_passed: number;
   tds_amount: number;
   net_amount: number;
+  amount_received: number;
+  outstanding_amount: number;
 }
 
 export default function BillBook() {
@@ -82,6 +86,8 @@ export default function BillBook() {
               ? invoice.net_amount
               : amountPassed - tdsAmount,
           );
+          const amountReceived = Number(invoice.amount_received || 0);
+          const outstandingAmount = Number(invoice.outstanding_amount || Math.max(netAmount - amountReceived, 0));
           const lines = Array.isArray(invoice.lines) ? invoice.lines : [];
 
           if (lines.length === 0) {
@@ -93,6 +99,7 @@ export default function BillBook() {
               client_id: clientId,
               client_name: clientName,
               status,
+              lr_id: undefined,
               lr_number: '',
               lr_date: '',
               origin: '',
@@ -100,6 +107,8 @@ export default function BillBook() {
               amount_passed: amountPassed,
               tds_amount: tdsAmount,
               net_amount: netAmount,
+              amount_received: amountReceived,
+              outstanding_amount: outstandingAmount,
             }];
           }
 
@@ -111,6 +120,7 @@ export default function BillBook() {
             client_id: clientId,
             client_name: clientName,
             status,
+            lr_id: line?.lr_id ? Number(line.lr_id) : undefined,
             lr_number: String(line?.lr_no || ''),
             lr_date: String(line?.lr_date || ''),
             origin: String(line?.from_city || ''),
@@ -118,6 +128,8 @@ export default function BillBook() {
             amount_passed: amountPassed,
             tds_amount: tdsAmount,
             net_amount: netAmount,
+            amount_received: amountReceived,
+            outstanding_amount: outstandingAmount,
           }));
         });
         setRows(mappedRows);
@@ -146,10 +158,6 @@ export default function BillBook() {
     );
   }, [rows, query, activeClientId]);
 
-  const totalPassed = useMemo(() => filteredRows.reduce((s, r) => s + Number(r.amount_passed || 0), 0), [filteredRows]);
-  const totalTds = useMemo(() => filteredRows.reduce((s, r) => s + Number(r.tds_amount || 0), 0), [filteredRows]);
-  const totalNet = useMemo(() => filteredRows.reduce((s, r) => s + Number(r.net_amount || 0), 0), [filteredRows]);
-
   const colDefs = useMemo<any[]>(() => [
     { field: 'invoice_no', headerName: 'INVOICE NO.', width: 130, editable: false },
     {
@@ -168,7 +176,30 @@ export default function BillBook() {
       },
     },
     { field: 'client_name', headerName: 'CLIENT', width: 180, editable: false },
-    { field: 'lr_number', headerName: 'LR NO.', width: 120, editable: false, pinned: 'left' },
+    {
+      field: 'lr_number',
+      headerName: 'LR NO.',
+      width: 120,
+      editable: false,
+      pinned: 'left',
+      cellRenderer: (params: any) => {
+        const row: BillBookRow = params.data;
+        const lrNum = params.value || '';
+        if (row.lr_id) {
+          return (
+            <a
+              href={`/operations/lr/${row.lr_id}`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-blue-700 hover:underline font-medium"
+            >
+              {lrNum || `LR-${row.lr_id}`}
+            </a>
+          );
+        }
+        return lrNum;
+      },
+    },
     {
       field: 'lr_date',
       headerName: 'LR DATE',
@@ -187,6 +218,7 @@ export default function BillBook() {
       headerName: 'AMOUNT PASSED',
       width: 120,
       editable: false,
+      currencyTotal: true,
       cellStyle: { textAlign: 'right' },
       valueFormatter: (params: any) => Number(params.value || 0).toFixed(2),
     },
@@ -195,6 +227,7 @@ export default function BillBook() {
       headerName: 'TDS AMOUNT',
       width: 140,
       editable: false,
+      currencyTotal: true,
       cellStyle: { textAlign: 'right' },
       valueFormatter: (params: any) => Number(params.value || 0).toFixed(2),
     },
@@ -203,6 +236,7 @@ export default function BillBook() {
       headerName: 'NET AMOUNT',
       width: 140,
       editable: false,
+      currencyTotal: true,
       valueGetter: (params: any) => {
         const amountPassed = Number(params.data.amount_passed || 0);
         const tdsAmount = Number(params.data.tds_amount || 0);
@@ -211,7 +245,25 @@ export default function BillBook() {
       cellStyle: { textAlign: 'right' },
       valueFormatter: (params: any) => Number(params.value || 0).toFixed(2),
     },
-    { field: 'status', headerName: 'STATUS', width: 120, editable: false },
+    {
+      field: 'amount_received',
+      headerName: 'AMOUNT RECEIVED',
+      width: 150,
+      editable: false,
+      currencyTotal: true,
+      cellStyle: { textAlign: 'right' },
+      valueFormatter: (params: any) => Number(params.value || 0).toFixed(2),
+    },
+    {
+      field: 'outstanding_amount',
+      headerName: 'OUTSTANDING',
+      width: 140,
+      editable: false,
+      currencyTotal: true,
+      cellStyle: { textAlign: 'right', fontWeight: 600 },
+      valueFormatter: (params: any) => Number(params.value || 0).toFixed(2),
+    },
+    { field: 'status', headerName: 'STATUS', width: 140, editable: false },
   ], []);
 
   return (
@@ -220,9 +272,6 @@ export default function BillBook() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">Invoice Register</h2>        </div>
         <div className="text-right text-sm space-y-2">
-          <div>Amount Passed: <span className="font-semibold">Rs. {totalPassed.toFixed(2)}</span></div>
-          <div>TDS Amount: <span className="font-semibold">Rs. {totalTds.toFixed(2)}</span></div>
-          <div>Net Amount: <span className="font-semibold">Rs. {totalNet.toFixed(2)}</span></div>
           <Link
             to="/finance/invoices/new"
             className="inline-block rounded bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800"
@@ -283,6 +332,8 @@ export default function BillBook() {
           enableClickSelection: false,
           checkboxes: false,
         }}
+        showCurrencyTotals={true}
+        currencyTotalLabelField="invoice_no"
         fitColumns={false}
         alwaysShowHorizontalScroll={true}
       />
