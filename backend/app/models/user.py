@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, DateTime, Integer, String, func
 from ..db import engine, Base
 
 
@@ -9,6 +9,9 @@ class UserModel(Base):
     name = Column(String(256), nullable=False)
     role = Column(String(64), nullable=False)
     branch_id = Column(String(64), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
 
 def create_tables():

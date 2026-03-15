@@ -10,6 +10,7 @@ from sqlalchemy import (
     Text,
     func,
 )
+from sqlalchemy.orm import relationship
 
 from ..db import Base, engine
 
@@ -24,16 +25,19 @@ class InvoiceModel(Base):
     financial_year = Column(String(7), nullable=False, default="2025-26")
     po_no = Column(String(64), nullable=True)
     po_date = Column(Date, nullable=True)
-    hsn_code = Column(String(16), nullable=False, default="996791")
-    reverse_charge = Column(Boolean, nullable=False, default=False)
+    hsn_code = Column(String(16), nullable=True, default="996791")
+    reverse_charge = Column(Boolean, nullable=True, default=False)
     gst_paid_by = Column(String(64), nullable=True)
-    total_amount = Column(Numeric(12, 2), nullable=False, default=0)
-    tds_amount = Column(Numeric(12, 2), nullable=False, default=0)
-    net_amount = Column(Numeric(12, 2), nullable=False, default=0)
-    status = Column(String(32), nullable=False, default="draft")
+    total_amount = Column(Numeric(12, 2), nullable=True, default=0)
+    tds_amount = Column(Numeric(12, 2), nullable=True, default=0)
+    net_amount = Column(Numeric(12, 2), nullable=True, default=0)
+    status = Column(String(32), nullable=True, default="draft")
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    lines = relationship("InvoiceLineModel", back_populates="invoice", cascade="all, delete-orphan")
 
 
 class InvoiceLineModel(Base):
@@ -62,6 +66,9 @@ class InvoiceLineModel(Base):
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    invoice = relationship("InvoiceModel", back_populates="lines")
 
 
 def create_tables():

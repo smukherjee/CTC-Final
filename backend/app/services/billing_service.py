@@ -3,15 +3,17 @@ from decimal import Decimal
 from typing import List, Optional
 
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 from ..core.financial_year_utils import (
     format_invoice_no as _format_invoice_no,
     fy_from_date as _fy_from_date,
     next_invoice_seq as _next_invoice_seq,
 )
-from ..db import SessionLocal
 from ..models.invoice import InvoiceLineModel, InvoiceModel
 from ..models.payment_receipt import PaymentReceiptModel
+from .audit_service import log_action
+from .billing_computations import compute_net_amount, compute_outstanding, derive_payment_status
 
 
 def _to_float(value) -> Optional[float]:
@@ -71,25 +73,14 @@ def compute_invoice_receipt_summary(session, invoice_id: int) -> tuple[float, fl
 
 
 def sync_invoice_payment_status(session, invoice: InvoiceModel) -> InvoiceModel:
-    amount_received, outstanding_amount = compute_invoice_receipt_summary(session, invoice.id)
-
-    if amount_received <= 0:
-        if invoice.status in {None, "", "partially_paid", "paid"}:
-            invoice.status = "issued"
-    elif outstanding_amount <= 0.009:
-        invoice.status = "paid"
-    else:
-        invoice.status = "partially_paid"
-
+    amount_received, _outstanding = compute_invoice_receipt_summary(session, invoice.id)
+    invoice_net = _to_float(invoice.net_amount) or _to_float(invoice.total_amount) or 0.0
+    invoice.status = derive_payment_status(invoice.status, invoice_net, amount_received)
     return invoice
 
 
-def _invoice_to_dict(invoice: InvoiceModel, lines: List[InvoiceLineModel]) -> dict:
-    summary_session = SessionLocal()
-    try:
-        amount_received, outstanding_amount = compute_invoice_receipt_summary(summary_session, invoice.id)
-    finally:
-        summary_session.close()
+def _invoice_to_dict(db: Session, invoice: InvoiceModel, lines: List[InvoiceLineModel]) -> dict:
+    amount_received, outstanding_amount = compute_invoice_receipt_summary(db, invoice.id)
     return {
         "id": invoice.id,
         "invoice_no": invoice.invoice_no,
@@ -135,47 +126,38 @@ def _create_line(invoice_id: int, item: dict) -> InvoiceLineModel:
     )
 
 
-def list_invoices(fy: Optional[str] = None, client_id: Optional[int] = None) -> List[dict]:
-    session = SessionLocal()
-    try:
-        query = session.query(InvoiceModel)
-        if fy:
-            query = query.filter(InvoiceModel.financial_year == fy)
-        if client_id is not None:
-            query = query.filter(InvoiceModel.client_id == client_id)
-        invoices = query.order_by(InvoiceModel.id.desc()).all()
+def list_invoices(db: Session, fy: Optional[str] = None, client_id: Optional[int] = None, skip: int = 0, limit: int = 100) -> List[dict]:
+    query = db.query(InvoiceModel)
+    if fy:
+        query = query.filter(InvoiceModel.financial_year == fy)
+    if client_id is not None:
+        query = query.filter(InvoiceModel.client_id == client_id)
+    invoices = query.order_by(InvoiceModel.id.desc()).offset(skip).limit(limit).all()
 
-        payload = []
-        for invoice in invoices:
-            lines = session.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).all()
-            payload.append(_invoice_to_dict(invoice, lines))
-        return payload
-    finally:
-        session.close()
+    payload = []
+    for invoice in invoices:
+        lines = db.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).all()
+        payload.append(_invoice_to_dict(db, invoice, lines))
+    return payload
 
 
-def get_invoice(invoice_id: int) -> Optional[dict]:
-    session = SessionLocal()
-    try:
-        invoice = session.query(InvoiceModel).filter(InvoiceModel.id == invoice_id).first()
-        if not invoice:
-            return None
-        lines = session.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).all()
-        return _invoice_to_dict(invoice, lines)
-    finally:
-        session.close()
+def get_invoice(db: Session, invoice_id: int) -> Optional[dict]:
+    invoice = db.query(InvoiceModel).filter(InvoiceModel.id == invoice_id).first()
+    if not invoice:
+        return None
+    lines = db.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).all()
+    return _invoice_to_dict(db, invoice, lines)
 
 
-def create_invoice(payload: dict) -> dict:
-    session = SessionLocal()
+def create_invoice(db: Session, payload: dict) -> dict:
     try:
         invoice_date = _as_date(payload.get("invoice_date")) or date.today()
         fy = payload.get("financial_year") or _fy_from_date(invoice_date)
         total_amount = float(payload.get("total_amount") or 0)
         tds_amount = float(payload.get("tds_amount") or 0)
-        net_amount = total_amount - tds_amount
+        net_amount = compute_net_amount(total_amount, tds_amount)
 
-        seq = _next_invoice_seq(session, fy)
+        seq = _next_invoice_seq(db, fy)
         invoice_no = _format_invoice_no(seq, fy)
 
         invoice = InvoiceModel(
@@ -193,30 +175,30 @@ def create_invoice(payload: dict) -> dict:
             net_amount=net_amount,
             status=payload.get("status") or "issued",
         )
-        session.add(invoice)
-        session.flush()
+        db.add(invoice)
+        db.flush()
 
         for item in payload.get("lines", []):
-            session.add(_create_line(invoice.id, item))
+            db.add(_create_line(invoice.id, item))
 
-        sync_invoice_payment_status(session, invoice)
-        session.commit()
-        session.refresh(invoice)
-        lines = session.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).all()
-        return _invoice_to_dict(invoice, lines)
+        sync_invoice_payment_status(db, invoice)
+        after = _invoice_to_dict(db, invoice, db.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).all())
+        log_action(db, "Invoice", invoice.id, "CREATE", after=after)
+        db.commit()
+        db.refresh(invoice)
+        lines = db.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).all()
+        return _invoice_to_dict(db, invoice, lines)
     except Exception:
-        session.rollback()
+        db.rollback()
         raise
-    finally:
-        session.close()
 
 
-def update_invoice(invoice_id: int, payload: dict) -> Optional[dict]:
-    session = SessionLocal()
+def update_invoice(db: Session, invoice_id: int, payload: dict) -> Optional[dict]:
     try:
-        invoice = session.query(InvoiceModel).filter(InvoiceModel.id == invoice_id).first()
+        invoice = db.query(InvoiceModel).filter(InvoiceModel.id == invoice_id).first()
         if not invoice:
             return None
+        before = _invoice_to_dict(db, invoice, db.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).all())
 
         for key in (
             "client_id",
@@ -244,27 +226,33 @@ def update_invoice(invoice_id: int, payload: dict) -> Optional[dict]:
             invoice.net_amount = net_amount
 
         if "lines" in payload and payload["lines"] is not None:
-            session.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).delete()
+            db.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).delete()
             for item in payload["lines"]:
-                session.add(_create_line(invoice.id, item))
+                db.add(_create_line(invoice.id, item))
 
-        sync_invoice_payment_status(session, invoice)
-        session.commit()
-        session.refresh(invoice)
-        lines = session.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).all()
-        return _invoice_to_dict(invoice, lines)
+        sync_invoice_payment_status(db, invoice)
+        after = _invoice_to_dict(db, invoice, db.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).all())
+        log_action(db, "Invoice", invoice.id, "UPDATE", before=before, after=after)
+        db.commit()
+        db.refresh(invoice)
+        lines = db.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).all()
+        return _invoice_to_dict(db, invoice, lines)
     except Exception:
-        session.rollback()
+        db.rollback()
         raise
-    finally:
-        session.close()
 
 
-def delete_invoice(invoice_id: int) -> bool:
-    session = SessionLocal()
+def delete_invoice(db: Session, invoice_id: int) -> bool:
     try:
-        deleted = session.query(InvoiceModel).filter(InvoiceModel.id == invoice_id).delete()
-        session.commit()
-        return bool(deleted)
-    finally:
-        session.close()
+        invoice = db.query(InvoiceModel).filter(InvoiceModel.id == invoice_id).first()
+        if not invoice:
+            return False
+        before = _invoice_to_dict(db, invoice, db.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).all())
+        db.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).delete()
+        db.delete(invoice)
+        log_action(db, "Invoice", invoice_id, "DELETE", before=before)
+        db.commit()
+        return True
+    except Exception:
+        db.rollback()
+        raise

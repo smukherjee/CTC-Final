@@ -3,6 +3,9 @@
  * Uses lakh/crore Indian numbering system.
  *
  * e.g. inrWords(105000) → 'Rupees One Lakh Five Thousand Only'
+ *
+ * Backend mirror: backend/app/core/amount_in_words.py (inr_words)
+ * Keep both implementations in sync when changing formatting logic.
  */
 
 const ONES = [

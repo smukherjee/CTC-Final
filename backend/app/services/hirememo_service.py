@@ -1,10 +1,32 @@
 from typing import Optional
 from datetime import date
+
+from sqlalchemy.orm import Session
+
 from ..models.hirememo import HireMemoModel
 from ..models.lr import LRModel
-from ..db import SessionLocal
 from ..core.financial_year_utils import fy_from_date as _fy_from_date, next_hirememo_seq as _next_hirememo_seq
 from ..services.voucher_service import sync_hirememo_advance_vouchers as _sync_hirememo_advance_vouchers
+from .audit_service import log_action
+
+
+def _hm_to_dict(hm: HireMemoModel) -> dict:
+    """Minimal snapshot for audit log — covers all financially relevant fields."""
+    return {
+        "id": hm.id,
+        "lr_id": hm.lr_id,
+        "hire_memo_no": hm.hire_memo_no,
+        "hire_memo_date": hm.hire_memo_date.isoformat() if hm.hire_memo_date and hasattr(hm.hire_memo_date, "isoformat") else str(hm.hire_memo_date) if hm.hire_memo_date else None,
+        "financial_year": hm.financial_year,
+        "vehicle_number": hm.vehicle_number,
+        "total_amount": float(hm.total_amount) if hm.total_amount is not None else None,
+        "advance_cash": float(hm.advance_cash) if hm.advance_cash is not None else None,
+        "advance_bank": float(hm.advance_bank) if hm.advance_bank is not None else None,
+        "balance": float(hm.balance) if hm.balance is not None else None,
+        "commission": float(hm.commission) if hm.commission is not None else None,
+        "other_deductions": float(hm.other_deductions) if hm.other_deductions is not None else None,
+        "ack_status": hm.ack_status,
+    }
 
 
 def calculate_balance(total: float, cash: Optional[float], bank: Optional[float]) -> float:
@@ -27,25 +49,17 @@ def _sync_lr_financials(hm: HireMemoModel, session) -> None:
     hm.mamul = 0.0
 
 
-def get_all_hirememos(lr_id: Optional[int] = None, fy: Optional[str] = None):
-    session = SessionLocal()
-    try:
-        query = session.query(HireMemoModel)
-        if lr_id is not None:
-            query = query.filter(HireMemoModel.lr_id == lr_id)
-        if fy is not None:
-            query = query.filter(HireMemoModel.financial_year == fy)
-        return query.order_by(HireMemoModel.id.desc()).all()
-    finally:
-        session.close()
+def get_all_hirememos(db: Session, lr_id: Optional[int] = None, fy: Optional[str] = None):
+    query = db.query(HireMemoModel)
+    if lr_id is not None:
+        query = query.filter(HireMemoModel.lr_id == lr_id)
+    if fy is not None:
+        query = query.filter(HireMemoModel.financial_year == fy)
+    return query.order_by(HireMemoModel.id.desc()).all()
 
 
-def get_hirememo_by_id(hm_id: int):
-    session = SessionLocal()
-    try:
-        return session.query(HireMemoModel).filter(HireMemoModel.id == hm_id).first()
-    finally:
-        session.close()
+def get_hirememo_by_id(db: Session, hm_id: int):
+    return db.query(HireMemoModel).filter(HireMemoModel.id == hm_id).first()
 
 
 def _apply_payload(hm: HireMemoModel, payload: dict, session, partial: bool = False):
@@ -117,77 +131,72 @@ def _apply_payload(hm: HireMemoModel, payload: dict, session, partial: bool = Fa
     hm.balance = calculate_balance(hm.total_amount, hm.advance_cash, hm.advance_bank)
 
 
-def create_hirememo(payload: dict):
-    # create_tables() - deprecated, use alembic
-    session = SessionLocal()
+def create_hirememo(db: Session, payload: dict):
+    lr_id = payload.get("lr_id")
+
+    # Determine financial year
+    hm_date = payload.get("hire_memo_date")
+    if isinstance(hm_date, str) and hm_date:
+        try:
+            hm_date = date.fromisoformat(hm_date)
+        except ValueError:
+            hm_date = None
+    fy = _fy_from_date(hm_date) if hm_date else _fy_from_date(date.today())
+
+    existing = None
+    if lr_id is not None:
+        existing = db.query(HireMemoModel).filter(HireMemoModel.lr_id == lr_id).first()
+
+    if existing:
+        _apply_payload(existing, payload, db, partial=False)
+        existing.financial_year = fy
+        hm = existing
+    else:
+        hm = HireMemoModel(lr_id=lr_id)
+        _apply_payload(hm, payload, db, partial=False)
+        hm.financial_year = fy
+        # Auto-assign hire memo sequence scoped to financial year.
+        seq = _next_hirememo_seq(db, fy)
+        hm.hire_memo_no = str(seq)
+
     try:
-        lr_id = payload.get("lr_id")
-
-        # Determine financial year
-        hm_date = payload.get("hire_memo_date")
-        if isinstance(hm_date, str) and hm_date:
-            try:
-                hm_date = date.fromisoformat(hm_date)
-            except ValueError:
-                hm_date = None
-        fy = _fy_from_date(hm_date) if hm_date else _fy_from_date(date.today())
-
-        existing = None
-        if lr_id is not None:
-            existing = session.query(HireMemoModel).filter(HireMemoModel.lr_id == lr_id).first()
-
-        if existing:
-            _apply_payload(existing, payload, session, partial=False)
-            existing.financial_year = fy
-            hm = existing
-        else:
-            hm = HireMemoModel(lr_id=lr_id)
-            _apply_payload(hm, payload, session, partial=False)
-            hm.financial_year = fy
-            # Auto-assign hire memo sequence scoped to financial year.
-            seq = _next_hirememo_seq(session, fy)
-            hm.hire_memo_no = str(seq)
-
-        session.add(hm)
-        session.flush()
+        db.add(hm)
+        db.flush()
         _sync_hirememo_advance_vouchers(
-            session,
+            db,
             hirememo_id=hm.id,
             hirememo_no=hm.hire_memo_no,
             hirememo_date=hm.hire_memo_date,
             advance_cash=float(hm.advance_cash or 0),
             advance_bank=float(hm.advance_bank or 0),
         )
-        session.commit()
-        session.refresh(hm)
+        log_action(db, "HireMemo", hm.id, "CREATE", after=_hm_to_dict(hm))
+        db.commit()
+        db.refresh(hm)
         return hm
     except Exception as e:
-        session.rollback()
+        db.rollback()
         import traceback
         traceback.print_exc()
         raise ValueError(f"Failed to create HireMemo: {str(e)}")
-    finally:
-        session.close()
 
 
-def update_hirememo(hm_id: int, payload: dict):
-    session = SessionLocal()
-    try:
-        hm = session.query(HireMemoModel).filter(HireMemoModel.id == hm_id).first()
-        if not hm:
-            return None
-        _apply_payload(hm, payload, session, partial=True)
-        session.flush()
-        _sync_hirememo_advance_vouchers(
-            session,
-            hirememo_id=hm.id,
-            hirememo_no=hm.hire_memo_no,
-            hirememo_date=hm.hire_memo_date,
-            advance_cash=float(hm.advance_cash or 0),
-            advance_bank=float(hm.advance_bank or 0),
-        )
-        session.commit()
-        session.refresh(hm)
-        return hm
-    finally:
-        session.close()
+def update_hirememo(db: Session, hm_id: int, payload: dict):
+    hm = db.query(HireMemoModel).filter(HireMemoModel.id == hm_id).first()
+    if not hm:
+        return None
+    before = _hm_to_dict(hm)
+    _apply_payload(hm, payload, db, partial=True)
+    db.flush()
+    _sync_hirememo_advance_vouchers(
+        db,
+        hirememo_id=hm.id,
+        hirememo_no=hm.hire_memo_no,
+        hirememo_date=hm.hire_memo_date,
+        advance_cash=float(hm.advance_cash or 0),
+        advance_bank=float(hm.advance_bank or 0),
+    )
+    log_action(db, "HireMemo", hm_id, "UPDATE", before=before, after=_hm_to_dict(hm))
+    db.commit()
+    db.refresh(hm)
+    return hm

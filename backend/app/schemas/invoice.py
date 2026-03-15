@@ -1,7 +1,7 @@
 from datetime import date
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, model_validator
 
 
 class InvoiceLineBase(BaseModel):
@@ -23,6 +23,14 @@ class InvoiceLineBase(BaseModel):
     unloading_detention: Optional[float] = 0
     other_charges: Optional[float] = 0
     total: Optional[float] = 0
+
+    @field_validator('freight', 'loading_detention', 'unloading_charges',
+                     'unloading_detention', 'other_charges', 'total', mode='before')
+    @classmethod
+    def non_negative_line_amount(cls, v):
+        if v is not None and float(v) < 0:
+            raise ValueError('Amount must be non-negative')
+        return v
 
 
 class InvoiceLineCreate(InvoiceLineBase):
@@ -51,6 +59,20 @@ class InvoiceBase(BaseModel):
     net_amount: Optional[float] = None
     status: Optional[str] = "draft"
 
+    @field_validator('total_amount', 'tds_amount', 'net_amount', mode='before')
+    @classmethod
+    def non_negative_invoice_amount(cls, v):
+        if v is not None and float(v) < 0:
+            raise ValueError('Amount must be non-negative')
+        return v
+
+    @model_validator(mode='after')
+    def tds_not_exceeds_total(self):
+        if self.tds_amount is not None and self.total_amount is not None:
+            if float(self.tds_amount) > float(self.total_amount) + 0.01:
+                raise ValueError('tds_amount cannot exceed total_amount')
+        return self
+
 
 class InvoiceCreate(InvoiceBase):
     lines: List[InvoiceLineCreate] = []
@@ -75,6 +97,7 @@ class InvoiceUpdate(BaseModel):
 class InvoiceResponse(InvoiceBase):
     id: int
     invoice_no: str
+    financial_year: str
     amount_received: float = 0
     outstanding_amount: float = 0
     lines: List[InvoiceLineResponse] = []

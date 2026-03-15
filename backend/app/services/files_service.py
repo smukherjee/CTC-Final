@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import or_
+from sqlalchemy.orm import Session
 
 from ..db import SessionLocal
 from ..models.file_upload import FileUploadModel
@@ -131,6 +132,7 @@ def _archive_document_row(db, doc: FileUploadModel) -> FileUploadModel:
 
 
 def apply_retention_policy() -> int:
+    """Maintenance function — uses its own session, safe to call from background tasks."""
     _ensure_storage_dirs()
     db = SessionLocal()
     try:
@@ -152,6 +154,7 @@ def apply_retention_policy() -> int:
 
 
 def upload_document(
+    db: Session,
     *,
     document_type: str,
     upload_file,
@@ -187,63 +190,60 @@ def upload_document(
             raise ValueError("E-Way Bill upload must be a PDF file")
         raise ValueError("Unsupported content type. Allowed: PDF/JPEG/PNG")
 
-    db = SessionLocal()
-    try:
-        lr = None
-        if lr_id:
-            lr = db.query(LRModel).filter(LRModel.id == lr_id).first()
-            if not lr:
-                raise ValueError("LR not found")
-        if hirememo_id:
-            hirememo = db.query(HireMemoModel).filter(HireMemoModel.id == hirememo_id).first()
-            if not hirememo:
-                raise ValueError("Hire memo not found")
+    lr = None
+    if lr_id:
+        lr = db.query(LRModel).filter(LRModel.id == lr_id).first()
+        if not lr:
+            raise ValueError("LR not found")
+    if hirememo_id:
+        hirememo = db.query(HireMemoModel).filter(HireMemoModel.id == hirememo_id).first()
+        if not hirememo:
+            raise ValueError("Hire memo not found")
 
-        path, size, checksum, safe_name = _save_upload(
-            upload_file.file,
-            upload_file.filename or "document",
-            normalized_type,
-            allowed_extensions=allowed_extensions,
-            max_upload_size_bytes=max_upload_size_bytes,
-        )
+    path, size, checksum, safe_name = _save_upload(
+        upload_file.file,
+        upload_file.filename or "document",
+        normalized_type,
+        allowed_extensions=allowed_extensions,
+        max_upload_size_bytes=max_upload_size_bytes,
+    )
 
-        expires_at = _now_utc() + timedelta(days=RETENTION_DAYS)
-        doc = FileUploadModel(
-            document_type=normalized_type,
-            lr_id=lr_id,
-            hirememo_id=hirememo_id,
-            original_filename=safe_name,
-            stored_filename=path.name,
-            storage_path=str(path),
-            file_url="",
-            content_type=content_type or None,
-            file_size=size,
-            checksum=checksum,
-            uploaded_by=(uploaded_by or "").strip() or None,
-            expires_at=expires_at,
-        )
-        db.add(doc)
-        db.commit()
-        db.refresh(doc)
+    expires_at = _now_utc() + timedelta(days=RETENTION_DAYS)
+    doc = FileUploadModel(
+        document_type=normalized_type,
+        lr_id=lr_id,
+        hirememo_id=hirememo_id,
+        original_filename=safe_name,
+        stored_filename=path.name,
+        storage_path=str(path),
+        file_url="",
+        content_type=content_type or None,
+        file_size=size,
+        checksum=checksum,
+        uploaded_by=(uploaded_by or "").strip() or None,
+        expires_at=expires_at,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
 
-        doc.file_url = f"/api/files/{doc.id}/content"
-        if normalized_type == "POD" and lr:
-            lr.pod_url = doc.file_url
-            lr.pod_verified_at = None
-            lr.status = "POD_UPLOADED"
-            db.add(lr)
-        db.add(doc)
-        db.commit()
-        db.refresh(doc)
-        if lr:
-            db.refresh(lr)
+    doc.file_url = f"/api/files/{doc.id}/content"
+    if normalized_type == "POD" and lr:
+        lr.pod_url = doc.file_url
+        lr.pod_verified_at = None
+        lr.status = "POD_UPLOADED"
+        db.add(lr)
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    if lr:
+        db.refresh(lr)
 
-        return _to_document_dict(doc, lr=lr)
-    finally:
-        db.close()
+    return _to_document_dict(doc, lr=lr)
 
 
 def list_documents(
+    db: Session,
     *,
     document_type: Optional[str] = None,
     lr_id: Optional[int] = None,
@@ -253,91 +253,75 @@ def list_documents(
     include_archived: bool = False,
 ) -> List[Dict[str, Any]]:
     apply_retention_policy()
-    db = SessionLocal()
-    try:
-        query = db.query(FileUploadModel, LRModel).outerjoin(LRModel, FileUploadModel.lr_id == LRModel.id)
-        if document_type:
-            query = query.filter(FileUploadModel.document_type == document_type.strip().upper())
-        if lr_id:
-            query = query.filter(FileUploadModel.lr_id == lr_id)
-        if hirememo_id:
-            query = query.filter(FileUploadModel.hirememo_id == hirememo_id)
-        if not include_archived:
-            query = query.filter(FileUploadModel.is_archived.is_(False))
-        if q:
-            pattern = f"%{q.strip()}%"
-            query = query.filter(
-                or_(
-                    FileUploadModel.original_filename.ilike(pattern),
-                    LRModel.lr_number.ilike(pattern),
-                    LRModel.consignor_name.ilike(pattern),
-                    LRModel.consignee_name.ilike(pattern),
-                )
+    query = db.query(FileUploadModel, LRModel).outerjoin(LRModel, FileUploadModel.lr_id == LRModel.id)
+    if document_type:
+        query = query.filter(FileUploadModel.document_type == document_type.strip().upper())
+    if lr_id:
+        query = query.filter(FileUploadModel.lr_id == lr_id)
+    if hirememo_id:
+        query = query.filter(FileUploadModel.hirememo_id == hirememo_id)
+    if not include_archived:
+        query = query.filter(FileUploadModel.is_archived.is_(False))
+    if q:
+        pattern = f"%{q.strip()}%"
+        query = query.filter(
+            or_(
+                FileUploadModel.original_filename.ilike(pattern),
+                LRModel.lr_number.ilike(pattern),
+                LRModel.consignor_name.ilike(pattern),
+                LRModel.consignee_name.ilike(pattern),
             )
-        if fy:
-            query = query.filter(LRModel.financial_year == fy)
-
-        rows = query.order_by(FileUploadModel.created_at.desc()).all()
-        return [_to_document_dict(doc, lr=lr) for doc, lr in rows]
-    finally:
-        db.close()
-
-
-def get_document(document_id: int) -> Optional[Dict[str, Any]]:
-    db = SessionLocal()
-    try:
-        row = (
-            db.query(FileUploadModel, LRModel)
-            .outerjoin(LRModel, FileUploadModel.lr_id == LRModel.id)
-            .filter(FileUploadModel.id == document_id)
-            .first()
         )
-        if not row:
-            return None
-        doc, lr = row
-        return _to_document_dict(doc, lr=lr)
-    finally:
-        db.close()
+    if fy:
+        query = query.filter(LRModel.financial_year == fy)
+
+    rows = query.order_by(FileUploadModel.created_at.desc()).all()
+    return [_to_document_dict(doc, lr=lr) for doc, lr in rows]
 
 
-def get_document_path(document_id: int) -> Optional[Path]:
-    db = SessionLocal()
-    try:
-        doc = db.query(FileUploadModel).filter(FileUploadModel.id == document_id).first()
-        if not doc:
-            return None
-        path = Path(doc.storage_path)
-        return path if path.exists() else None
-    finally:
-        db.close()
+def get_document(db: Session, document_id: int) -> Optional[Dict[str, Any]]:
+    row = (
+        db.query(FileUploadModel, LRModel)
+        .outerjoin(LRModel, FileUploadModel.lr_id == LRModel.id)
+        .filter(FileUploadModel.id == document_id)
+        .first()
+    )
+    if not row:
+        return None
+    doc, lr = row
+    return _to_document_dict(doc, lr=lr)
 
 
-def archive_document(document_id: int) -> Optional[Dict[str, Any]]:
+def get_document_path(db: Session, document_id: int) -> Optional[Path]:
+    doc = db.query(FileUploadModel).filter(FileUploadModel.id == document_id).first()
+    if not doc:
+        return None
+    path = Path(doc.storage_path)
+    return path if path.exists() else None
+
+
+def archive_document(db: Session, document_id: int) -> Optional[Dict[str, Any]]:
     _ensure_storage_dirs()
-    db = SessionLocal()
-    try:
-        row = (
-            db.query(FileUploadModel, LRModel)
-            .outerjoin(LRModel, FileUploadModel.lr_id == LRModel.id)
-            .filter(FileUploadModel.id == document_id)
-            .first()
-        )
-        if not row:
-            return None
-        doc, lr = row
-        _archive_document_row(db, doc)
+    row = (
+        db.query(FileUploadModel, LRModel)
+        .outerjoin(LRModel, FileUploadModel.lr_id == LRModel.id)
+        .filter(FileUploadModel.id == document_id)
+        .first()
+    )
+    if not row:
+        return None
+    doc, lr = row
+    _archive_document_row(db, doc)
 
-        if lr and doc.document_type == "POD" and lr.pod_url == doc.file_url:
-            lr.pod_url = None
-            lr.pod_verified_at = None
-            if lr.status in ("POD_UPLOADED", "POD_VERIFIED"):
-                lr.status = "DELIVERED"
-            db.add(lr)
+    if lr and doc.document_type == "POD" and lr.pod_url == doc.file_url:
+        lr.pod_url = None
+        lr.pod_verified_at = None
+        if lr.status in ("POD_UPLOADED", "POD_VERIFIED"):
+            lr.status = "DELIVERED"
+        db.add(lr)
 
-        db.commit()
-        db.refresh(doc)
-        if lr:
-            db.refresh(lr)
-        return _to_document_dict(doc, lr=lr)
-    finally:
-        db.close()
+    db.commit()
+    db.refresh(doc)
+    if lr:
+        db.refresh(lr)
+    return _to_document_dict(doc, lr=lr)

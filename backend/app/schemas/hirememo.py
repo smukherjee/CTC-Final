@@ -94,7 +94,7 @@ class HireMemoUpdate(BaseModel):
 class HireMemo(HireMemoBase):
     id: int
     hire_memo_no: Optional[str] = None
-    financial_year: Optional[str] = None
+    financial_year: str
     balance: Optional[float] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, model_validator
 from typing import List, Optional, Any
 from datetime import date
 
@@ -76,6 +76,28 @@ class LRCreate(BaseModel):
     eway_bill_no: Optional[str] = None
     eway_bill_expiry: Optional[str] = None
 
+    @field_validator('weight', 'freight_amount', 'value_rs', 'surcharge',
+                     'hamali_charges', 'st_charges', 'total', 'amount_passed',
+                     mode='before')
+    @classmethod
+    def non_negative_amount(cls, v):
+        if v is not None and float(v) < 0:
+            raise ValueError('Amount must be non-negative')
+        return v
+
+    @model_validator(mode='after')
+    def bill_date_after_lr_date(self):
+        if self.date and self.bill_date:
+            try:
+                from datetime import date as _date
+                lr_d = _date.fromisoformat(str(self.date))
+                bill_d = _date.fromisoformat(str(self.bill_date))
+                if bill_d < lr_d:
+                    raise ValueError('bill_date cannot be before LR date')
+            except (ValueError, TypeError):
+                pass  # date parsing errors surfaced elsewhere
+        return self
+
 
 class LRUpdate(BaseModel):
     lr_number: Optional[str] = None
@@ -145,6 +167,7 @@ class LRPodPatch(BaseModel):
 
 class LRResponse(LRCreate):
     id: int
+    financial_year: str
 
     class Config:
         orm_mode = True

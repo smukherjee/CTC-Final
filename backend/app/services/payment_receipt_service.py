@@ -3,13 +3,14 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional
 
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 from ..core.financial_year_utils import fy_from_date as _fy_from_date
-from ..db import SessionLocal
 from ..models.invoice import InvoiceModel
 from ..models.client import ClientModel
 from ..models.payment_receipt import PaymentReceiptModel
 from .billing_service import sync_invoice_payment_status
+from .audit_service import log_action
 
 
 def _as_decimal(value, default: str = "0") -> Decimal:
@@ -85,19 +86,18 @@ def _to_dict(row: PaymentReceiptModel) -> dict:
     }
 
 
-def create(payload: dict) -> dict:
-    session = SessionLocal()
+def create(db: Session, payload: dict) -> dict:
     try:
         payment_date = payload.get("payment_date") or date.today()
-        invoice = _resolve_invoice(session, payload)
+        invoice = _resolve_invoice(db, payload)
         fy = payload.get("financial_year") or (invoice.financial_year if invoice else _fy_from_date(payment_date))
-        received_from_id, received_from = _resolve_received_from(session, payload)
+        received_from_id, received_from = _resolve_received_from(db, payload)
         total_billed_amount, tds_deducted, other_deduction, net_amount = _extract_amounts(payload)
 
         if invoice is not None:
             if int(invoice.client_id) != int(received_from_id):
                 raise ValueError("Selected invoice does not belong to the chosen customer")
-            current_received = session.query(func.coalesce(func.sum(PaymentReceiptModel.net_amount), 0)).filter(
+            current_received = db.query(func.coalesce(func.sum(PaymentReceiptModel.net_amount), 0)).filter(
                 PaymentReceiptModel.invoice_id == invoice.id
             ).scalar()
             max_receivable = _as_decimal(invoice.net_amount or invoice.total_amount or 0)
@@ -119,49 +119,47 @@ def create(payload: dict) -> dict:
             financial_year=fy,
             notes=payload.get("notes"),
         )
-        session.add(row)
-        session.flush()
+        db.add(row)
+        db.flush()
         if invoice is not None:
-            sync_invoice_payment_status(session, invoice)
-        session.commit()
-        session.refresh(row)
+            sync_invoice_payment_status(db, invoice)
+        log_action(db, "PaymentReceipt", row.id, "CREATE", after=_to_dict(row))
+        db.commit()
+        db.refresh(row)
         return _to_dict(row)
-    finally:
-        session.close()
+    except Exception:
+        db.rollback()
+        raise
 
 
-def list_receipts(fy: Optional[str] = None) -> List[dict]:
-    session = SessionLocal()
+def list_receipts(db: Session, fy: Optional[str] = None) -> List[dict]:
+    query = db.query(PaymentReceiptModel)
+    if fy:
+        query = query.filter(PaymentReceiptModel.financial_year == fy)
+    rows = query.order_by(PaymentReceiptModel.payment_date.desc(), PaymentReceiptModel.id.desc()).all()
+    return [_to_dict(row) for row in rows]
+
+
+def update(db: Session, receipt_id: int, payload: dict) -> Optional[dict]:
     try:
-        query = session.query(PaymentReceiptModel)
-        if fy:
-            query = query.filter(PaymentReceiptModel.financial_year == fy)
-        rows = query.order_by(PaymentReceiptModel.payment_date.desc(), PaymentReceiptModel.id.desc()).all()
-        return [_to_dict(row) for row in rows]
-    finally:
-        session.close()
-
-
-def update(receipt_id: int, payload: dict) -> Optional[dict]:
-    session = SessionLocal()
-    try:
-        row = session.query(PaymentReceiptModel).filter(PaymentReceiptModel.id == receipt_id).first()
+        row = db.query(PaymentReceiptModel).filter(PaymentReceiptModel.id == receipt_id).first()
         if not row:
             return None
 
+        before = _to_dict(row)
         previous_invoice_id = row.invoice_id
 
         if "payment_date" in payload:
             row.payment_date = payload["payment_date"]
 
         if "invoice_id" in payload:
-            invoice = _resolve_invoice(session, payload, existing=row)
+            invoice = _resolve_invoice(db, payload, existing=row)
             row.invoice_id = invoice.id if invoice else None
         else:
-            invoice = _resolve_invoice(session, payload, existing=row)
+            invoice = _resolve_invoice(db, payload, existing=row)
 
         if any(key in payload for key in ("received_from_id", "received_from")):
-            row.received_from_id, row.received_from = _resolve_received_from(session, payload, existing=row)
+            row.received_from_id, row.received_from = _resolve_received_from(db, payload, existing=row)
 
         if any(key in payload for key in ("total_billed_amount", "tds_deducted", "other_deduction", "net_amount", "amount")):
             total_billed_amount, tds_deducted, other_deduction, net_amount = _extract_amounts(payload, existing=row)
@@ -189,7 +187,7 @@ def update(receipt_id: int, payload: dict) -> Optional[dict]:
         if invoice is not None:
             if row.received_from_id is None or int(invoice.client_id) != int(row.received_from_id):
                 raise ValueError("Selected invoice does not belong to the chosen customer")
-            existing_receipts = session.query(func.coalesce(func.sum(PaymentReceiptModel.net_amount), 0)).filter(
+            existing_receipts = db.query(func.coalesce(func.sum(PaymentReceiptModel.net_amount), 0)).filter(
                 PaymentReceiptModel.invoice_id == invoice.id,
                 PaymentReceiptModel.id != row.id,
             ).scalar()
@@ -198,31 +196,35 @@ def update(receipt_id: int, payload: dict) -> Optional[dict]:
                 raise ValueError("Receipt exceeds the invoice outstanding balance")
 
         if previous_invoice_id and previous_invoice_id != row.invoice_id:
-            previous_invoice = session.query(InvoiceModel).filter(InvoiceModel.id == previous_invoice_id).first()
+            previous_invoice = db.query(InvoiceModel).filter(InvoiceModel.id == previous_invoice_id).first()
             if previous_invoice:
-                sync_invoice_payment_status(session, previous_invoice)
+                sync_invoice_payment_status(db, previous_invoice)
         if invoice is not None:
-            sync_invoice_payment_status(session, invoice)
-        session.commit()
-        session.refresh(row)
+            sync_invoice_payment_status(db, invoice)
+        log_action(db, "PaymentReceipt", row.id, "UPDATE", before=before, after=_to_dict(row))
+        db.commit()
+        db.refresh(row)
         return _to_dict(row)
-    finally:
-        session.close()
+    except Exception:
+        db.rollback()
+        raise
 
 
-def delete(receipt_id: int) -> bool:
-    session = SessionLocal()
+def delete(db: Session, receipt_id: int) -> bool:
     try:
-        row = session.query(PaymentReceiptModel).filter(PaymentReceiptModel.id == receipt_id).first()
+        row = db.query(PaymentReceiptModel).filter(PaymentReceiptModel.id == receipt_id).first()
         if not row:
             return False
+        before = _to_dict(row)
         invoice_id = row.invoice_id
-        session.delete(row)
+        db.delete(row)
         if invoice_id:
-            invoice = session.query(InvoiceModel).filter(InvoiceModel.id == invoice_id).first()
+            invoice = db.query(InvoiceModel).filter(InvoiceModel.id == invoice_id).first()
             if invoice:
-                sync_invoice_payment_status(session, invoice)
-        session.commit()
+                sync_invoice_payment_status(db, invoice)
+        log_action(db, "PaymentReceipt", receipt_id, "DELETE", before=before)
+        db.commit()
         return True
-    finally:
-        session.close()
+    except Exception:
+        db.rollback()
+        raise

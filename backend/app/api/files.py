@@ -1,9 +1,11 @@
 from typing import List, Optional
 from pathlib import Path
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
 
+from ..db import get_db
 from ..schemas.file_upload import FileUploadResponse
 from ..services.files_service import (
     archive_document,
@@ -23,9 +25,11 @@ def upload_file_document(
     lr_id: Optional[int] = Form(None),
     hirememo_id: Optional[int] = Form(None),
     uploaded_by: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
 ):
     try:
         return upload_document(
+            db,
             document_type=document_type,
             upload_file=file,
             lr_id=lr_id,
@@ -44,8 +48,10 @@ def list_file_documents(
     q: Optional[str] = None,
     fy: Optional[str] = None,
     include_archived: bool = False,
+    db: Session = Depends(get_db),
 ):
     return list_documents(
+        db,
         document_type=document_type,
         lr_id=lr_id,
         hirememo_id=hirememo_id,
@@ -56,20 +62,20 @@ def list_file_documents(
 
 
 @router.get("/{document_id}", response_model=FileUploadResponse)
-def get_file_document(document_id: int):
-    doc = get_document(document_id)
+def get_file_document(document_id: int, db: Session = Depends(get_db)):
+    doc = get_document(db, document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="File document not found")
     return doc
 
 
 @router.get("/{document_id}/content")
-def get_file_content(document_id: int):
-    doc = get_document(document_id)
+def get_file_content(document_id: int, db: Session = Depends(get_db)):
+    doc = get_document(db, document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="File document not found")
 
-    path = get_document_path(document_id)
+    path = get_document_path(db, document_id)
     if not path:
         raise HTTPException(status_code=404, detail="Stored file not found on disk")
 
@@ -79,8 +85,8 @@ def get_file_content(document_id: int):
 
 
 @router.post("/{document_id}/archive", response_model=FileUploadResponse)
-def archive_file_document(document_id: int):
-    archived = archive_document(document_id)
+def archive_file_document(document_id: int, db: Session = Depends(get_db)):
+    archived = archive_document(db, document_id)
     if not archived:
         raise HTTPException(status_code=404, detail="File document not found")
     return archived

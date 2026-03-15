@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from xml.etree import ElementTree as ET
 
-from sqlalchemy import inspect
+from sqlalchemy import text
 
 # Ensure project root is importable when run as a standalone script.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -75,6 +75,98 @@ class Scenario:
     eway_state: str  # active | expired | expiring
     tracking_state: str
     fy_target: str
+
+
+# Goods-line item templates used when seeding LRs.
+# Each sub-list has 2–3 items; freight is pre-computed from the formula:
+#   total_qtl = weight_qtl + weight_kg / 100
+#   freight_rs = floor(total_qtl * rate_per_qtl)
+#   freight_p  = round((total_qtl * rate_per_qtl - freight_rs) * 100)
+_GOODS_TEMPLATES = [
+    # 1 – Electronics + hardware
+    [
+        {"id": "1", "articles_count": 5, "description": "Electronic Components", "weight_qtl": 8, "weight_kg": 50, "rate_per_qtl": 120, "freight_rs": 1020, "freight_p": 0},
+        {"id": "2", "articles_count": 3, "description": "Hardware Parts",        "weight_qtl": 4, "weight_kg": 20, "rate_per_qtl": 100, "freight_rs": 420,  "freight_p": 0},
+    ],
+    # 2 – FMCG + Pharma
+    [
+        {"id": "1", "articles_count": 10, "description": "FMCG Goods",          "weight_qtl": 15, "weight_kg": 0,  "rate_per_qtl": 80,  "freight_rs": 1200, "freight_p": 0},
+        {"id": "2", "articles_count": 4,  "description": "Pharmaceutical Items","weight_qtl": 3,  "weight_kg": 60, "rate_per_qtl": 150, "freight_rs": 540,  "freight_p": 0},
+    ],
+    # 3 – Textile
+    [
+        {"id": "1", "articles_count": 8, "description": "Textile Rolls",        "weight_qtl": 20, "weight_kg": 0,  "rate_per_qtl": 90,  "freight_rs": 1800, "freight_p": 0},
+        {"id": "2", "articles_count": 2, "description": "Apparel Cartons",      "weight_qtl": 5,  "weight_kg": 50, "rate_per_qtl": 110, "freight_rs": 605,  "freight_p": 0},
+    ],
+    # 4 – Auto parts
+    [
+        {"id": "1", "articles_count": 6,  "description": "Automobile Spare Parts","weight_qtl": 12, "weight_kg": 0,  "rate_per_qtl": 130, "freight_rs": 1560, "freight_p": 0},
+        {"id": "2", "articles_count": 2,  "description": "Tyre Assemblies",       "weight_qtl": 8,  "weight_kg": 80, "rate_per_qtl": 100, "freight_rs": 880,  "freight_p": 0},
+        {"id": "3", "articles_count": 1,  "description": "Engine Components",     "weight_qtl": 3,  "weight_kg": 40, "rate_per_qtl": 160, "freight_rs": 544,  "freight_p": 0},
+    ],
+    # 5 – Steel / metal
+    [
+        {"id": "1", "articles_count": 4, "description": "Steel Rods",           "weight_qtl": 25, "weight_kg": 0,  "rate_per_qtl": 70,  "freight_rs": 1750, "freight_p": 0},
+        {"id": "2", "articles_count": 2, "description": "Metal Sheets",         "weight_qtl": 10, "weight_kg": 0,  "rate_per_qtl": 85,  "freight_rs": 850,  "freight_p": 0},
+    ],
+    # 6 – Chemicals
+    [
+        {"id": "1", "articles_count": 3, "description": "Industrial Chemicals", "weight_qtl": 18, "weight_kg": 50, "rate_per_qtl": 95,  "freight_rs": 1757, "freight_p": 50},
+        {"id": "2", "articles_count": 1, "description": "Lubricants (drums)",   "weight_qtl": 6,  "weight_kg": 0,  "rate_per_qtl": 110, "freight_rs": 660,  "freight_p": 0},
+    ],
+    # 7 – Furniture
+    [
+        {"id": "1", "articles_count": 7, "description": "Office Furniture",     "weight_qtl": 14, "weight_kg": 0,  "rate_per_qtl": 100, "freight_rs": 1400, "freight_p": 0},
+        {"id": "2", "articles_count": 3, "description": "Wooden Cabinets",      "weight_qtl": 7,  "weight_kg": 30, "rate_per_qtl": 120, "freight_rs": 879,  "freight_p": 60},
+    ],
+    # 8 – Food & agri
+    [
+        {"id": "1", "articles_count": 20, "description": "Processed Food Packets","weight_qtl": 30, "weight_kg": 0,  "rate_per_qtl": 60,  "freight_rs": 1800, "freight_p": 0},
+        {"id": "2", "articles_count": 5,  "description": "Agricultural Produce",  "weight_qtl": 10, "weight_kg": 50, "rate_per_qtl": 55,  "freight_rs": 577,  "freight_p": 50},
+    ],
+    # 9 – Consumer durables
+    [
+        {"id": "1", "articles_count": 4, "description": "White Goods (AC units)",  "weight_qtl": 10, "weight_kg": 0,  "rate_per_qtl": 200, "freight_rs": 2000, "freight_p": 0},
+        {"id": "2", "articles_count": 6, "description": "Home Appliances",         "weight_qtl": 8,  "weight_kg": 60, "rate_per_qtl": 180, "freight_rs": 1548, "freight_p": 0},
+    ],
+    # 10 – Packaging materials
+    [
+        {"id": "1", "articles_count": 12, "description": "Corrugated Boxes",    "weight_qtl": 6,  "weight_kg": 0,  "rate_per_qtl": 75,  "freight_rs": 450,  "freight_p": 0},
+        {"id": "2", "articles_count": 8,  "description": "Plastic Containers",  "weight_qtl": 9,  "weight_kg": 0,  "rate_per_qtl": 90,  "freight_rs": 810,  "freight_p": 0},
+        {"id": "3", "articles_count": 3,  "description": "Bubble Wrap Rolls",   "weight_qtl": 2,  "weight_kg": 50, "rate_per_qtl": 60,  "freight_rs": 150,  "freight_p": 0},
+    ],
+    # 11 – Glass / ceramics
+    [
+        {"id": "1", "articles_count": 5, "description": "Glass Panels",         "weight_qtl": 20, "weight_kg": 0,  "rate_per_qtl": 110, "freight_rs": 2200, "freight_p": 0},
+        {"id": "2", "articles_count": 3, "description": "Ceramic Tiles",        "weight_qtl": 12, "weight_kg": 0,  "rate_per_qtl": 80,  "freight_rs": 960,  "freight_p": 0},
+    ],
+    # 12 – IT equipment
+    [
+        {"id": "1", "articles_count": 3, "description": "Servers & Networking Equipment","weight_qtl": 5, "weight_kg": 0,  "rate_per_qtl": 300, "freight_rs": 1500, "freight_p": 0},
+        {"id": "2", "articles_count": 8, "description": "Laptops & Accessories",         "weight_qtl": 3, "weight_kg": 20, "rate_per_qtl": 250, "freight_rs": 830,  "freight_p": 0},
+    ],
+    # 13 – Plastics / polymers
+    [
+        {"id": "1", "articles_count": 6,  "description": "PVC Pipes",           "weight_qtl": 22, "weight_kg": 0,  "rate_per_qtl": 65,  "freight_rs": 1430, "freight_p": 0},
+        {"id": "2", "articles_count": 4,  "description": "Polymer Granules",    "weight_qtl": 14, "weight_kg": 0,  "rate_per_qtl": 75,  "freight_rs": 1050, "freight_p": 0},
+    ],
+    # 14 – Books / stationery
+    [
+        {"id": "1", "articles_count": 15, "description": "Books & Publications","weight_qtl": 10, "weight_kg": 0,  "rate_per_qtl": 50,  "freight_rs": 500,  "freight_p": 0},
+        {"id": "2", "articles_count": 5,  "description": "Stationery Items",    "weight_qtl": 4,  "weight_kg": 0,  "rate_per_qtl": 70,  "freight_rs": 280,  "freight_p": 0},
+    ],
+    # 15 – Mixed cargo
+    [
+        {"id": "1", "articles_count": 8, "description": "Mixed Consumer Goods", "weight_qtl": 16, "weight_kg": 0,  "rate_per_qtl": 100, "freight_rs": 1600, "freight_p": 0},
+        {"id": "2", "articles_count": 4, "description": "Packaged Items",       "weight_qtl": 6,  "weight_kg": 50, "rate_per_qtl": 90,  "freight_rs": 585,  "freight_p": 0},
+        {"id": "3", "articles_count": 2, "description": "Fragile Goods",        "weight_qtl": 2,  "weight_kg": 0,  "rate_per_qtl": 200, "freight_rs": 400,  "freight_p": 0},
+    ],
+]
+
+
+def _make_goods_items(scenario_idx: int) -> list:
+    """Return a list of GoodsLineItem dicts for the given scenario (1-based)."""
+    return _GOODS_TEMPLATES[(scenario_idx - 1) % len(_GOODS_TEMPLATES)]
 
 
 SCENARIOS: List[Scenario] = [
@@ -343,8 +435,41 @@ def _receipt_seed_remarks(scenario: Scenario, tds_deducted: Decimal, other_deduc
     return "; ".join(parts) if parts else None
 
 
+WELL_KNOWN_CITIES = [
+    ("SRICITY", "Andhra Pradesh", "SRI"),
+    ("CHENNAI", "Tamil Nadu", "CHE"),
+    ("BANGALORE", "Karnataka", "BLR"),
+    ("HYDERABAD", "Telangana", "HYD"),
+    ("MUMBAI", "Maharashtra", "BOM"),
+    ("DELHI", "Delhi", "DEL"),
+    ("PUNE", "Maharashtra", "PNQ"),
+    ("BHIWANDI", "Maharashtra", "BHI"),
+    ("KANNUR", "Kerala", "KNN"),
+]
+
+
 def _table_exists(session, table_name: str) -> bool:
-    return inspect(session.bind).has_table(table_name)
+    result = session.execute(
+        text(
+            "SELECT EXISTS(SELECT 1 FROM information_schema.tables"
+            " WHERE table_schema='public' AND table_name=:t)"
+        ),
+        {"t": table_name},
+    ).scalar()
+    return bool(result)
+
+
+def _seed_well_known_cities(session) -> None:
+    """Seed the 9 canonical origin/destination cities with fixed short codes."""
+    for name, state, code in WELL_KNOWN_CITIES:
+        row = session.query(CityModel).filter(CityModel.name.ilike(name)).first()
+        if row:
+            continue
+        # Skip if the code is already taken by a different city.
+        if session.query(CityModel).filter(CityModel.code == code).first():
+            continue
+        session.add(CityModel(name=name, state=state, code=code))
+    session.flush()
 
 
 def _resolve_workbook_path() -> Optional[Path]:
@@ -432,11 +557,23 @@ def _upsert_vehicle(session, number: str, vehicle_type: str, owner_id: int) -> V
 
 
 def _upsert_city(session, name: str, state: str) -> CityModel:
-    row = session.query(CityModel).filter(CityModel.name == name).first()
+    # Case-insensitive lookup so "Sricity" and "SRICITY" resolve to the same row.
+    row = (
+        session.query(CityModel)
+        .filter(CityModel.name.ilike(name))
+        .first()
+    )
     if row:
         row.state = state
         return row
-    row = CityModel(name=name, state=state, code=name[:3].upper())
+    # Generate a unique code: try the 3-letter prefix, then append a digit.
+    base = name[:3].upper()
+    code = base
+    suffix = 1
+    while session.query(CityModel).filter(CityModel.code == code).first():
+        code = f"{base}{suffix}"
+        suffix += 1
+    row = CityModel(name=name, state=state, code=code)
     session.add(row)
     session.flush()
     return row
@@ -704,11 +841,7 @@ def _upsert_eway_bill(session, lr: LRModel, scenario: Scenario):
 
     lr.eway_bill_no = row.number
     lr.eway_bill_expiry = expires_at
-    lr.eway_bill = {
-        "number": row.number,
-        "valid_upto": valid_upto.isoformat(),
-        "status": status,
-    }
+    # eway_bill JSONB column removed from LRModel (fix C4) — authoritative data is in eway_bills table
 
 
 def _upsert_vehicle_location(session, lr: LRModel, scenario: Scenario):
@@ -872,6 +1005,7 @@ def _seed(session):
     has_vehicle = table_flags["vehicles"] and table_flags["vendors"]
 
     if has_city:
+        _seed_well_known_cities(session)
         for origin, destination, origin_state, destination_state in ROUTES:
             _upsert_city(session, origin, origin_state)
             _upsert_city(session, destination, destination_state)
@@ -900,7 +1034,8 @@ def _seed(session):
             vehicle = _upsert_vehicle(session, vehicle_number, "TRUCK", vendor.id)
 
         lr_number = f"SEEDLR-{scenario.idx:03d}-{_normalize_lr_no(sample.get('lr_no', ''), scenario.idx)}"
-        freight = (sample["amount"] if sample["amount"] > 0 else Decimal("25000")) + Decimal(str(scenario.idx * 150))
+        goods = _make_goods_items(scenario.idx)
+        freight = Decimal(str(sum(i["freight_rs"] + i["freight_p"] / 100 for i in goods)))
         bill_date = sample["bill_date"] or (scenario.lr_date + timedelta(days=12))
         fy = fy_from_date(scenario.lr_date)
 
@@ -919,10 +1054,10 @@ def _seed(session):
                 "through": "Road",
                 "through_id": None,
                 "fob": "PAID",
-                "goods_items": [{"item": "Electricals", "qty": 1}],
-                "articles_count": 1,
-                "articles_description": "Consumer durables",
-                "weight": Decimal("1000.00"),
+                "goods_items": goods,
+                "articles_count": sum(i["articles_count"] for i in goods),
+                "articles_description": goods[0]["description"],
+                "weight": Decimal(str(sum(i["weight_qtl"] * 100 + i["weight_kg"] for i in goods))),
                 "freight_amount": freight,
                 "status": scenario.lr_status,
                 "vehicle_id": vehicle.id if vehicle else None,
@@ -950,7 +1085,6 @@ def _seed(session):
                 "cm_no": sample["cm_no"] or f"CM{scenario.idx:04d}",
                 "cm_date": sample["cm_date"] or (bill_date + timedelta(days=10)),
                 "remarks": f"{SEED_TAG} {scenario.name}",
-                "eway_bill": None,
                 "pod_url": None,
                 "pod_verified_at": None,
                 "pod_received": False,

@@ -71,7 +71,7 @@ export default function ContractMaster() {
   return (
     <MasterCrudGrid<Contract>
       title="Contract Master"
-      endpoint="/api/contract/"
+      endpoint="/api/contracts/"
       createDraft={() => ({
         name: 'New Contract',
         client_id: null,

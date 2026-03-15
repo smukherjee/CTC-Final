@@ -69,16 +69,12 @@ export default function DispatchRegister() {
 
     const handleSaveLR = (updatedLR: LR) => {
         setRowData(prev => {
-            // Robustly find index by casting both to string
             const index = prev.findIndex(row => String(row.id) === String(updatedLR.id));
             if (index >= 0) {
                 const newData = [...prev];
                 newData[index] = updatedLR;
                 return newData;
             } else {
-                // Should we add it? Only if it's truly new.
-                // If it was supposed to be an update but not found, adding it creates a duplicate visually if the ID logic was wrong.
-                // But here we assume if ID not found, it's new.
                 return [updatedLR, ...prev];
             }
         });
@@ -106,7 +102,25 @@ export default function DispatchRegister() {
     const [fyFilter, setFyFilter] = useState<string>(currentFy);
     const [podFilter] = useState<'ALL' | 'UPLOADED' | 'VERIFIED' | 'MISSING'>('ALL');
 
-
+    // Re-fetch the LR from the backend when the modal closes so any side-effects
+    // (e.g. eway bills added without clicking Save) are reflected in the grid.
+    const handleLrModalOpenChange = useCallback((open: boolean) => {
+        setIsLrModalOpen(open);
+        if (!open && selectedLR) {
+            const lrId = Number(selectedLR.id);
+            if (Number.isFinite(lrId) && lrId > 0) {
+                axios.get(`/api/lr/${lrId}`)
+                    .then(res => {
+                        const fresh = mapApiLrsToUi([res.data], defaultStatus)[0];
+                        setRowData(prev => prev.map(row =>
+                            String(row.id) === String(lrId) ? fresh : row
+                        ));
+                    })
+                    .catch(() => {/* ignore */});
+            }
+            setSelectedLR(null);
+        }
+    }, [selectedLR, defaultStatus]);
 
     useEffect(() => {
         let mounted = true;
@@ -233,7 +247,6 @@ export default function DispatchRegister() {
     // Row styling for alerts
     const getRowClass = useCallback((params: { data?: LR }): string | undefined => {
         const activeEway =
-            params.data?.eway_bill ||
             (Array.isArray(params.data?.eway_bills) ? params.data?.eway_bills[0] : undefined);
         const expiry = activeEway?.expires_at || activeEway?.valid_upto;
         if (activeEway && isEwayExpiringSoon(expiry)) {
@@ -753,7 +766,7 @@ export default function DispatchRegister() {
                 alwaysShowHorizontalScroll={true}
             />
             {/* LR Modal */}
-            <Dialog open={isLrModalOpen} onOpenChange={setIsLrModalOpen}>
+            <Dialog open={isLrModalOpen} onOpenChange={handleLrModalOpenChange}>
                 <DialogContent className="max-w-[95vw] h-[90vh] overflow-hidden p-0">
                     <DialogTitle className="sr-only">Edit Lorry Receipt</DialogTitle>
                     <DialogDescription className="sr-only">Form to create or edit a Lorry Receipt</DialogDescription>

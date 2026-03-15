@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Numeric, Boolean
+from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Numeric, Boolean, func
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import relationship
 from ..db import engine, Base
 
 
@@ -57,7 +58,8 @@ class LRModel(Base):
     cm_no = Column(String(64), nullable=True)
     cm_date = Column(Date, nullable=True)
     remarks = Column(Text, nullable=True)
-    eway_bill = Column(JSONB, nullable=True) # expiry, no, status
+    # eway_bill JSONB deprecated — data migrated to eway_bills table (migration 20260315_07)
+    # Column dropped from ORM; kept in DB until migration runs.
     pod_url = Column(String(1024), nullable=True)
     pod_verified_at = Column(DateTime(timezone=True), nullable=True)
     pod_received = Column(Boolean, nullable=False, default=False)
@@ -72,8 +74,11 @@ class LRModel(Base):
     # FOB client link
     fob_client_id = Column(Integer, nullable=True)
 
-    created_at = Column(DateTime(timezone=True), nullable=True)
-    updated_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+    # Relationships
+    eway_bills = relationship("EWayBillModel", back_populates="lr", cascade="all, delete-orphan")
 
 
 def create_tables():

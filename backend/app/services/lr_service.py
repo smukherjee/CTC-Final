@@ -1,5 +1,8 @@
 from typing import List, Optional
 from datetime import date as dt_date, datetime as dt_datetime, timedelta, timezone
+
+from sqlalchemy.orm import Session
+
 from ..schemas.lr import LRCreate
 from ..models.lr import LRModel
 from ..models.ewaybill import EWayBillModel
@@ -7,8 +10,8 @@ from ..models.file_upload import FileUploadModel
 from ..models.hirememo import HireMemoModel
 from ..models.invoice import InvoiceLineModel
 from ..models.vehicle_location import VehicleLocationModel
-from ..db import SessionLocal
 from ..core.financial_year_utils import fy_from_date as _fy_from_date
+from .audit_service import log_action
 
 
 def _model_to_dict(m: LRModel) -> dict:
@@ -56,7 +59,7 @@ def _model_to_dict(m: LRModel) -> dict:
         'cm_no': m.cm_no,
         'cm_date': m.cm_date.isoformat() if m.cm_date else None,
         'remarks': m.remarks,
-        'eway_bill': m.eway_bill,
+        'eway_bill': None,  # populated by _attach_eway_bills from eway_bills table
         'eway_bills': [],
         'pod_url': m.pod_url,
         'pod_verified_at': m.pod_verified_at.isoformat() if m.pod_verified_at else None,
@@ -67,6 +70,7 @@ def _model_to_dict(m: LRModel) -> dict:
         'financial_year': m.financial_year,
         'fob_client_id': m.fob_client_id,
     }
+
 
 def _map_eway_model(e: EWayBillModel) -> dict:
     return {
@@ -85,7 +89,7 @@ def _map_eway_model(e: EWayBillModel) -> dict:
     }
 
 
-def _attach_eway_bills(db, lr_payloads: List[dict]) -> List[dict]:
+def _attach_eway_bills(db: Session, lr_payloads: List[dict]) -> List[dict]:
     if not lr_payloads:
         return lr_payloads
 
@@ -118,6 +122,14 @@ def _attach_eway_bills(db, lr_payloads: List[dict]) -> List[dict]:
         # Keep backward compatibility for old UI fields.
         if eway_list:
             lr_data['eway_bill'] = eway_list[0]
+            # Sync inline DR-grid fields from the primary (latest) eway bill in the table.
+            primary = eway_list[0]
+            lr_data['eway_bill_no'] = primary.get('number') or lr_data.get('eway_bill_no')
+            lr_data['eway_bill_expiry'] = (
+                primary.get('expires_at')
+                or primary.get('valid_upto')
+                or lr_data.get('eway_bill_expiry')
+            )
         elif not lr_data.get('eway_bill'):
             lr_data['eway_bill'] = None
     return lr_payloads
@@ -160,295 +172,261 @@ def _coerce_lr_payload(payload: dict) -> dict:
     return normalized
 
 
-def create_lr(payload: LRCreate) -> dict:
-    db = SessionLocal()
-    try:
-        payload_dict = _coerce_lr_payload(payload.dict())
-        lr_date = payload_dict.get('date')
-        if not isinstance(lr_date, dt_date):
-            lr_date = dt_date.today()
-        obj = LRModel(
-            lr_number=payload_dict.get('lr_number'),
-            date=payload_dict.get('date'),
-            consignor_id=payload_dict.get('consignor_id'),
-            consignor_name=payload_dict.get('consignor_name'),
-            consignee_id=payload_dict.get('consignee_id'),
-            consignee_name=payload_dict.get('consignee_name'),
-            origin=payload_dict.get('origin'),
-            destination=payload_dict.get('destination'),
-            delivery_at=payload_dict.get('delivery_at'),
-            through=payload_dict.get('through'),
-            through_id=payload_dict.get('through_id'),
-            fob=payload_dict.get('fob'),
-            goods_items=payload_dict.get('goods_items'),
-            articles_count=payload_dict.get('articles_count'),
-            articles_description=payload_dict.get('articles_description'),
-            weight=payload_dict.get('weight'),
-            freight_amount=payload_dict.get('freight_amount'),
-            status=payload_dict.get('status') or 'DRAFT',
-            # Vehicle
-            vehicle_id=payload_dict.get('vehicle_id'),
-            vehicle_number=payload_dict.get('vehicle_number'),
-            vehicle_type=payload_dict.get('vehicle_type'),
-            seal_number=payload_dict.get('seal_number'),
-            driver_name=payload_dict.get('driver_name'),
-            driver_mobile=payload_dict.get('driver_mobile'),
-            # Risk & Logistics
-            booked_on_owners_risk=payload_dict.get('booked_on_owners_risk'),
-            loading_point_times=payload_dict.get('loading_point_times'),
-            # Financials
-            value_rs=payload_dict.get('value_rs'),
-            surcharge=payload_dict.get('surcharge'),
-            hamali_charges=payload_dict.get('hamali_charges'),
-            st_charges=payload_dict.get('st_charges'),
-            total=payload_dict.get('total'),
-            # Dispatch Register
-            bill_number=payload_dict.get('bill_number'),
-            bill_date=payload_dict.get('bill_date'),
-            amount_passed=payload_dict.get('amount_passed'),
-            deductions=payload_dict.get('deductions'),
-            cm_no=payload_dict.get('cm_no'),
-            cm_date=payload_dict.get('cm_date'),
-            remarks=payload_dict.get('remarks'),
-            eway_bill=payload_dict.get('eway_bill'),
-            pod_url=payload_dict.get('pod_url'),
-            pod_verified_at=payload_dict.get('pod_verified_at'),
-            pod_received=payload_dict.get('pod_received', False),
-            pod_file_id=payload_dict.get('pod_file_id'),
-            eway_bill_no=payload_dict.get('eway_bill_no'),
-            eway_bill_expiry=payload_dict.get('eway_bill_expiry'),
-            fob_client_id=payload_dict.get('fob_client_id'),
-            # Always derive FY from LR date to enforce FY-scoped LR creation.
-            financial_year=_fy_from_date(lr_date),
+def create_lr(db: Session, payload: LRCreate) -> dict:
+    payload_dict = _coerce_lr_payload(payload.model_dump())
+    lr_date = payload_dict.get('date')
+    if not isinstance(lr_date, dt_date):
+        lr_date = dt_date.today()
+    obj = LRModel(
+        lr_number=payload_dict.get('lr_number'),
+        date=payload_dict.get('date'),
+        consignor_id=payload_dict.get('consignor_id'),
+        consignor_name=payload_dict.get('consignor_name'),
+        consignee_id=payload_dict.get('consignee_id'),
+        consignee_name=payload_dict.get('consignee_name'),
+        origin=payload_dict.get('origin'),
+        destination=payload_dict.get('destination'),
+        delivery_at=payload_dict.get('delivery_at'),
+        through=payload_dict.get('through'),
+        through_id=payload_dict.get('through_id'),
+        fob=payload_dict.get('fob'),
+        goods_items=payload_dict.get('goods_items'),
+        articles_count=payload_dict.get('articles_count'),
+        articles_description=payload_dict.get('articles_description'),
+        weight=payload_dict.get('weight'),
+        freight_amount=payload_dict.get('freight_amount'),
+        status=payload_dict.get('status') or 'DRAFT',
+        # Vehicle
+        vehicle_id=payload_dict.get('vehicle_id'),
+        vehicle_number=payload_dict.get('vehicle_number'),
+        vehicle_type=payload_dict.get('vehicle_type'),
+        seal_number=payload_dict.get('seal_number'),
+        driver_name=payload_dict.get('driver_name'),
+        driver_mobile=payload_dict.get('driver_mobile'),
+        # Risk & Logistics
+        booked_on_owners_risk=payload_dict.get('booked_on_owners_risk'),
+        loading_point_times=payload_dict.get('loading_point_times'),
+        # Financials
+        value_rs=payload_dict.get('value_rs'),
+        surcharge=payload_dict.get('surcharge'),
+        hamali_charges=payload_dict.get('hamali_charges'),
+        st_charges=payload_dict.get('st_charges'),
+        total=payload_dict.get('total'),
+        # Dispatch Register
+        bill_number=payload_dict.get('bill_number'),
+        bill_date=payload_dict.get('bill_date'),
+        amount_passed=payload_dict.get('amount_passed'),
+        deductions=payload_dict.get('deductions'),
+        cm_no=payload_dict.get('cm_no'),
+        cm_date=payload_dict.get('cm_date'),
+        remarks=payload_dict.get('remarks'),
+        # eway_bill JSONB removed from model — use eway_bills table
+        pod_url=payload_dict.get('pod_url'),
+        pod_verified_at=payload_dict.get('pod_verified_at'),
+        pod_received=payload_dict.get('pod_received', False),
+        pod_file_id=payload_dict.get('pod_file_id'),
+        eway_bill_no=payload_dict.get('eway_bill_no'),
+        eway_bill_expiry=payload_dict.get('eway_bill_expiry'),
+        fob_client_id=payload_dict.get('fob_client_id'),
+        # Always derive FY from LR date to enforce FY-scoped LR creation.
+        financial_year=_fy_from_date(lr_date),
+    )
+    db.add(obj)
+    db.flush()
+    log_action(db, "LR", obj.id, "CREATE", after=_model_to_dict(obj))
+    db.commit()
+    db.refresh(obj)
+    data = _model_to_dict(obj)
+    return _attach_eway_bills(db, [data])[0]
+
+
+def get_all_lrs(db: Session, fy: str = None, client_id: int = None, skip: int = 0, limit: int = 100) -> List[dict]:
+    q = db.query(LRModel)
+    if fy:
+        q = q.filter(LRModel.financial_year == fy)
+    # use fob_client_id since LRModel has no direct client_id column
+    if client_id:
+        q = q.filter(LRModel.fob_client_id == client_id)
+    rows = q.order_by(LRModel.id.desc()).offset(skip).limit(limit).all()
+    payloads = [_model_to_dict(r) for r in rows]
+    return _attach_eway_bills(db, payloads)
+
+
+def get_lr_by_id(db: Session, lr_id: int) -> dict:
+    obj = db.query(LRModel).filter(LRModel.id == lr_id).first()
+    if not obj:
+        return None
+    data = _model_to_dict(obj)
+    return _attach_eway_bills(db, [data])[0]
+
+
+def get_lr_by_number(db: Session, lr_number: str) -> dict:
+    obj = db.query(LRModel).filter(LRModel.lr_number == lr_number).first()
+    if not obj:
+        return None
+    data = _model_to_dict(obj)
+    return _attach_eway_bills(db, [data])[0]
+
+
+def update_lr(db: Session, lr_id: int, payload: dict) -> dict:
+    obj = db.query(LRModel).filter(LRModel.id == lr_id).first()
+    if not obj:
+        return None
+
+    before = _model_to_dict(obj)
+    normalized = _coerce_lr_payload(payload)
+
+    for key, value in normalized.items():
+        if hasattr(obj, key):
+            setattr(obj, key, value)
+
+    log_action(db, "LR", lr_id, "UPDATE", before=before, after=_model_to_dict(obj))
+    db.commit()
+    db.refresh(obj)
+    data = _model_to_dict(obj)
+    return _attach_eway_bills(db, [data])[0]
+
+
+def delete_lr(db: Session, lr_id: int) -> bool:
+    obj = db.query(LRModel).filter(LRModel.id == lr_id).first()
+    if not obj:
+        return False
+
+    linked_invoice_lines = db.query(InvoiceLineModel).filter(InvoiceLineModel.lr_id == lr_id).count()
+    if linked_invoice_lines:
+        raise ValueError(
+            f"Cannot delete LR because it is linked to {linked_invoice_lines} invoice line(s)."
         )
-        db.add(obj)
-        db.commit()
-        db.refresh(obj)
-        data = _model_to_dict(obj)
-        return _attach_eway_bills(db, [data])[0]
-    finally:
-        db.close()
+
+    linked_hirememos = db.query(HireMemoModel).filter(HireMemoModel.lr_id == lr_id).count()
+    if linked_hirememos:
+        raise ValueError(
+            f"Cannot delete LR because it is linked to {linked_hirememos} hire memo(s)."
+        )
+
+    # Cleanup operational children so LR delete does not fail on references.
+    before = _model_to_dict(obj)
+    db.query(VehicleLocationModel).filter(VehicleLocationModel.lr_id == lr_id).delete(synchronize_session=False)
+    db.query(EWayBillModel).filter(EWayBillModel.lr_id == lr_id).delete(synchronize_session=False)
+    db.query(FileUploadModel).filter(FileUploadModel.lr_id == lr_id).delete(synchronize_session=False)
+    db.delete(obj)
+    log_action(db, "LR", lr_id, "DELETE", before=before)
+    db.commit()
+    return True
 
 
-def get_all_lrs(fy: str = None, client_id: int = None) -> List[dict]:
-    db = SessionLocal()
-    try:
-        q = db.query(LRModel)
-        if fy:
-            q = q.filter(LRModel.financial_year == fy)
-        # use fob_client_id since LRModel has no direct client_id column
-        if client_id:
-            q = q.filter(LRModel.fob_client_id == client_id)
-        rows = q.order_by(LRModel.id.desc()).all()
-        payloads = [_model_to_dict(r) for r in rows]
-        return _attach_eway_bills(db, payloads)
-    finally:
-        db.close()
+def verify_lr_pod(db: Session, lr_id: int) -> dict:
+    obj = db.query(LRModel).filter(LRModel.id == lr_id).first()
+    if not obj:
+        return None
+    if not obj.pod_url:
+        raise ValueError("Cannot verify POD because no POD file is uploaded")
+    obj.pod_received = True
+    obj.pod_verified_at = dt_datetime.now(timezone.utc)
+    obj.status = 'POD_VERIFIED'
+    db.commit()
+    db.refresh(obj)
+    data = _model_to_dict(obj)
+    return _attach_eway_bills(db, [data])[0]
 
 
-def get_lr_by_id(lr_id: int) -> dict:
-    db = SessionLocal()
-    try:
-        obj = db.query(LRModel).filter(LRModel.id == lr_id).first()
-        if not obj:
-            return None
-        data = _model_to_dict(obj)
-        return _attach_eway_bills(db, [data])[0]
-    finally:
-        db.close()
-
-
-def get_lr_by_number(lr_number: str) -> dict:
-    db = SessionLocal()
-    try:
-        obj = db.query(LRModel).filter(LRModel.lr_number == lr_number).first()
-        if not obj:
-            return None
-        data = _model_to_dict(obj)
-        return _attach_eway_bills(db, [data])[0]
-    finally:
-        db.close()
-
-
-def update_lr(lr_id: int, payload: dict) -> dict:
-    db = SessionLocal()
-    try:
-        obj = db.query(LRModel).filter(LRModel.id == lr_id).first()
-        if not obj:
-            return None
-
-        normalized = _coerce_lr_payload(payload)
-
-        for key, value in normalized.items():
-            if hasattr(obj, key):
-                setattr(obj, key, value)
-        
-        db.commit()
-        db.refresh(obj)
-        data = _model_to_dict(obj)
-        return _attach_eway_bills(db, [data])[0]
-    finally:
-        db.close()
-
-
-def delete_lr(lr_id: int) -> bool:
-    db = SessionLocal()
-    try:
-        obj = db.query(LRModel).filter(LRModel.id == lr_id).first()
-        if not obj:
-            return False
-
-        linked_invoice_lines = db.query(InvoiceLineModel).filter(InvoiceLineModel.lr_id == lr_id).count()
-        if linked_invoice_lines:
-            raise ValueError(
-                f"Cannot delete LR because it is linked to {linked_invoice_lines} invoice line(s)."
-            )
-
-        linked_hirememos = db.query(HireMemoModel).filter(HireMemoModel.lr_id == lr_id).count()
-        if linked_hirememos:
-            raise ValueError(
-                f"Cannot delete LR because it is linked to {linked_hirememos} hire memo(s)."
-            )
-
-        # Cleanup operational children so LR delete does not fail on references.
-        db.query(VehicleLocationModel).filter(VehicleLocationModel.lr_id == lr_id).delete(synchronize_session=False)
-        db.query(EWayBillModel).filter(EWayBillModel.lr_id == lr_id).delete(synchronize_session=False)
-        db.query(FileUploadModel).filter(FileUploadModel.lr_id == lr_id).delete(synchronize_session=False)
-        db.delete(obj)
-        db.commit()
-        return True
-    finally:
-        db.close()
-
-
-def verify_lr_pod(lr_id: int) -> dict:
-    db = SessionLocal()
-    try:
-        obj = db.query(LRModel).filter(LRModel.id == lr_id).first()
-        if not obj:
-            return None
-        if not obj.pod_url:
-            raise ValueError("Cannot verify POD because no POD file is uploaded")
-        obj.pod_received = True
-        obj.pod_verified_at = dt_datetime.now(timezone.utc)
-        obj.status = 'POD_VERIFIED'
-        db.commit()
-        db.refresh(obj)
-        data = _model_to_dict(obj)
-        return _attach_eway_bills(db, [data])[0]
-    finally:
-        db.close()
-
-
-def patch_lr_eway(lr_id: int, eway_bill_no: str = None, eway_bill_expiry: str = None) -> dict:
+def patch_lr_eway(db: Session, lr_id: int, eway_bill_no: str = None, eway_bill_expiry: str = None) -> dict:
     """Patch inline E-way Bill fields on an LR."""
-    db = SessionLocal()
-    try:
-        obj = db.query(LRModel).filter(LRModel.id == lr_id).first()
-        if not obj:
-            return None
-        if eway_bill_no is not None:
-            obj.eway_bill_no = eway_bill_no
-        if eway_bill_expiry is not None:
-            if isinstance(eway_bill_expiry, str) and eway_bill_expiry.strip():
-                obj.eway_bill_expiry = dt_datetime.fromisoformat(eway_bill_expiry.replace('Z', '+00:00'))
-            elif not eway_bill_expiry:
-                obj.eway_bill_expiry = None
-        db.commit()
-        db.refresh(obj)
-        data = _model_to_dict(obj)
-        return _attach_eway_bills(db, [data])[0]
-    finally:
-        db.close()
+    obj = db.query(LRModel).filter(LRModel.id == lr_id).first()
+    if not obj:
+        return None
+    if eway_bill_no is not None:
+        obj.eway_bill_no = eway_bill_no
+    if eway_bill_expiry is not None:
+        if isinstance(eway_bill_expiry, str) and eway_bill_expiry.strip():
+            obj.eway_bill_expiry = dt_datetime.fromisoformat(eway_bill_expiry.replace('Z', '+00:00'))
+        elif not eway_bill_expiry:
+            obj.eway_bill_expiry = None
+    db.commit()
+    db.refresh(obj)
+    data = _model_to_dict(obj)
+    return _attach_eway_bills(db, [data])[0]
 
 
-def patch_lr_pod(lr_id: int, pod_received: bool, pod_file_id: int = None) -> dict:
+def patch_lr_pod(db: Session, lr_id: int, pod_received: bool, pod_file_id: int = None) -> dict:
     """Patch POD receipt status on an LR."""
-    db = SessionLocal()
-    try:
-        obj = db.query(LRModel).filter(LRModel.id == lr_id).first()
-        if not obj:
-            return None
-        obj.pod_received = pod_received
-        if pod_file_id is not None:
-            obj.pod_file_id = pod_file_id
-        if pod_received:
-            obj.pod_verified_at = dt_datetime.now(timezone.utc)
-            if obj.status in ('POD_UPLOADED', 'DELIVERED', 'DISPATCHED', 'IN_TRANSIT'):
-                obj.status = 'POD_VERIFIED'
-        else:
-            obj.pod_verified_at = None
-            if obj.status == 'POD_VERIFIED':
-                obj.status = 'POD_UPLOADED' if obj.pod_url else 'DELIVERED'
-        db.commit()
-        db.refresh(obj)
-        data = _model_to_dict(obj)
-        return _attach_eway_bills(db, [data])[0]
-    finally:
-        db.close()
+    obj = db.query(LRModel).filter(LRModel.id == lr_id).first()
+    if not obj:
+        return None
+    obj.pod_received = pod_received
+    if pod_file_id is not None:
+        obj.pod_file_id = pod_file_id
+    if pod_received:
+        obj.pod_verified_at = dt_datetime.now(timezone.utc)
+        if obj.status in ('POD_UPLOADED', 'DELIVERED', 'DISPATCHED', 'IN_TRANSIT'):
+            obj.status = 'POD_VERIFIED'
+    else:
+        obj.pod_verified_at = None
+        if obj.status == 'POD_VERIFIED':
+            obj.status = 'POD_UPLOADED' if obj.pod_url else 'DELIVERED'
+    db.commit()
+    db.refresh(obj)
+    data = _model_to_dict(obj)
+    return _attach_eway_bills(db, [data])[0]
 
 
-def get_eway_expiring(hours: int = 8, months: Optional[int] = None) -> List[dict]:
+def get_eway_expiring(db: Session, hours: int = 8, months: Optional[int] = None) -> List[dict]:
     """Return LRs with E-way Bill expiring within the selected time window and POD pending."""
-    db = SessionLocal()
-    try:
-        now_utc = dt_datetime.now(timezone.utc)
-        if months is not None and months > 0:
-            cutoff = now_utc + timedelta(days=31 * months)
-        else:
-            cutoff = now_utc + timedelta(hours=hours)
+    now_utc = dt_datetime.now(timezone.utc)
+    if months is not None and months > 0:
+        cutoff = now_utc + timedelta(days=31 * months)
+    else:
+        cutoff = now_utc + timedelta(hours=hours)
 
-        results: List[dict] = []
-        seen_lr_ids: set[int] = set()
+    results: List[dict] = []
+    seen_lr_ids: set[int] = set()
 
-        # Primary source: normalized E-way bill records table.
-        joined_rows = (
-            db.query(LRModel, EWayBillModel)
-            .join(EWayBillModel, EWayBillModel.lr_id == LRModel.id)
-            .filter(
-                LRModel.pod_received.is_(False),
-                EWayBillModel.expires_at.isnot(None),
-                EWayBillModel.expires_at <= cutoff,
-            )
-            .order_by(EWayBillModel.expires_at.asc(), LRModel.id.asc())
-            .all()
+    # Primary source: normalized E-way bill records table.
+    joined_rows = (
+        db.query(LRModel, EWayBillModel)
+        .join(EWayBillModel, EWayBillModel.lr_id == LRModel.id)
+        .filter(
+            LRModel.pod_received.is_(False),
+            EWayBillModel.expires_at.isnot(None),
+            EWayBillModel.expires_at <= cutoff,
         )
-        for lr, eway in joined_rows:
-            if int(lr.id) in seen_lr_ids:
-                continue
-            payload = _model_to_dict(lr)
-            if not payload.get("eway_bill_no"):
-                payload["eway_bill_no"] = eway.number
-            if not payload.get("eway_bill_expiry"):
-                payload["eway_bill_expiry"] = eway.expires_at.isoformat() if eway.expires_at else None
-            payload["eway_bill"] = _map_eway_model(eway)
-            payload["eway_bills"] = [_map_eway_model(eway)]
-            results.append(payload)
-            seen_lr_ids.add(int(lr.id))
+        .order_by(EWayBillModel.expires_at.asc(), LRModel.id.asc())
+        .all()
+    )
+    for lr, eway in joined_rows:
+        if int(lr.id) in seen_lr_ids:
+            continue
+        payload = _model_to_dict(lr)
+        if not payload.get("eway_bill_no"):
+            payload["eway_bill_no"] = eway.number
+        if not payload.get("eway_bill_expiry"):
+            payload["eway_bill_expiry"] = eway.expires_at.isoformat() if eway.expires_at else None
+        payload["eway_bill"] = _map_eway_model(eway)
+        payload["eway_bills"] = [_map_eway_model(eway)]
+        results.append(payload)
+        seen_lr_ids.add(int(lr.id))
 
-        # Fallback: inline legacy e-way fields on LR rows.
-        lr_ids_with_eway = {
-            int(row[0])
-            for row in db.query(EWayBillModel.lr_id).distinct().all()
-            if row and row[0] is not None
-        }
-        inline_rows = (
-            db.query(LRModel)
-            .filter(
-                LRModel.pod_received.is_(False),
-                LRModel.eway_bill_expiry.isnot(None),
-                LRModel.eway_bill_expiry <= cutoff,
-            )
-            .order_by(LRModel.eway_bill_expiry.asc())
-            .all()
+    # Fallback: inline legacy e-way fields on LR rows.
+    lr_ids_with_eway = {
+        int(row[0])
+        for row in db.query(EWayBillModel.lr_id).distinct().all()
+        if row and row[0] is not None
+    }
+    inline_rows = (
+        db.query(LRModel)
+        .filter(
+            LRModel.pod_received.is_(False),
+            LRModel.eway_bill_expiry.isnot(None),
+            LRModel.eway_bill_expiry <= cutoff,
         )
-        for row in inline_rows:
-            if int(row.id) in lr_ids_with_eway:
-                continue
-            if int(row.id) in seen_lr_ids:
-                continue
-            results.append(_model_to_dict(row))
+        .order_by(LRModel.eway_bill_expiry.asc())
+        .all()
+    )
+    for row in inline_rows:
+        if int(row.id) in lr_ids_with_eway:
+            continue
+        if int(row.id) in seen_lr_ids:
+            continue
+        results.append(_model_to_dict(row))
 
-        return _attach_eway_bills(db, results)
-    finally:
-        db.close()
+    return _attach_eway_bills(db, results)

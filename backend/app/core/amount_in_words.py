@@ -2,6 +2,9 @@
 
 Uses lakh/crore Indian numbering system.
 e.g. inr_words(105000) → 'Rupees One Lakh Five Thousand Only'
+
+Frontend mirror: frontend/src/utils/amountInWords.ts (inrWords)
+Keep both implementations in sync when changing formatting logic.
 """
 from decimal import Decimal
 

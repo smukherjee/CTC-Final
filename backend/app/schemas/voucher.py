@@ -12,7 +12,7 @@ class VoucherResponse(BaseModel):
     amount: float
     narration: Optional[str] = None
     date: date
-    financial_year: Optional[str] = None
+    financial_year: str
     created_at: Optional[datetime] = None
 
     class Config:

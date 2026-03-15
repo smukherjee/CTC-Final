@@ -16,14 +16,15 @@ export interface Client {
     gstin?: string;
     mobile?: string;
     type: ClientType;
+    tds_rate?: number;
 }
 
 export interface Vendor {
     id: string;
     name: string;
+    gstin?: string;
     mobile: string;
     pan?: string;
-    rating?: number;
 }
 
 export type VehicleStatus = 'AVAILABLE' | 'IN_TRANSIT' | 'MAINTENANCE';
@@ -51,23 +52,6 @@ export interface Template {
     name: string;
     description?: string;
     file_url?: string;
-}
-
-export type TripStatus = 'SCHEDULED' | 'IN_TRANSIT' | 'COMPLETED' | 'CANCELLED';
-
-export interface Trip {
-    id: string;
-    trip_id: string; // Readable ID e.g., TRIP-2025-001
-    vehicle_id: string;
-    driver_id?: string;
-    driver_name?: string;
-    driver_mobile?: string;
-    start_date: string; // ISO Date
-    expected_delivery_date: string; // ISO Date
-    origin: string;
-    destination: string;
-    status: TripStatus;
-    lrs: LR[]; // Hydrated LRs for this trip
 }
 
 export type LRStatus = 'DRAFT' | 'DISPATCHED' | 'DELIVERED' | 'POD_UPLOADED' | 'POD_VERIFIED' | 'BILLED';
@@ -111,7 +95,6 @@ export interface LR {
     id: string;
     lr_number: string; // e.g., 49301
     date: string; // ISO Date
-    dispatch_id?: string; // Link to Trip
 
     consignor_id: string;
     consignor_name: string; // Denormalized for Grid Performance
@@ -121,7 +104,7 @@ export interface LR {
     // Locations
     delivery_at?: string; // Specific delivery point
 
-    eway_bill?: EWayBill | null;
+    // eway_bill JSONB deprecated — use eway_bills (from eway_bills table)
     eway_bills?: EWayBill[];
 
     // Goods - Multi-line items

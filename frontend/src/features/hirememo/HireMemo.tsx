@@ -1,10 +1,55 @@
-import { useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import { useEffect } from 'react';
+import { useForm, type Resolver } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import { EMPTY_FORM_OPTIONS, fetchFormOptions, type FormOptions } from '@/config/formOptions';
+import apiClient from '@/lib/apiClient';
+import { EMPTY_FORM_OPTIONS, fetchFormOptions } from '@/config/formOptions';
 import { printHireMemo } from '@/utils/printHireMemo';
 import FileUpload from '@/components/FileUpload';
+import { useState } from 'react';
+
+// ─── Zod schema ──────────────────────────────────────────────────────────────
+
+const hireMemoSchema = z
+  .object({
+    hire_memo_date: z.string().min(1, 'Date is required'),
+    branch: z.string().optional(),
+    vehicle_number: z.string().optional(),
+    driver_name: z.string().optional(),
+    driver_mobile: z.string().optional(),
+    driver_license: z.string().optional(),
+    from_location: z.string().optional(),
+    to_location: z.string().optional(),
+    payment_location: z.string().optional(),
+    rate_type: z.string().optional(),
+    freight_rate: z.coerce.number().min(0, 'Must be ≥ 0').optional().nullable(),
+    freight_weight: z.coerce.number().min(0, 'Must be ≥ 0').optional().nullable(),
+    guaranteed_weight: z.coerce.number().min(0, 'Must be ≥ 0').optional().nullable(),
+    total_amount: z.coerce.number().min(0, 'Total amount must be ≥ 0'),
+    advance_cash: z.coerce.number().min(0, 'Must be ≥ 0').default(0),
+    advance_bank: z.coerce.number().min(0, 'Must be ≥ 0').default(0),
+    advance_payment_date: z.string().optional(),
+    balance_payment_date: z.string().optional(),
+    commission: z.coerce.number().min(0, 'Must be ≥ 0').default(0),
+    other_deductions: z.coerce.number().min(0, 'Must be ≥ 0').default(0),
+    ack_status: z.string().optional(),
+    notes: z.string().optional(),
+  })
+  .refine(
+    (d) =>
+      (Number(d.advance_cash) || 0) + (Number(d.advance_bank) || 0) <=
+      (Number(d.total_amount) || 0),
+    {
+      message: 'Advances cannot exceed total amount',
+      path: ['advance_cash'],
+    },
+  );
+
+type HireMemoValues = z.infer<typeof hireMemoSchema>;
+
+// ─── Exported interface (used by HireMemoRegister) ───────────────────────────
 
 export interface HireMemo {
   id: number;
@@ -37,81 +82,91 @@ export interface HireMemo {
   notes?: string;
 }
 
-export default function HireMemo() {
+// ─── Component ───────────────────────────────────────────────────────────────
+
+export default function HireMemoForm() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryLrId = searchParams.get('lr_id');
-  const activeLrId = queryLrId && queryLrId !== 'undefined' && !isNaN(parseInt(queryLrId, 10))
-    ? parseInt(queryLrId, 10)
-    : undefined;
+  const activeLrId =
+    queryLrId && queryLrId !== 'undefined' && !isNaN(parseInt(queryLrId, 10))
+      ? parseInt(queryLrId, 10)
+      : undefined;
 
   const [loading, setLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [existingMemoId, setExistingMemoId] = useState<number | undefined>(undefined);
-  const [formOptions, setFormOptions] = useState<FormOptions>(EMPTY_FORM_OPTIONS);
-  const [linkedLrNumber, setLinkedLrNumber] = useState<string>('');
-  const [linkedLrDate, setLinkedLrDate] = useState<string>('');
+  const [linkedLrNumber, setLinkedLrNumber] = useState('');
+  const [linkedLrDate, setLinkedLrDate] = useState('');
   const [linkedArticlesCount, setLinkedArticlesCount] = useState<number | undefined>(undefined);
-  const [form, setForm] = useState<Partial<HireMemo>>({
-    lr_id: activeLrId,
-    hire_memo_date: format(new Date(), 'yyyy-MM-dd'),
-    commission: 0,
-    hamali: 0,
-    other_deductions: 0,
-    advance_cash: 0,
-    advance_bank: 0,
-    advance_payment_date: format(new Date(), 'yyyy-MM-dd'),
-    balance_payment_date: format(new Date(), 'yyyy-MM-dd'),
+  const [hamali, setHamali] = useState(0);
+  const [vehicleId, setVehicleId] = useState<number | undefined>(undefined);
+  const [rateTypeOptions, setRateTypeOptions] = useState<string[]>([]);
+  const [hireMemoNo, setHireMemoNo] = useState<string | undefined>(undefined);
+  const [financialYear, setFinancialYear] = useState<string | undefined>(undefined);
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<HireMemoValues>({
+    resolver: zodResolver(hireMemoSchema) as Resolver<HireMemoValues>,
+    defaultValues: {
+      hire_memo_date: format(new Date(), 'yyyy-MM-dd'),
+      commission: 0,
+      other_deductions: 0,
+      advance_cash: 0,
+      advance_bank: 0,
+      advance_payment_date: format(new Date(), 'yyyy-MM-dd'),
+      balance_payment_date: format(new Date(), 'yyyy-MM-dd'),
+      total_amount: 0,
+    },
   });
 
-  const canSave = useMemo(() => Boolean(activeLrId), [activeLrId]);
-  const computedBalance = useMemo(() => {
-    const total = Number(form.total_amount || 0);
-    const cash = Number(form.advance_cash || 0);
-    const bank = Number(form.advance_bank || 0);
-    return (total - cash - bank).toFixed(2);
-  }, [form.total_amount, form.advance_cash, form.advance_bank]);
+  const watchedTotal = watch('total_amount');
+  const watchedCash = watch('advance_cash');
+  const watchedBank = watch('advance_bank');
+  const computedBalance = (
+    Number(watchedTotal || 0) -
+    Number(watchedCash || 0) -
+    Number(watchedBank || 0)
+  ).toFixed(2);
 
+  // Load form options (rate types, defaults)
   useEffect(() => {
-    let mounted = true;
     fetchFormOptions()
       .then((options) => {
-        if (!mounted) return;
-        setFormOptions(options);
-        setForm((prev) => ({
+        setRateTypeOptions(options.hirememo_rate_types ?? []);
+        reset((prev) => ({
           ...prev,
           ack_status: prev.ack_status || options.defaults.hirememo_ack_status,
           rate_type: prev.rate_type || options.defaults.hirememo_rate_type,
         }));
       })
       .catch(() => {
-        if (!mounted) return;
-        setFormOptions(EMPTY_FORM_OPTIONS);
+        setRateTypeOptions(EMPTY_FORM_OPTIONS.hirememo_rate_types ?? []);
       });
-    return () => { mounted = false; };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Load existing memo data when LR changes
   useEffect(() => {
     if (!activeLrId) {
-      // reset states asynchronously to avoid cascading synchronous renders
       setTimeout(() => {
         setExistingMemoId(undefined);
         setLinkedLrNumber('');
         setLinkedLrDate('');
         setLinkedArticlesCount(undefined);
-        setForm((prev) => ({ ...prev, lr_id: undefined }));
       }, 0);
-
       return;
     }
 
     let mounted = true;
-    // defer setting loading to avoid synchronous setState inside effect
     setTimeout(() => { if (mounted) setLoading(true); }, 0);
 
     Promise.all([
-      axios.get(`/api/lr/${activeLrId}`).catch(() => ({ data: null })),
-      axios.get('/api/hirememo/', { params: { lr_id: activeLrId } }).catch(() => ({ data: [] })),
+      apiClient.get(`/api/lr/${activeLrId}`).catch(() => ({ data: null })),
+      apiClient.get('/api/hirememo/', { params: { lr_id: activeLrId } }).catch(() => ({ data: [] })),
     ])
       .then(([lrRes, hmRes]) => {
         if (!mounted) return;
@@ -125,97 +180,98 @@ export default function HireMemo() {
           Number.isFinite(Number(lr?.articles_count)) ? Number(lr.articles_count) : undefined,
         );
         setExistingMemoId(existing?.id);
+        setHamali(Number(lr?.hamali_charges || existing?.hamali || 0));
+        setVehicleId(existing?.vehicle_id ?? lr?.vehicle_id);
 
         if (existing) {
-          setForm({
-            ...existing,
-            lr_id: activeLrId,
+          setHireMemoNo(existing.hire_memo_no);
+          setFinancialYear((existing as any).financial_year);
+          reset({
             hire_memo_date: existing.hire_memo_date || format(new Date(), 'yyyy-MM-dd'),
-            hamali: Number(lr?.hamali_charges || existing.hamali || 0),
+            branch: existing.branch || '',
+            vehicle_number: existing.vehicle_number || '',
+            driver_name: existing.driver_name || '',
+            driver_mobile: existing.driver_mobile || '',
+            driver_license: existing.driver_license || '',
+            from_location: existing.from_location || '',
+            to_location: existing.to_location || '',
+            payment_location: existing.payment_location || '',
+            rate_type: existing.rate_type || '',
+            freight_rate: existing.freight_rate ?? null,
+            freight_weight: existing.freight_weight ?? null,
+            guaranteed_weight: existing.guaranteed_weight ?? null,
+            total_amount: existing.total_amount ?? 0,
+            advance_cash: existing.advance_cash ?? 0,
+            advance_bank: existing.advance_bank ?? 0,
+            advance_payment_date: existing.advance_payment_date || format(new Date(), 'yyyy-MM-dd'),
+            balance_payment_date: existing.balance_payment_date || format(new Date(), 'yyyy-MM-dd'),
+            commission: existing.commission ?? 0,
+            other_deductions: existing.other_deductions ?? 0,
+            ack_status: existing.ack_status || '',
+            notes: existing.notes || '',
           });
         } else {
-          setForm((prev) => ({
+          reset((prev) => ({
             ...prev,
-            lr_id: activeLrId,
             hire_memo_date: format(new Date(), 'yyyy-MM-dd'),
             vehicle_number: lr?.vehicle_number || '',
-            vehicle_id: lr?.vehicle_id,
             driver_name: lr?.driver_name || '',
             driver_mobile: lr?.driver_mobile || '',
             from_location: lr?.origin || '',
             to_location: lr?.destination || '',
             freight_weight: lr?.weight ? Number(lr.weight) / 1000 : 0,
-            hamali: Number(lr?.hamali_charges || 0),
           }));
         }
       })
-      .finally(() => {
-        if (mounted) setLoading(false);
-      });
+      .finally(() => { if (mounted) setLoading(false); });
 
     return () => { mounted = false; };
-  }, [activeLrId]);
+  }, [activeLrId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function updateField(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
-    const { name, value } = e.target;
-    setForm((s) => ({ ...s, [name]: value }));
-  }
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
+  const onSubmit = handleSubmit(async (values) => {
     if (!activeLrId) {
       alert('No valid LR selected. Open Hire Memo from Dispatch Register.');
       return;
     }
-
     const payload = {
-      ...form,
+      ...values,
       lr_id: activeLrId,
-      total_amount: Number(form.total_amount || 0),
-      advance_cash: Number(form.advance_cash || 0),
-      advance_bank: Number(form.advance_bank || 0),
-      advance_payment_date: form.advance_payment_date || null,
-      balance_payment_date: form.balance_payment_date || null,
-      freight_rate: form.freight_rate ? Number(form.freight_rate) : null,
-      freight_weight: form.freight_weight ? Number(form.freight_weight) : null,
-      guaranteed_weight: form.guaranteed_weight ? Number(form.guaranteed_weight) : null,
-      commission: Number(form.commission || 0),
-      hamali: Number(form.hamali || 0),
-      other_deductions: Number(form.other_deductions || 0),
-      vehicle_id: form.vehicle_id ? Number(form.vehicle_id) : null,
+      vehicle_id: vehicleId ?? null,
+      total_amount: Number(values.total_amount || 0),
+      advance_cash: Number(values.advance_cash || 0),
+      advance_bank: Number(values.advance_bank || 0),
+      advance_payment_date: values.advance_payment_date || null,
+      balance_payment_date: values.balance_payment_date || null,
+      freight_rate: values.freight_rate ? Number(values.freight_rate) : null,
+      freight_weight: values.freight_weight ? Number(values.freight_weight) : null,
+      guaranteed_weight: values.guaranteed_weight ? Number(values.guaranteed_weight) : null,
+      commission: Number(values.commission || 0),
+      hamali: hamali,
+      other_deductions: Number(values.other_deductions || 0),
     };
 
-    setIsSaving(true);
-    const request = existingMemoId
-      ? axios.put(`/api/hirememo/${existingMemoId}`, payload)
-      : axios.post('/api/hirememo/', payload);
+    const res = existingMemoId
+      ? await apiClient.put(`/api/hirememo/${existingMemoId}`, payload)
+      : await apiClient.post('/api/hirememo/', payload);
 
-    request
-      .then((r) => {
-        setExistingMemoId(r.data?.id || existingMemoId);
-        alert(existingMemoId ? 'Hire Memo Updated!' : 'Hire Memo Created!');
-        navigate('/operations/dispatch');
-      })
-      .catch((err) => {
-        console.error(err);
-        alert('Failed to save hire memo: ' + (err.response?.data?.detail || err.message));
-      })
-      .finally(() => setIsSaving(false));
-  }
+    setExistingMemoId(res.data?.id || existingMemoId);
+    navigate('/operations/dispatch');
+  });
 
   function handlePrint() {
+    const values = watch();
     printHireMemo({
-      ...form,
+      ...values,
       lr_number: linkedLrNumber,
       lr_date: linkedLrDate,
       articles_count: linkedArticlesCount,
-      total_amount: Number(form.total_amount || 0),
-      advance_cash: Number(form.advance_cash || 0),
-      advance_bank: Number(form.advance_bank || 0),
-      balance: Number(form.balance || 0),
-      freight_weight: form.freight_weight,
-      other_deductions: form.other_deductions,
-      notes: form.notes,
+      total_amount: Number(values.total_amount || 0),
+      advance_cash: Number(values.advance_cash || 0),
+      advance_bank: Number(values.advance_bank || 0),
+      balance: Number(computedBalance),
+      freight_weight: values.freight_weight ?? undefined,
+      other_deductions: values.other_deductions ?? undefined,
+      notes: values.notes,
     });
   }
 
@@ -230,72 +286,141 @@ export default function HireMemo() {
         </div>
       </div>
 
-      <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white p-6 rounded shadow">
+      <form
+        onSubmit={onSubmit}
+        className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white p-6 rounded shadow"
+      >
         <div className="col-span-1">
           <label className="block text-sm font-medium">HM No (Auto)</label>
-          <input value={form.hire_memo_no || 'Auto on Save'} readOnly className="w-full border p-2 rounded bg-slate-50" />
+          <input
+            value={hireMemoNo || 'Auto on Save'}
+            readOnly
+            className="w-full border p-2 rounded bg-slate-50"
+          />
         </div>
         <div className="col-span-1">
           <label htmlFor="hire_memo_date" className="block text-sm font-medium">Date</label>
-          <input id="hire_memo_date" type="date" name="hire_memo_date" value={form.hire_memo_date || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <input
+            id="hire_memo_date"
+            type="date"
+            {...register('hire_memo_date')}
+            className="w-full border p-2 rounded"
+          />
+          {errors.hire_memo_date && (
+            <p className="mt-1 text-xs text-red-600">{errors.hire_memo_date.message}</p>
+          )}
         </div>
         <div className="col-span-1">
           <label className="block text-sm font-medium">Financial Year</label>
-          <input value={(form as any).financial_year || 'Auto'} readOnly className="w-full border p-2 rounded bg-slate-50" />
+          <input
+            value={financialYear || 'Auto'}
+            readOnly
+            className="w-full border p-2 rounded bg-slate-50"
+          />
         </div>
 
         <div className="col-span-1">
           <label htmlFor="branch" className="block text-sm font-medium">Branch</label>
-          <input id="branch" name="branch" value={form.branch || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <input id="branch" {...register('branch')} className="w-full border p-2 rounded" />
         </div>
 
         <div className="col-span-1">
           <label htmlFor="vehicle_number" className="block text-sm font-medium">Vehicle No</label>
-          <input id="vehicle_number" name="vehicle_number" value={form.vehicle_number || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <input
+            id="vehicle_number"
+            {...register('vehicle_number')}
+            className="w-full border p-2 rounded"
+          />
         </div>
         <div className="col-span-1">
           <label htmlFor="driver_name" className="block text-sm font-medium">Driver Name</label>
-          <input id="driver_name" name="driver_name" value={form.driver_name || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <input
+            id="driver_name"
+            {...register('driver_name')}
+            className="w-full border p-2 rounded"
+          />
         </div>
         <div className="col-span-1">
           <label htmlFor="driver_mobile" className="block text-sm font-medium">Driver Mobile</label>
-          <input id="driver_mobile" name="driver_mobile" value={form.driver_mobile || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <input
+            id="driver_mobile"
+            {...register('driver_mobile')}
+            className="w-full border p-2 rounded"
+          />
         </div>
 
         <div className="col-span-1">
           <label htmlFor="from_location" className="block text-sm font-medium">From</label>
-          <input id="from_location" name="from_location" value={form.from_location || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <input
+            id="from_location"
+            {...register('from_location')}
+            className="w-full border p-2 rounded"
+          />
         </div>
         <div className="col-span-1">
           <label htmlFor="to_location" className="block text-sm font-medium">To</label>
-          <input id="to_location" name="to_location" value={form.to_location || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <input
+            id="to_location"
+            {...register('to_location')}
+            className="w-full border p-2 rounded"
+          />
         </div>
         <div className="col-span-1">
           <label htmlFor="payment_location" className="block text-sm font-medium">Payment At</label>
-          <input id="payment_location" name="payment_location" value={form.payment_location || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <input
+            id="payment_location"
+            {...register('payment_location')}
+            className="w-full border p-2 rounded"
+          />
         </div>
 
         <div className="col-span-1">
           <label htmlFor="rate_type" className="block text-sm font-medium">Rate Type</label>
-          <select id="rate_type" name="rate_type" value={form.rate_type || ''} onChange={updateField} className="w-full border p-2 rounded">
+          <select id="rate_type" {...register('rate_type')} className="w-full border p-2 rounded">
             <option value="">Select Rate Type</option>
-            {formOptions.hirememo_rate_types.map((rateType) => (
-              <option key={rateType} value={rateType}>{rateType}</option>
+            {rateTypeOptions.map((rt) => (
+              <option key={rt} value={rt}>{rt}</option>
             ))}
           </select>
         </div>
         <div className="col-span-1">
           <label htmlFor="freight_rate" className="block text-sm font-medium">Rate</label>
-          <input id="freight_rate" type="number" name="freight_rate" value={form.freight_rate || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <input
+            id="freight_rate"
+            type="number"
+            {...register('freight_rate')}
+            className="w-full border p-2 rounded"
+          />
+          {errors.freight_rate && (
+            <p className="mt-1 text-xs text-red-600">{errors.freight_rate.message}</p>
+          )}
         </div>
         <div className="col-span-1">
           <label htmlFor="freight_weight" className="block text-sm font-medium">Weight (MT)</label>
-          <input id="freight_weight" type="number" name="freight_weight" value={form.freight_weight || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <input
+            id="freight_weight"
+            type="number"
+            {...register('freight_weight')}
+            className="w-full border p-2 rounded"
+          />
+          {errors.freight_weight && (
+            <p className="mt-1 text-xs text-red-600">{errors.freight_weight.message}</p>
+          )}
         </div>
 
         <div className="col-span-1">
-          <label htmlFor="total_amount" className="block text-sm font-bold text-blue-600">Total Amount</label>
-          <input id="total_amount" type="number" name="total_amount" value={form.total_amount || ''} onChange={updateField} className="w-full border p-2 rounded font-bold" />
+          <label htmlFor="total_amount" className="block text-sm font-bold text-blue-600">
+            Total Amount
+          </label>
+          <input
+            id="total_amount"
+            type="number"
+            {...register('total_amount')}
+            className="w-full border p-2 rounded font-bold"
+          />
+          {errors.total_amount && (
+            <p className="mt-1 text-xs text-red-600">{errors.total_amount.message}</p>
+          )}
         </div>
         <div className="col-span-1">
           <label className="block text-sm font-medium">Balance</label>
@@ -303,34 +428,81 @@ export default function HireMemo() {
         </div>
         <div className="col-span-1">
           <label htmlFor="advance_cash" className="block text-sm font-medium">Advance Cash</label>
-          <input id="advance_cash" type="number" name="advance_cash" value={form.advance_cash || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <input
+            id="advance_cash"
+            type="number"
+            {...register('advance_cash')}
+            className="w-full border p-2 rounded"
+          />
+          {errors.advance_cash && (
+            <p className="mt-1 text-xs text-red-600">{errors.advance_cash.message}</p>
+          )}
         </div>
         <div className="col-span-1">
           <label htmlFor="advance_bank" className="block text-sm font-medium">Advance Bank</label>
-          <input id="advance_bank" type="number" name="advance_bank" value={form.advance_bank || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <input
+            id="advance_bank"
+            type="number"
+            {...register('advance_bank')}
+            className="w-full border p-2 rounded"
+          />
+          {errors.advance_bank && (
+            <p className="mt-1 text-xs text-red-600">{errors.advance_bank.message}</p>
+          )}
         </div>
         <div className="col-span-1">
-          <label htmlFor="advance_payment_date" className="block text-sm font-medium">Advance Pay Date</label>
-          <input id="advance_payment_date" type="date" name="advance_payment_date" value={form.advance_payment_date || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <label htmlFor="advance_payment_date" className="block text-sm font-medium">
+            Advance Pay Date
+          </label>
+          <input
+            id="advance_payment_date"
+            type="date"
+            {...register('advance_payment_date')}
+            className="w-full border p-2 rounded"
+          />
         </div>
         <div className="col-span-1">
-          <label htmlFor="balance_payment_date" className="block text-sm font-medium">Balance Pay Date</label>
-          <input id="balance_payment_date" type="date" name="balance_payment_date" value={form.balance_payment_date || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <label htmlFor="balance_payment_date" className="block text-sm font-medium">
+            Balance Pay Date
+          </label>
+          <input
+            id="balance_payment_date"
+            type="date"
+            {...register('balance_payment_date')}
+            className="w-full border p-2 rounded"
+          />
         </div>
 
         <div className="col-span-1">
           <label htmlFor="commission" className="block text-sm font-medium">Commission</label>
-          <input id="commission" type="number" name="commission" value={form.commission || ''} onChange={updateField} className="w-full border p-2 rounded" />
+          <input
+            id="commission"
+            type="number"
+            {...register('commission')}
+            className="w-full border p-2 rounded"
+          />
+          {errors.commission && (
+            <p className="mt-1 text-xs text-red-600">{errors.commission.message}</p>
+          )}
         </div>
         <div className="col-span-1">
-          <label htmlFor="hamali" className="block text-sm font-medium">Hamali</label>
-          <input id="hamali" type="number" name="hamali" value={form.hamali || ''} readOnly className="w-full border p-2 rounded bg-slate-50" />
+          <label className="block text-sm font-medium">Hamali</label>
+          <input
+            value={hamali}
+            readOnly
+            className="w-full border p-2 rounded bg-slate-50"
+          />
           <p className="mt-1 text-xs text-slate-500">Linked from the LR Hamali Charges field.</p>
         </div>
 
         <div className="col-span-3">
           <label htmlFor="notes" className="block text-sm font-medium">Notes</label>
-          <textarea id="notes" name="notes" value={form.notes || ''} onChange={updateField} className="w-full border p-2 rounded" rows={3} />
+          <textarea
+            id="notes"
+            {...register('notes')}
+            className="w-full border p-2 rounded"
+            rows={3}
+          />
         </div>
 
         <div className="col-span-3 border-t border-slate-200 pt-4">
@@ -343,21 +515,27 @@ export default function HireMemo() {
         </div>
 
         <div className="col-span-3 mt-4 flex justify-end gap-2">
-          <button type="button" onClick={() => navigate('/operations/dispatch')} className="px-4 py-2 border rounded">Cancel</button>
+          <button
+            type="button"
+            onClick={() => navigate('/operations/dispatch')}
+            className="px-4 py-2 border rounded"
+          >
+            Cancel
+          </button>
           <button
             type="button"
             onClick={handlePrint}
-            disabled={!canSave}
+            disabled={!activeLrId}
             className="px-4 py-2 border rounded bg-white disabled:opacity-60"
           >
             Print
           </button>
           <button
             type="submit"
-            disabled={!canSave || loading || isSaving}
+            disabled={!activeLrId || loading || isSubmitting}
             className="px-6 py-2 bg-blue-900 text-white rounded hover:bg-blue-800 disabled:opacity-60"
           >
-            {isSaving ? 'Saving...' : existingMemoId ? 'Update Hire Memo' : 'Save Hire Memo'}
+            {isSubmitting ? 'Saving...' : existingMemoId ? 'Update Hire Memo' : 'Save Hire Memo'}
           </button>
         </div>
       </form>

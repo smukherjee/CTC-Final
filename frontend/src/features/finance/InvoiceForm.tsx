@@ -1,9 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useForm, type Resolver } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { generateFyDropdownOptions, getCurrentFy } from '@/utils/financialYear';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
-
+import apiClient from '@/lib/apiClient';
 import { printInvoice } from '@/utils/printInvoice';
+
+// ─── Zod schema ──────────────────────────────────────────────────────────────
+
+const invoiceHeaderSchema = z.object({
+  financial_year: z.string().min(1, 'Financial year is required'),
+  invoice_date: z.string().min(1, 'Invoice date is required'),
+  client_id: z.string().min(1, 'Client is required'),
+  po_no: z.string().optional(),
+  po_date: z.string().optional(),
+  tds_amount: z.coerce.number().min(0, 'TDS must be ≥ 0'),
+});
+
+type InvoiceHeaderValues = z.infer<typeof invoiceHeaderSchema>;
+
+// ─── Local types ─────────────────────────────────────────────────────────────
 
 interface ClientItem {
   id: number;
@@ -44,113 +61,127 @@ interface InvoiceLineDraft {
 }
 
 function lineTotal(line: InvoiceLineDraft): number {
-  return Number(line.freight || 0)
-    + Number(line.loading_detention || 0)
-    + Number(line.unloading_charges || 0)
-    + Number(line.unloading_detention || 0)
-    + Number(line.other_charges || 0);
+  return (
+    Number(line.freight || 0) +
+    Number(line.loading_detention || 0) +
+    Number(line.unloading_charges || 0) +
+    Number(line.unloading_detention || 0) +
+    Number(line.other_charges || 0)
+  );
 }
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function InvoiceForm() {
   const currentFy = getCurrentFy();
   const fyOptions = generateFyDropdownOptions(currentFy);
-  const [fy, setFy] = useState(currentFy);
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
-  const [clientId, setClientId] = useState('');
-  const [poNo, setPoNo] = useState('');
-  const [poDate, setPoDate] = useState('');
-  const [tdsAmount, setTdsAmount] = useState(0);
+  const navigate = useNavigate();
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<InvoiceHeaderValues>({
+    resolver: zodResolver(invoiceHeaderSchema) as Resolver<InvoiceHeaderValues>,
+    defaultValues: {
+      financial_year: currentFy,
+      invoice_date: new Date().toISOString().slice(0, 10),
+      client_id: '',
+      po_no: '',
+      po_date: '',
+      tds_amount: 0,
+    },
+  });
+
+  const watchedFy = watch('financial_year');
+  const watchedClientId = watch('client_id');
+  const watchedTds = watch('tds_amount');
 
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [lrs, setLrs] = useState<LrItem[]>([]);
   const [selectedLrIds, setSelectedLrIds] = useState<number[]>([]);
   const [lines, setLines] = useState<InvoiceLineDraft[]>([]);
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    axios.get('/api/clients/')
-      .then((res) => {
-        const data = Array.isArray(res.data) ? res.data : [];
-        setClients(data.map((client: any) => ({
+    apiClient.get('/api/clients/').then((res) => {
+      const data = Array.isArray(res.data) ? res.data : [];
+      setClients(
+        data.map((client: any) => ({
           id: Number(client.id),
           name: String(client.name || client.client_name || `Client ${client.id}`),
           address: client.address || '',
           gstin: client.gstin || '',
-        })));
-      })
-      .catch((err) => {
-        console.error('Failed to load Clients', err);
-      });
+        })),
+      );
+    });
   }, []);
 
   useEffect(() => {
-    const params: any = { fy };
-    if (clientId) params.client_id = clientId;
-    axios.get('/api/lr/', { params })
-      .then((res) => {
-        const data = Array.isArray(res.data) ? res.data : [];
-        setLrs(data);
-      })
-      .catch((err) => {
-        console.error('Failed to load LRs', err);
-        setLrs([]);
-      });
-  }, [fy, clientId]);
+    const params: any = { fy: watchedFy };
+    if (watchedClientId) params.client_id = watchedClientId;
+    apiClient
+      .get('/api/lr/', { params })
+      .then((res) => setLrs(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setLrs([]));
+  }, [watchedFy, watchedClientId]);
 
   useEffect(() => {
-    const selectedLrs = lrs.filter((lr) => selectedLrIds.includes(Number(lr.id)));
-    setLines(selectedLrs.map((lr, index) => ({
-      lr_id: Number(lr.id),
-      s_no: index + 1,
-      lr_no: String(lr.lr_number || ''),
-      lr_date: String(lr.date || ''),
-      v_type: String(lr.vehicle_type || ''),
-      vehicle_no: String(lr.vehicle_number || ''),
-      consignor: String(lr.consignor_name || ''),
-      consignee: String(lr.consignee_name || ''),
-      from_city: String(lr.origin || ''),
-      to_city: String(lr.destination || ''),
-      freight: Number(lr.freight_amount || 0),
-      loading_detention: 0,
-      unloading_charges: 0,
-      unloading_detention: 0,
-      other_charges: 0,
-    })));
+    const selected = lrs.filter((lr) => selectedLrIds.includes(Number(lr.id)));
+    setLines(
+      selected.map((lr, index) => ({
+        lr_id: Number(lr.id),
+        s_no: index + 1,
+        lr_no: String(lr.lr_number || ''),
+        lr_date: String(lr.date || ''),
+        v_type: String(lr.vehicle_type || ''),
+        vehicle_no: String(lr.vehicle_number || ''),
+        consignor: String(lr.consignor_name || ''),
+        consignee: String(lr.consignee_name || ''),
+        from_city: String(lr.origin || ''),
+        to_city: String(lr.destination || ''),
+        freight: Number(lr.freight_amount || 0),
+        loading_detention: 0,
+        unloading_charges: 0,
+        unloading_detention: 0,
+        other_charges: 0,
+      })),
+    );
   }, [selectedLrIds, lrs]);
 
-  const totalAmount = useMemo(() => lines.reduce((sum, line) => sum + lineTotal(line), 0), [lines]);
-  const netAmount = useMemo(() => totalAmount - Number(tdsAmount || 0), [totalAmount, tdsAmount]);
-
+  const totalAmount = useMemo(
+    () => lines.reduce((sum, line) => sum + lineTotal(line), 0),
+    [lines],
+  );
+  const netAmount = useMemo(
+    () => totalAmount - Number(watchedTds || 0),
+    [totalAmount, watchedTds],
+  );
   const selectedClient = useMemo(
-    () => clients.find((client) => client.id === Number(clientId)),
-    [clients, clientId],
+    () => clients.find((c) => c.id === Number(watchedClientId)),
+    [clients, watchedClientId],
   );
 
-  const toggleLr = (id: number) => {
-    setSelectedLrIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  };
+  const toggleLr = (id: number) =>
+    setSelectedLrIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
 
-  const updateLine = (index: number, key: keyof InvoiceLineDraft, value: number) => {
-    setLines((prev) => prev.map((line, idx) => (idx === index ? { ...line, [key]: Number(value || 0) } : line)));
-  };
+  const updateLine = (index: number, key: keyof InvoiceLineDraft, value: number) =>
+    setLines((prev) =>
+      prev.map((line, idx) => (idx === index ? { ...line, [key]: Number(value || 0) } : line)),
+    );
 
-  const navigate = useNavigate();
-
-  const handlePrint = async () => {
-    // create record then open printer view (stay on form)
-    if (!Number(clientId) || lines.length === 0) {
-      alert('Select client and at least one LR');
-      return;
-    }
-
-    const payload = {
-      invoice_date: invoiceDate,
-      client_id: Number(clientId),
-      financial_year: fy,
-      po_no: poNo || null,
-      po_date: poDate || null,
+  function buildPayload(values: InvoiceHeaderValues) {
+    return {
+      invoice_date: values.invoice_date,
+      client_id: Number(values.client_id),
+      financial_year: values.financial_year,
+      po_no: values.po_no || null,
+      po_date: values.po_date || null,
       total_amount: totalAmount,
-      tds_amount: Number(tdsAmount || 0),
+      tds_amount: Number(values.tds_amount || 0),
       lines: lines.map((line) => ({
         ...line,
         qty: 1,
@@ -158,90 +189,69 @@ export default function InvoiceForm() {
         total: lineTotal(line),
       })),
     };
+  }
 
-    setSaving(true);
-    try {
-      const res = await axios.post('/api/billing/invoices/', payload);
-      const invoice = res.data;
-      printInvoice({
-        invoice_no: invoice.invoice_no,
-        invoice_date: invoice.invoice_date,
-        po_no: invoice.po_no || '',
-        po_date: invoice.po_date || '',
-        hsn_code: invoice.hsn_code || '996791',
-        client_name: selectedClient?.name || '',
-        client_address: selectedClient?.address || '',
-        client_gstin: selectedClient?.gstin || '',
-        reverse_charge: Boolean(invoice.reverse_charge),
-        gst_paid_by: invoice.gst_paid_by || '',
-        total_amount: Number(invoice.total_amount || 0),
-        tds_amount: Number(invoice.tds_amount || 0),
-        net_amount: Number(invoice.net_amount || 0),
-        lines: (invoice.lines || []).map((line: any) => ({
-          s_no: line.s_no,
-          lr_no: line.lr_no,
-          lr_date: line.lr_date,
-          qty: Number(line.qty || 0),
-          particulars: line.particulars || 'Transport Service',
-          v_type: line.v_type,
-          vehicle_no: line.vehicle_no,
-          consignor: line.consignor,
-          consignee: line.consignee,
-          from_city: line.from_city,
-          to_city: line.to_city,
-          freight: Number(line.freight || 0),
-          loading_detention: Number(line.loading_detention || 0),
-          unloading_charges: Number(line.unloading_charges || 0),
-          unloading_detention: Number(line.unloading_detention || 0),
-          other_charges: Number(line.other_charges || 0),
-          total: Number(line.total || 0),
-        })),
-      });
-    } catch (err: any) {
-      alert(`Failed to create/print invoice: ${err?.response?.data?.detail || err?.message || 'Unknown error'}`);
-    } finally {
-      setSaving(false);
+  function validateLines(): boolean {
+    if (lines.length === 0) {
+      setError('client_id', { message: 'Select at least one LR to generate invoice lines' });
+      return false;
     }
-  };
+    return true;
+  }
 
-  const handleSave = async () => {
-    if (!Number(clientId) || lines.length === 0) {
-      alert('Select client and at least one LR');
-      return;
-    }
+  const onSave = handleSubmit(async (values) => {
+    if (!validateLines()) return;
+    await apiClient.post('/api/billing/invoices/', buildPayload(values));
+    navigate('/finance/invoices');
+  });
 
-    const payload = {
-      invoice_date: invoiceDate,
-      client_id: Number(clientId),
-      financial_year: fy,
-      po_no: poNo || null,
-      po_date: poDate || null,
-      total_amount: totalAmount,
-      tds_amount: Number(tdsAmount || 0),
-      lines: lines.map((line) => ({
-        ...line,
-        qty: 1,
-        particulars: 'Transport Service',
-        total: lineTotal(line),
+  const onPrint = handleSubmit(async (values) => {
+    if (!validateLines()) return;
+    const res = await apiClient.post('/api/billing/invoices/', buildPayload(values));
+    const invoice = res.data;
+    printInvoice({
+      invoice_no: invoice.invoice_no,
+      invoice_date: invoice.invoice_date,
+      po_no: invoice.po_no || '',
+      po_date: invoice.po_date || '',
+      hsn_code: invoice.hsn_code || '996791',
+      client_name: selectedClient?.name || '',
+      client_address: selectedClient?.address || '',
+      client_gstin: selectedClient?.gstin || '',
+      reverse_charge: Boolean(invoice.reverse_charge),
+      gst_paid_by: invoice.gst_paid_by || '',
+      total_amount: Number(invoice.total_amount || 0),
+      tds_amount: Number(invoice.tds_amount || 0),
+      net_amount: Number(invoice.net_amount || 0),
+      lines: (invoice.lines || []).map((line: any) => ({
+        s_no: line.s_no,
+        lr_no: line.lr_no,
+        lr_date: line.lr_date,
+        qty: Number(line.qty || 0),
+        particulars: line.particulars || 'Transport Service',
+        v_type: line.v_type,
+        vehicle_no: line.vehicle_no,
+        consignor: line.consignor,
+        consignee: line.consignee,
+        from_city: line.from_city,
+        to_city: line.to_city,
+        freight: Number(line.freight || 0),
+        loading_detention: Number(line.loading_detention || 0),
+        unloading_charges: Number(line.unloading_charges || 0),
+        unloading_detention: Number(line.unloading_detention || 0),
+        other_charges: Number(line.other_charges || 0),
+        total: Number(line.total || 0),
       })),
-    };
-
-    setSaving(true);
-    try {
-      await axios.post('/api/billing/invoices/', payload);
-      navigate('/finance/invoices');
-    } catch (err: any) {
-      alert(`Failed to save invoice: ${err?.response?.data?.detail || err?.message || 'Unknown error'}`);
-    } finally {
-      setSaving(false);
-    }
-  };
+    });
+  });
 
   return (
     <div className="space-y-4">
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-slate-900">Invoice Form</h2>
-        <p className="text-sm text-slate-500">Create invoice from selected LRs and print using invoice template.</p>
+        <p className="text-sm text-slate-500">
+          Create invoice from selected LRs and print using invoice template.
+        </p>
         <Link to="/finance/invoices" className="mt-2 inline-block text-sm text-blue-700 hover:underline">
           Back to Invoice Register
         </Link>
@@ -250,11 +260,7 @@ export default function InvoiceForm() {
       <div className="grid grid-cols-1 gap-3 rounded border bg-white p-4 md:grid-cols-6">
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600">FY</label>
-          <select
-            value={fy}
-            onChange={(e) => setFy(e.target.value)}
-            className="w-full rounded border px-2 py-2"
-          >
+          <select {...register('financial_year')} className="w-full rounded border px-2 py-2">
             {fyOptions.map((opt) => (
               <option key={opt} value={opt}>{opt}</option>
             ))}
@@ -262,24 +268,30 @@ export default function InvoiceForm() {
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600">Invoice Date</label>
-          <input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} className="w-full rounded border px-2 py-2" />
+          <input type="date" {...register('invoice_date')} className="w-full rounded border px-2 py-2" />
+          {errors.invoice_date && (
+            <p className="mt-1 text-xs text-red-600">{errors.invoice_date.message}</p>
+          )}
         </div>
         <div className="md:col-span-2">
           <label className="mb-1 block text-xs font-medium text-slate-600">Client</label>
-          <select value={clientId} onChange={(e) => setClientId(e.target.value)} className="w-full rounded border px-2 py-2">
+          <select {...register('client_id')} className="w-full rounded border px-2 py-2">
             <option value="">Select client</option>
             {clients.map((client) => (
               <option key={client.id} value={client.id}>{client.name}</option>
             ))}
           </select>
+          {errors.client_id && (
+            <p className="mt-1 text-xs text-red-600">{errors.client_id.message}</p>
+          )}
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600">PO No</label>
-          <input value={poNo} onChange={(e) => setPoNo(e.target.value)} className="w-full rounded border px-2 py-2" />
+          <input {...register('po_no')} className="w-full rounded border px-2 py-2" />
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600">PO Date</label>
-          <input type="date" value={poDate} onChange={(e) => setPoDate(e.target.value)} className="w-full rounded border px-2 py-2" />
+          <input type="date" {...register('po_date')} className="w-full rounded border px-2 py-2" />
         </div>
       </div>
 
@@ -293,7 +305,9 @@ export default function InvoiceForm() {
                 checked={selectedLrIds.includes(Number(lr.id))}
                 onChange={() => toggleLr(Number(lr.id))}
               />
-              <span>{lr.lr_number || `LR ${lr.id}`} | {lr.origin || '-'} to {lr.destination || '-'}</span>
+              <span>
+                {lr.lr_number || `LR ${lr.id}`} | {lr.origin || '-'} to {lr.destination || '-'}
+              </span>
             </label>
           ))}
         </div>
@@ -320,11 +334,46 @@ export default function InvoiceForm() {
                 <td className="px-2 py-2">{line.lr_no}</td>
                 <td className="px-2 py-2">{line.from_city}</td>
                 <td className="px-2 py-2">{line.to_city}</td>
-                <td className="px-2 py-2"><input type="number" value={line.freight} onChange={(e) => updateLine(idx, 'freight', Number(e.target.value))} className="w-24 rounded border px-2 py-1" /></td>
-                <td className="px-2 py-2"><input type="number" value={line.loading_detention} onChange={(e) => updateLine(idx, 'loading_detention', Number(e.target.value))} className="w-24 rounded border px-2 py-1" /></td>
-                <td className="px-2 py-2"><input type="number" value={line.unloading_charges} onChange={(e) => updateLine(idx, 'unloading_charges', Number(e.target.value))} className="w-24 rounded border px-2 py-1" /></td>
-                <td className="px-2 py-2"><input type="number" value={line.unloading_detention} onChange={(e) => updateLine(idx, 'unloading_detention', Number(e.target.value))} className="w-24 rounded border px-2 py-1" /></td>
-                <td className="px-2 py-2"><input type="number" value={line.other_charges} onChange={(e) => updateLine(idx, 'other_charges', Number(e.target.value))} className="w-24 rounded border px-2 py-1" /></td>
+                <td className="px-2 py-2">
+                  <input
+                    type="number"
+                    value={line.freight}
+                    onChange={(e) => updateLine(idx, 'freight', Number(e.target.value))}
+                    className="w-24 rounded border px-2 py-1"
+                  />
+                </td>
+                <td className="px-2 py-2">
+                  <input
+                    type="number"
+                    value={line.loading_detention}
+                    onChange={(e) => updateLine(idx, 'loading_detention', Number(e.target.value))}
+                    className="w-24 rounded border px-2 py-1"
+                  />
+                </td>
+                <td className="px-2 py-2">
+                  <input
+                    type="number"
+                    value={line.unloading_charges}
+                    onChange={(e) => updateLine(idx, 'unloading_charges', Number(e.target.value))}
+                    className="w-24 rounded border px-2 py-1"
+                  />
+                </td>
+                <td className="px-2 py-2">
+                  <input
+                    type="number"
+                    value={line.unloading_detention}
+                    onChange={(e) => updateLine(idx, 'unloading_detention', Number(e.target.value))}
+                    className="w-24 rounded border px-2 py-1"
+                  />
+                </td>
+                <td className="px-2 py-2">
+                  <input
+                    type="number"
+                    value={line.other_charges}
+                    onChange={(e) => updateLine(idx, 'other_charges', Number(e.target.value))}
+                    className="w-24 rounded border px-2 py-1"
+                  />
+                </td>
                 <td className="px-2 py-2 font-semibold">{lineTotal(line).toFixed(2)}</td>
               </tr>
             ))}
@@ -333,37 +382,40 @@ export default function InvoiceForm() {
       </div>
 
       <div className="flex items-center justify-end gap-4 rounded border bg-white p-4">
-        <div className="text-sm">Total: <span className="font-semibold">{totalAmount.toFixed(2)}</span></div>
+        <div className="text-sm">
+          Total: <span className="font-semibold">{totalAmount.toFixed(2)}</span>
+        </div>
         <div className="flex items-center gap-2 text-sm">
           <span>TDS:</span>
           <input
             type="number"
-            value={tdsAmount}
-            onChange={(e) => setTdsAmount(Number(e.target.value || 0))}
+            {...register('tds_amount')}
             className="w-28 rounded border px-2 py-1"
           />
+          {errors.tds_amount && (
+            <span className="text-xs text-red-600">{errors.tds_amount.message}</span>
+          )}
         </div>
-        <div className="text-sm">Net: <span className="font-semibold">{netAmount.toFixed(2)}</span></div>
+        <div className="text-sm">
+          Net: <span className="font-semibold">{netAmount.toFixed(2)}</span>
+        </div>
         <button
           type="button"
-          onClick={handleSave}
-          disabled={saving}
+          onClick={onSave}
+          disabled={isSubmitting}
           className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60"
         >
-          {saving ? 'Saving...' : 'Save'}
+          {isSubmitting ? 'Saving...' : 'Save'}
         </button>
         <button
           type="button"
-          onClick={handlePrint}
-          disabled={saving}
+          onClick={onPrint}
+          disabled={isSubmitting}
           className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-60"
         >
-          {saving ? 'Processing...' : 'Print'}
+          {isSubmitting ? 'Processing...' : 'Print'}
         </button>
-        <Link
-          to="/finance/invoices"
-          className="px-4 py-2 border rounded text-sm"
-        >
+        <Link to="/finance/invoices" className="rounded border px-4 py-2 text-sm">
           Cancel
         </Link>
       </div>

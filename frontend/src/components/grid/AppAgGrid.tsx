@@ -46,6 +46,7 @@ interface AppAgGridProps<T> {
   showExportCsv?: boolean;
   exportFileName?: string;
   suppressClickEdit?: boolean;
+  domLayout?: 'normal' | 'autoHeight' | 'print';
 }
 
 function escapeOverlayText(value: string): string {
@@ -105,6 +106,7 @@ export default function AppAgGrid<T>({
   showExportCsv = true,
   exportFileName,
   suppressClickEdit = false,
+  domLayout = 'normal',
 }: AppAgGridProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<AgGridReact<T>>(null);
@@ -242,7 +244,7 @@ export default function AppAgGrid<T>({
           </button>
         </div>
       )}
-      <div ref={containerRef} className={`h-[500px] min-h-[500px] rounded-lg overflow-hidden border border-slate-200 ag-theme-alpine dispatch-grid ${className || ''}`}>
+      <div ref={containerRef} className={`${domLayout === 'autoHeight' ? 'min-h-[100px]' : 'h-[500px] min-h-[500px] overflow-hidden'} rounded-lg border border-slate-200 ag-theme-alpine dispatch-grid ${className || ''}`}>
         <style>{`
         .eway-expiry-warning {
           background-color: #fef2f2 !important;
@@ -293,6 +295,7 @@ export default function AppAgGrid<T>({
           enableCellTextSelection={enableCellTextSelection}
           ensureDomOrder={ensureDomOrder}
           suppressClickEdit={suppressClickEdit}
+          domLayout={domLayout}
           pagination={pagination}
           paginationPageSize={paginationPageSize}
           paginationPageSizeSelector={pagination ? paginationPageSizeSelector : undefined}

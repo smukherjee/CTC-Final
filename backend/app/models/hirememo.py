@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Numeric, DateTime, func, Date
+from sqlalchemy import Column, ForeignKey, Integer, String, Text, Numeric, DateTime, func, Date
 from ..db import engine, Base
 
 
@@ -6,8 +6,8 @@ class HireMemoModel(Base):
     __tablename__ = "hirememos"
 
     id = Column(Integer, primary_key=True, index=True)
-    lr_id = Column(Integer, nullable=False)
-    total_amount = Column(Numeric(12, 2), nullable=False, default=0)
+    lr_id = Column(Integer, ForeignKey("lrs.id"), nullable=False)
+    total_amount = Column(Numeric(12, 2), nullable=True, default=0)
     advance_cash = Column(Numeric(12, 2), nullable=True, default=0)
     advance_bank = Column(Numeric(12, 2), nullable=True, default=0)
     # new payment tracking
@@ -44,7 +44,7 @@ class HireMemoModel(Base):
     mamul = Column(Numeric(12, 2), nullable=True, default=0)
     other_deductions = Column(Numeric(12, 2), nullable=True, default=0)
 
-    ack_status = Column(String(32), nullable=False, default='PENDING')
+    ack_status = Column(String(32), nullable=True, default='PENDING')
     notes = Column(Text, nullable=True)
 
     # Financial year scoping

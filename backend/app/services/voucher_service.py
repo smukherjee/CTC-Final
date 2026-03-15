@@ -1,7 +1,8 @@
 from datetime import date
 from typing import List, Optional
 
-from ..db import SessionLocal
+from sqlalchemy.orm import Session
+
 from ..core.financial_year_utils import fy_from_date as _fy_from_date
 from ..models.voucher import VoucherModel
 
@@ -102,17 +103,13 @@ def sync_hirememo_advance_vouchers(
     )
 
 
-def list_vouchers(book: Optional[str] = None, fy: Optional[str] = None) -> List[dict]:
-    session = SessionLocal()
-    try:
-        query = session.query(VoucherModel)
-        if fy:
-            query = query.filter(VoucherModel.financial_year == fy)
-        if book == "cash":
-            query = query.filter(VoucherModel.voucher_type.ilike("cash_%"))
-        elif book == "bank":
-            query = query.filter(VoucherModel.voucher_type.ilike("bank_%"))
-        rows = query.order_by(VoucherModel.date.asc(), VoucherModel.id.asc()).all()
-        return [_to_dict(row) for row in rows]
-    finally:
-        session.close()
+def list_vouchers(db: Session, book: Optional[str] = None, fy: Optional[str] = None) -> List[dict]:
+    query = db.query(VoucherModel)
+    if fy:
+        query = query.filter(VoucherModel.financial_year == fy)
+    if book == "cash":
+        query = query.filter(VoucherModel.voucher_type.ilike("cash_%"))
+    elif book == "bank":
+        query = query.filter(VoucherModel.voucher_type.ilike("bank_%"))
+    rows = query.order_by(VoucherModel.date.asc(), VoucherModel.id.asc()).all()
+    return [_to_dict(row) for row in rows]

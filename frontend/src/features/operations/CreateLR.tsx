@@ -810,26 +810,24 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                                 )}
                             </div>
 
-                            <div className="h-64">
-                                <AppAgGrid<GoodsLineItem>
-                                    rowData={goodsItems}
-                                    columnDefs={colDefs}
-                                    defaultColDef={{ sortable: false, resizable: true }}
-                                    rowSelection={{
-                                        mode: 'singleRow',
-                                        enableClickSelection: false,
-                                        checkboxes: false,
-                                    }}
-
-                                    editType="fullRow"
-                                    stopEditingWhenCellsLoseFocus={true}
-                                    onCellValueChanged={onCellValueChanged}
-                                    pagination={false}
-                                    fitColumns={false}
-                                    alwaysShowHorizontalScroll={true}
-                                    className="h-full !min-h-0 rounded-md"
-                                />
-                            </div>
+                            <AppAgGrid<GoodsLineItem>
+                                rowData={goodsItems}
+                                columnDefs={colDefs}
+                                defaultColDef={{ sortable: false, resizable: true }}
+                                rowSelection={{
+                                    mode: 'singleRow',
+                                    enableClickSelection: false,
+                                    checkboxes: false,
+                                }}
+                                domLayout="autoHeight"
+                                editType="fullRow"
+                                stopEditingWhenCellsLoseFocus={true}
+                                onCellValueChanged={onCellValueChanged}
+                                pagination={false}
+                                fitColumns={false}
+                                alwaysShowHorizontalScroll={true}
+                                showExportCsv={false}
+                            />
                         </div>
 
                         {/* 4. Transport & Loading */}

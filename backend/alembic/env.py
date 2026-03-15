@@ -43,6 +43,7 @@ from app.models import (
     invoice,
     payment_receipt,
     voucher,
+    audit_log,
 )
 target_metadata = Base.metadata
 

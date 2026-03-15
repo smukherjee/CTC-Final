@@ -38,6 +38,7 @@ class PaymentReceiptUpdate(BaseModel):
 
 class PaymentReceiptResponse(PaymentReceiptBase):
     id: int
+    financial_year: str
     created_at: Optional[datetime] = None
 
     class Config:

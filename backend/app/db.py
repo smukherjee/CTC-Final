@@ -9,4 +9,16 @@ engine = create_engine(DATABASE_URL, echo=True, future=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-__all__ = ["engine", "SessionLocal", "Base"]
+from typing import Generator
+
+
+def get_db() -> Generator:
+    """FastAPI dependency that yields a DB session and ensures cleanup."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+__all__ = ["engine", "SessionLocal", "Base", "get_db"]
