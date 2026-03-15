@@ -34,6 +34,14 @@ export function mapApiLrToUi(it: any, defaultStatus = ''): LR {
     hamali_charges: it.hamali_charges || 0,
     st_charges: it.st_charges || 0,
     total: it.total || 0,
+    lr_deductions: Array.isArray(it.lr_deductions)
+      ? it.lr_deductions.map((d: any) => ({
+        id: d.id,
+        deduction_label: d.deduction_label || d.deduction_name || '',
+        deduction_amount: Number(d.deduction_amount ?? d.amount ?? 0),
+        sort_order: d.sort_order != null ? Number(d.sort_order) : undefined,
+      }))
+      : [],
     delivery_at: it.delivery_at || '',
     booked_on_owners_risk: it.booked_on_owners_risk || false,
     loading_point_times: it.loading_point_times || {},

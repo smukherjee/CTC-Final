@@ -18,9 +18,12 @@ paths:
         - name: client_id
           in: query
           schema: { type: integer }
-        - name: status
+        - name: skip
           in: query
-          schema: { type: string, enum: [draft, issued, partially_paid, paid] }
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 100 }
       responses:
         "200":
           description: Invoice list
@@ -41,19 +44,19 @@ paths:
             schema:
               $ref: "#/components/schemas/InvoiceCreate"
       responses:
-        "201":
+        "200":
           description: Created
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/InvoiceResponse"
 
-  /api/billing/invoices/{id}:
+  /api/billing/invoices/{invoice_id}:
     get:
       summary: Get invoice by id
       operationId: getInvoice
       parameters:
-        - name: id
+        - name: invoice_id
           in: path
           required: true
           schema: { type: integer }
@@ -69,7 +72,7 @@ paths:
       summary: Update invoice header values
       operationId: updateInvoice
       parameters:
-        - name: id
+        - name: invoice_id
           in: path
           required: true
           schema: { type: integer }
@@ -87,12 +90,30 @@ paths:
               schema:
                 $ref: "#/components/schemas/InvoiceResponse"
 
-  /api/billing/invoices/{id}/print-data:
+    delete:
+      summary: Delete invoice
+      operationId: deleteInvoice
+      parameters:
+        - name: invoice_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+
+  /api/billing/invoices/{invoice_id}/print-data:
     get:
       summary: Get invoice print payload
       operationId: getInvoicePrintData
       parameters:
-        - name: id
+        - name: invoice_id
           in: path
           required: true
           schema: { type: integer }

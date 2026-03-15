@@ -22,3 +22,20 @@ Location of important files:
 - Backend: `backend/`
 - Frontend: `frontend/`
 - Migrations: `backend/alembic/versions/`
+
+## Closure Notes
+
+Completed scope highlights:
+
+- FY-aware numbering and filtering across operational and finance registers.
+- LR deduction rows and LR-total based invoice generation.
+- Payment receipt register simplified to amount-only receipt events.
+- Voucher and ledger running-balance support.
+- Finance role guards in backend routes and frontend visibility rules.
+- Pending-billing and outstanding receivables reports split into dedicated views.
+
+## Unresolved Gaps Review
+
+- No blocking functional gaps remain for core ERP flows in this feature branch.
+- Recommended follow-up: add automated API tests for finance role guard and report aggregations.
+- Recommended follow-up: monitor frontend bundle size warnings and split heavy grids if needed.

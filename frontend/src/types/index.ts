@@ -91,6 +91,13 @@ export interface LoadingPointTimes {
     out_time?: string;
 }
 
+export interface LRDeduction {
+    id?: number;
+    deduction_label: string;
+    deduction_amount: number;
+    sort_order?: number;
+}
+
 export interface LR {
     id: string;
     lr_number: string; // e.g., 49301
@@ -133,6 +140,7 @@ export interface LR {
     hamali_charges?: number;
     st_charges?: number;
     total?: number; // Auto-calculated
+    lr_deductions?: LRDeduction[];
 
     // Origin/Destination (for dispatch register)
     origin: string;

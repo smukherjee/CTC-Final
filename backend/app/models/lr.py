@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Numeric, Boolean, func
+from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Numeric, Boolean, ForeignKey, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from ..db import engine, Base
@@ -79,6 +79,21 @@ class LRModel(Base):
 
     # Relationships
     eway_bills = relationship("EWayBillModel", back_populates="lr", cascade="all, delete-orphan")
+    lr_deductions = relationship("LRDeductionModel", back_populates="lr", cascade="all, delete-orphan")
+
+
+class LRDeductionModel(Base):
+    __tablename__ = 'lr_deductions'
+
+    id = Column(Integer, primary_key=True, index=True)
+    lr_id = Column(Integer, ForeignKey('lrs.id', ondelete='CASCADE'), nullable=False, index=True)
+    deduction_label = Column(String(128), nullable=False)
+    deduction_amount = Column(Numeric(12, 2), nullable=False, default=0)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+    lr = relationship("LRModel", back_populates="lr_deductions")
 
 
 def create_tables():

@@ -141,3 +141,37 @@
 ### Manual Verification
 - **Printing:** Generate a PDF LR and inspect alignment.
 - **Data Load:** Upload a sample Tally Excel export and verify fields match.
+
+## Transition Runbook (Parallel Manual Books)
+
+Use this runbook for the first 2 to 4 weeks after go-live.
+
+### Daily Operating Sequence
+
+1. Create LR, Hire Memo, Invoice, and Payment Receipt entries in CTC-ERP first.
+2. Record the same transaction in legacy/manual books on the same day.
+3. At day end, reconcile these checkpoints:
+    - LR count and LR totals by FY/date
+    - Invoice gross/net and outstanding
+    - Payment receipt event amounts
+4. Record mismatch reasons in a shared discrepancy log.
+
+### Reconciliation Rules
+
+- CTC-ERP is source of truth for sequencing (`invoice_no`, `hirememo_number`) once go-live starts.
+- Manual books remain audit backup during transition only.
+- Do not back-date sequence numbers to match legacy format; add notes instead.
+
+### Roles During Transition
+
+- Operations: LR, POD, and hire memo parity checks.
+- Accounts: invoice, receipt, and outstanding parity checks.
+- Admin: approves corrections and daily sign-off.
+
+### Exit Criteria
+
+Transition can close when all of the following hold for 5 consecutive working days:
+
+- No unresolved high-impact mismatch.
+- Daily discrepancy count <= 2 and all are closed same day.
+- Team sign-off from Operations and Accounts.

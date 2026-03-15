@@ -3,6 +3,31 @@ from typing import List, Optional, Any
 from datetime import date
 
 
+class LRDeductionItem(BaseModel):
+    deduction_label: str
+    deduction_amount: float
+    sort_order: Optional[int] = 0
+
+    @model_validator(mode='before')
+    @classmethod
+    def normalize_legacy_keys(cls, data):
+        if isinstance(data, dict):
+            payload = dict(data)
+            if payload.get('deduction_label') in (None, '') and payload.get('deduction_name') not in (None, ''):
+                payload['deduction_label'] = payload.get('deduction_name')
+            if payload.get('deduction_amount') is None and payload.get('amount') is not None:
+                payload['deduction_amount'] = payload.get('amount')
+            return payload
+        return data
+
+    @field_validator('deduction_amount', mode='before')
+    @classmethod
+    def non_negative_deduction(cls, v):
+        if v is not None and float(v) < 0:
+            raise ValueError('Deduction amount must be non-negative')
+        return v
+
+
 class GoodsLineItem(BaseModel):
     id: str
     articles_count: int
@@ -75,6 +100,7 @@ class LRCreate(BaseModel):
     # Inline E-way bill
     eway_bill_no: Optional[str] = None
     eway_bill_expiry: Optional[str] = None
+    lr_deductions: Optional[List[LRDeductionItem]] = None
 
     @field_validator('weight', 'freight_amount', 'value_rs', 'surcharge',
                      'hamali_charges', 'st_charges', 'total', 'amount_passed',
@@ -153,6 +179,7 @@ class LRUpdate(BaseModel):
     pod_file_id: Optional[int] = None
     eway_bill_no: Optional[str] = None
     eway_bill_expiry: Optional[str] = None
+    lr_deductions: Optional[List[LRDeductionItem]] = None
 
 
 class LREwayBillPatch(BaseModel):

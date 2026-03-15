@@ -39,7 +39,7 @@ interface LrItem {
   consignee_name?: string;
   origin?: string;
   destination?: string;
-  freight_amount?: number;
+  total?: number;
 }
 
 interface InvoiceLineDraft {
@@ -53,21 +53,11 @@ interface InvoiceLineDraft {
   consignee: string;
   from_city: string;
   to_city: string;
-  freight: number;
-  loading_detention: number;
-  unloading_charges: number;
-  unloading_detention: number;
-  other_charges: number;
+  line_amount: number;
 }
 
 function lineTotal(line: InvoiceLineDraft): number {
-  return (
-    Number(line.freight || 0) +
-    Number(line.loading_detention || 0) +
-    Number(line.unloading_charges || 0) +
-    Number(line.unloading_detention || 0) +
-    Number(line.other_charges || 0)
-  );
+  return Number(line.line_amount || 0);
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -167,11 +157,7 @@ export default function InvoiceForm() {
             consignee: String(line.consignee || ''),
             from_city: String(line.from_city || ''),
             to_city: String(line.to_city || ''),
-            freight: Number(line.freight || 0),
-            loading_detention: Number(line.loading_detention || 0),
-            unloading_charges: Number(line.unloading_charges || 0),
-            unloading_detention: Number(line.unloading_detention || 0),
-            other_charges: Number(line.other_charges || 0),
+            line_amount: Number(line.line_amount ?? line.total ?? 0),
           })),
         );
       })
@@ -221,7 +207,7 @@ export default function InvoiceForm() {
         consignee_name: line.consignee,
         origin: line.from_city,
         destination: line.to_city,
-        freight_amount: line.freight,
+        total: line.line_amount,
       });
     });
     return Array.from(byId.values());
@@ -249,21 +235,10 @@ export default function InvoiceForm() {
         consignee: String(lr.consignee_name || ''),
         from_city: String(lr.origin || ''),
         to_city: String(lr.destination || ''),
-        freight: Number(lr.freight_amount || 0),
-        loading_detention: 0,
-        unloading_charges: 0,
-        unloading_detention: 0,
-        other_charges: 0,
+        line_amount: Number(lr.total || 0),
       }];
       return next.map((line, index) => ({ ...line, s_no: index + 1 }));
     });
-  };
-
-  const updateLine = (index: number, key: keyof InvoiceLineDraft, value: number) => {
-    if (isPaidInvoice) return;
-    setLines((prev) =>
-      prev.map((line, idx) => (idx === index ? { ...line, [key]: Number(value || 0) } : line)),
-    );
   };
 
   const removeLine = (index: number) => {
@@ -281,11 +256,8 @@ export default function InvoiceForm() {
       total_amount: totalAmount,
       tds_amount: Number(values.tds_amount || 0),
       lines: lines.map((line) => ({
-        ...line,
+        lr_id: Number(line.lr_id),
         s_no: Number(line.s_no || 0),
-        qty: 1,
-        particulars: 'Transport Service',
-        total: lineTotal(line),
       })),
     };
   }
@@ -310,10 +282,13 @@ export default function InvoiceForm() {
 
   const onPrint = handleSubmit(async (values) => {
     if (!validateLines()) return;
-    const res = isEditMode
+    const savedRes = isEditMode
       ? await apiClient.put(`/api/billing/invoices/${invoiceIdNum}`, buildPayload(values))
       : await apiClient.post('/api/billing/invoices/', buildPayload(values));
-    const invoice = res.data;
+    const invoiceId = Number(savedRes.data?.id);
+    const printRes = await apiClient.get(`/api/billing/invoices/${invoiceId}/print-data`);
+    const payload = printRes.data || {};
+    const invoice = payload.invoice || {};
     printInvoice({
       invoice_no: invoice.invoice_no,
       invoice_date: invoice.invoice_date,
@@ -323,16 +298,17 @@ export default function InvoiceForm() {
       client_name: selectedClient?.name || '',
       client_address: selectedClient?.address || '',
       client_gstin: selectedClient?.gstin || '',
-      reverse_charge: Boolean(invoice.reverse_charge),
+      reverse_charge: Boolean(invoice.tax_on_reverse_charge ?? invoice.reverse_charge),
       gst_paid_by: invoice.gst_paid_by || '',
       total_amount: Number(invoice.total_amount || 0),
       tds_amount: Number(invoice.tds_amount || 0),
       net_amount: Number(invoice.net_amount || 0),
+      less_lines: Array.isArray(payload.less_lines) ? payload.less_lines : [],
       lines: (invoice.lines || []).map((line: any) => ({
         s_no: line.s_no,
         lr_no: line.lr_no,
         lr_date: line.lr_date,
-        qty: Number(line.qty || 0),
+        qty: Number(line.qty || 1),
         particulars: line.particulars || 'Transport Service',
         v_type: line.v_type,
         vehicle_no: line.vehicle_no,
@@ -340,11 +316,11 @@ export default function InvoiceForm() {
         consignee: line.consignee,
         from_city: line.from_city,
         to_city: line.to_city,
-        freight: Number(line.freight || 0),
-        loading_detention: Number(line.loading_detention || 0),
-        unloading_charges: Number(line.unloading_charges || 0),
-        unloading_detention: Number(line.unloading_detention || 0),
-        other_charges: Number(line.other_charges || 0),
+        freight: Number(line.total || 0),
+        loading_detention: 0,
+        unloading_charges: 0,
+        unloading_detention: 0,
+        other_charges: 0,
         total: Number(line.total || 0),
       })),
     });
@@ -442,12 +418,7 @@ export default function InvoiceForm() {
               <th className="px-2 py-2 text-left">LR</th>
               <th className="px-2 py-2 text-left">From</th>
               <th className="px-2 py-2 text-left">To</th>
-              <th className="px-2 py-2 text-left">Freight</th>
-              <th className="px-2 py-2 text-left">Load Det.</th>
-              <th className="px-2 py-2 text-left">Unload Chg</th>
-              <th className="px-2 py-2 text-left">Unload Det.</th>
-              <th className="px-2 py-2 text-left">Other</th>
-              <th className="px-2 py-2 text-left">Total</th>
+              <th className="px-2 py-2 text-left">Line Amount (LR Total)</th>
               <th className="px-2 py-2 text-left">Action</th>
             </tr>
           </thead>
@@ -457,51 +428,6 @@ export default function InvoiceForm() {
                 <td className="px-2 py-2">{line.lr_no}</td>
                 <td className="px-2 py-2">{line.from_city}</td>
                 <td className="px-2 py-2">{line.to_city}</td>
-                <td className="px-2 py-2">
-                  <input
-                    type="number"
-                    value={line.freight}
-                    onChange={(e) => updateLine(idx, 'freight', Number(e.target.value))}
-                    disabled={isPaidInvoice}
-                    className="w-24 rounded border px-2 py-1 disabled:bg-slate-100"
-                  />
-                </td>
-                <td className="px-2 py-2">
-                  <input
-                    type="number"
-                    value={line.loading_detention}
-                    onChange={(e) => updateLine(idx, 'loading_detention', Number(e.target.value))}
-                    disabled={isPaidInvoice}
-                    className="w-24 rounded border px-2 py-1 disabled:bg-slate-100"
-                  />
-                </td>
-                <td className="px-2 py-2">
-                  <input
-                    type="number"
-                    value={line.unloading_charges}
-                    onChange={(e) => updateLine(idx, 'unloading_charges', Number(e.target.value))}
-                    disabled={isPaidInvoice}
-                    className="w-24 rounded border px-2 py-1 disabled:bg-slate-100"
-                  />
-                </td>
-                <td className="px-2 py-2">
-                  <input
-                    type="number"
-                    value={line.unloading_detention}
-                    onChange={(e) => updateLine(idx, 'unloading_detention', Number(e.target.value))}
-                    disabled={isPaidInvoice}
-                    className="w-24 rounded border px-2 py-1 disabled:bg-slate-100"
-                  />
-                </td>
-                <td className="px-2 py-2">
-                  <input
-                    type="number"
-                    value={line.other_charges}
-                    onChange={(e) => updateLine(idx, 'other_charges', Number(e.target.value))}
-                    disabled={isPaidInvoice}
-                    className="w-24 rounded border px-2 py-1 disabled:bg-slate-100"
-                  />
-                </td>
                 <td className="px-2 py-2 font-semibold">{lineTotal(line).toFixed(2)}</td>
                 <td className="px-2 py-2">
                   <button

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..db import get_db
+from .security import require_finance_role
 from ..schemas.payment_receipt import (
     PaymentReceiptCreate,
     PaymentReceiptResponse,
@@ -16,7 +17,7 @@ from ..services.payment_receipt_service import (
     update,
 )
 
-router = APIRouter(prefix="/payment-receipts", tags=["payment-receipts"])
+router = APIRouter(prefix="/payment-receipts", tags=["payment-receipts"], dependencies=[Depends(require_finance_role)])
 
 
 @router.get("/", response_model=List[PaymentReceiptResponse])

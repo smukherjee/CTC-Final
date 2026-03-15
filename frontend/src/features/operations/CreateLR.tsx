@@ -55,6 +55,13 @@ interface CreateLRProps {
     onSave?: (lr: LR) => void;
 }
 
+interface LRDeductionRow {
+    id?: number;
+    deduction_label: string;
+    deduction_amount: number;
+    sort_order?: number;
+}
+
 export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave }: CreateLRProps) {
     const { lrId: paramLrId } = useParams();
     // Prioritize prop (modal mode), fallback to param (route mode)
@@ -77,6 +84,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
         freight_p: 0,
     }]);
     const [status, setStatus] = useState<string>('');
+    const [lrDeductions, setLrDeductions] = useState<LRDeductionRow[]>([]);
     const [formOptions, setFormOptions] = useState<FormOptions>(EMPTY_FORM_OPTIONS);
     const [resolvedLrId, setResolvedLrId] = useState<number | null>(null);
 
@@ -264,6 +272,16 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                         freight_rs: 0,
                         freight_p: 0,
                     }]);
+                    setLrDeductions(
+                        Array.isArray(lrData?.lr_deductions)
+                            ? lrData.lr_deductions.map((d: any) => ({
+                                id: typeof d?.id === 'number' ? d.id : undefined,
+                                deduction_label: String(d?.deduction_label || d?.deduction_name || ''),
+                                deduction_amount: toNumber(d?.deduction_amount ?? d?.amount),
+                                sort_order: toNumber(d?.sort_order),
+                            }))
+                            : []
+                    );
                     setStatus(lrData?.status || draftStatus);
                     const dbId = toNumber(lrData?.id);
                     setResolvedLrId(dbId > 0 ? dbId : null);
@@ -367,24 +385,40 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
         setGoodsItems(prev => prev.map(g => g.id === item.id ? { ...item } : g));
     }, [toNumber]);
 
+    const addDeductionRow = useCallback(() => {
+        if (isReadOnly) return;
+        setLrDeductions((prev) => [...prev, { deduction_label: '', deduction_amount: 0, sort_order: prev.length }]);
+    }, [isReadOnly]);
+
+    const updateDeductionRow = useCallback((index: number, patch: Partial<LRDeductionRow>) => {
+        setLrDeductions((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+    }, []);
+
+    const removeDeductionRow = useCallback((index: number) => {
+        if (isReadOnly) return;
+        setLrDeductions((prev) => prev.filter((_, i) => i !== index));
+    }, [isReadOnly]);
+
     // --- Calculations ---
 
-    const { goodsValue, total, articlesCount, totalWeight, totalFreight } = useMemo(() => {
+    const { goodsValue, total, articlesCount, totalWeight, totalFreight, totalDeduction } = useMemo(() => {
         const goodsVal = goodsItems.reduce((sum, item) => {
             return sum + toNumber(item.freight_rs) + (toNumber(item.freight_p) / 100);
         }, 0);
         const sur = toNumber(watch('surcharge'));
         const ham = toNumber(watch('hamali_charges'));
         const st = toNumber(watch('st_charges'));
+        const ded = lrDeductions.reduce((sum, row) => sum + toNumber(row.deduction_amount), 0);
 
         return {
             goodsValue: goodsVal,
-            total: goodsVal + sur + ham + st,
+            total: goodsVal + sur + ham + st - ded,
             articlesCount: goodsItems.reduce((sum, item) => sum + toNumber(item.articles_count), 0),
             totalWeight: goodsItems.reduce((sum, item) => sum + toNumber(item.weight_kg) + (toNumber(item.weight_qtl) * 100), 0),
-            totalFreight: goodsVal
+            totalFreight: goodsVal,
+            totalDeduction: ded,
         };
-    }, [goodsItems, toNumber, watch('surcharge'), watch('hamali_charges'), watch('st_charges')]);
+    }, [goodsItems, lrDeductions, toNumber, watch('surcharge'), watch('hamali_charges'), watch('st_charges')]);
 
     // --- Submit Handler ---
 
@@ -415,6 +449,14 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
             articles_description: goodsItems[0]?.description || '',
             through: (data as any).through,
             through_id: (data as any).through_id, // Keep as is, let validation handle it
+            lr_deductions: lrDeductions
+                .filter((row) => String(row.deduction_label || '').trim() || toNumber(row.deduction_amount) > 0)
+                .map((row, index) => ({
+                    id: row.id,
+                    deduction_label: String(row.deduction_label || '').trim(),
+                    deduction_amount: toNumber(row.deduction_amount),
+                    sort_order: Number.isFinite(toNumber(row.sort_order)) ? toNumber(row.sort_order) : index,
+                })) as any,
         };
 
         // Helper to parse number strictly or return null
@@ -468,7 +510,8 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                 freight_rs: Number(item.freight_rs || 0),
                 freight_p: Number(item.freight_p || 0),
                 remarks: (item as any).remarks, // Include remarks if present
-            }))
+            })),
+            lr_deductions: (fullLR as any).lr_deductions,
         };
 
         // Standard submission handling
@@ -528,6 +571,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
             consignor_name: getConsignorName(data.consignor_id),
             consignee_name: getConsigneeName(data.consignee_id),
             goods_items: goodsItems,
+            lr_deductions: lrDeductions,
             value_rs: goodsValue,
             total: total,
         };
@@ -952,6 +996,54 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                                             disabled={isReadOnly}
                                             className="w-32 px-2 py-1 text-right border border-slate-200 rounded"
                                         />
+                                    </div>
+                                    <div className="space-y-2 border rounded-md border-slate-200 p-3 bg-slate-50">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-sm font-medium text-slate-700">LR Deductions</label>
+                                            {!isReadOnly && (
+                                                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={addDeductionRow}>
+                                                    <Plus size={12} /> Add Deduction
+                                                </Button>
+                                            )}
+                                        </div>
+                                        {lrDeductions.length === 0 && (
+                                            <p className="text-xs text-slate-500">No deductions added</p>
+                                        )}
+                                        {lrDeductions.map((row, index) => (
+                                            <div key={`${row.id ?? 'new'}-${index}`} className="grid grid-cols-[1fr_120px_40px] gap-2 items-center">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Deduction reason"
+                                                    value={row.deduction_label}
+                                                    disabled={isReadOnly}
+                                                    onChange={(e) => updateDeductionRow(index, { deduction_label: e.target.value })}
+                                                    className="px-2 py-1 border border-slate-200 rounded text-sm"
+                                                />
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    value={row.deduction_amount}
+                                                    disabled={isReadOnly}
+                                                    onChange={(e) => updateDeductionRow(index, { deduction_amount: toNumber(e.target.value) })}
+                                                    className="px-2 py-1 border border-slate-200 rounded text-sm text-right"
+                                                />
+                                                {!isReadOnly && (
+                                                    <button
+                                                        type="button"
+                                                        className="inline-flex h-8 w-8 items-center justify-center rounded text-red-600 hover:bg-red-100"
+                                                        onClick={() => removeDeductionRow(index)}
+                                                        aria-label="Delete deduction row"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                        <div className="flex justify-between text-sm font-medium pt-1 border-t border-slate-200">
+                                            <span className="text-slate-600">Total Deductions</span>
+                                            <span className="text-slate-900">-₹{totalDeduction.toFixed(2)}</span>
+                                        </div>
                                     </div>
                                     <div className="flex items-center justify-between gap-4 pt-3 border-t border-slate-100">
                                         <label className="font-bold text-slate-900">Grand Total</label>

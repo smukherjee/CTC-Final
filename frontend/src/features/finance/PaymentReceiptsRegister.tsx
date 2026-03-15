@@ -14,13 +14,10 @@ interface PaymentReceiptRow {
   invoice_id?: number | null;
   received_from_id?: number | null;
   received_from: string;
-  total_billed_amount: number;
-  tds_deducted: number;
-  net_amount: number;
-  other_deduction: number;
-  deduction_remarks?: string | null;
+  amount: number;
   payment_mode: string;
   financial_year: string;
+  notes?: string | null;
 }
 
 interface ClientOption {
@@ -47,13 +44,10 @@ function normalizePaymentReceiptRow(row: Record<string, unknown>): PaymentReceip
     invoice_id: row?.invoice_id != null ? Number(row.invoice_id) : null,
     received_from_id: row?.received_from_id != null ? Number(row.received_from_id) : null,
     received_from: String(row?.received_from || ''),
-    total_billed_amount: Number(row?.total_billed_amount || 0),
-    tds_deducted: Number(row?.tds_deducted || 0),
-    net_amount: Number(row?.net_amount || 0),
-    other_deduction: Number(row?.other_deduction || 0),
-    deduction_remarks: row?.deduction_remarks ? String(row.deduction_remarks) : null,
+    amount: Number((row?.amount ?? row?.net_amount) || 0),
     payment_mode: String(row?.payment_mode || 'BANK'),
     financial_year: String(row?.financial_year || ''),
+    notes: row?.notes ? String(row.notes) : null,
   };
 }
 
@@ -90,10 +84,8 @@ export default function PaymentReceiptsRegister() {
     payment_date: new Date().toISOString().slice(0, 10),
     invoice_id: '',
     received_from_id: '',
-    total_billed_amount: '',
-    tds_deducted: '0',
-    other_deduction: '0',
-    deduction_remarks: '',
+    amount: '',
+    notes: '',
     payment_mode: 'BANK',
   });
 
@@ -178,13 +170,6 @@ export default function PaymentReceiptsRegister() {
     return mapping;
   }, [invoices]);
 
-  const computedNetAmount = useMemo(() => {
-    const totalBilledAmount = Number(form.total_billed_amount || 0);
-    const tdsDeducted = Number(form.tds_deducted || 0);
-    const otherDeduction = Number(form.other_deduction || 0);
-    return totalBilledAmount - tdsDeducted - otherDeduction;
-  }, [form.other_deduction, form.tds_deducted, form.total_billed_amount]);
-
   const filteredInvoices = useMemo(() => {
     const customerId = Number(form.received_from_id || 0);
     return invoices.filter((invoice) => {
@@ -203,11 +188,9 @@ export default function PaymentReceiptsRegister() {
     setForm((prev) => ({
       ...prev,
       received_from_id: String(selectedInvoice.client_id),
-      total_billed_amount: selectedInvoice.outstanding_amount != null
+      amount: selectedInvoice.outstanding_amount != null
         ? String(Number(selectedInvoice.outstanding_amount).toFixed(2))
-        : prev.total_billed_amount,
-      tds_deducted: '0',
-      other_deduction: '0',
+        : prev.amount,
     }));
   }, [clientNameById, selectedInvoice]);
 
@@ -233,10 +216,8 @@ export default function PaymentReceiptsRegister() {
       payment_date: new Date().toISOString().slice(0, 10),
       invoice_id: '',
       received_from_id: '',
-      total_billed_amount: '',
-      tds_deducted: '0',
-      other_deduction: '0',
-      deduction_remarks: '',
+      amount: '',
+      notes: '',
       payment_mode: 'BANK',
     });
   };
@@ -251,10 +232,8 @@ export default function PaymentReceiptsRegister() {
     invoice_id?: number | string | null;
     received_from_id?: number | string | null;
     received_from?: string;
-    total_billed_amount: number | string;
-    tds_deducted: number | string;
-    other_deduction: number | string;
-    deduction_remarks?: string | null;
+    amount?: number | string;
+    notes?: string | null;
     payment_mode: string;
     financial_year?: string;
   }) => {
@@ -264,32 +243,27 @@ export default function PaymentReceiptsRegister() {
     const receivedFromId = explicitReceivedFromId && Number.isFinite(explicitReceivedFromId) && explicitReceivedFromId > 0
       ? explicitReceivedFromId
       : Number(clientIdByName[String(row.received_from || '')] || 0);
-    const totalBilledAmount = Number(row.total_billed_amount || 0);
-    const tdsDeducted = Number(row.tds_deducted || 0);
-    const otherDeduction = Number(row.other_deduction || 0);
+    const amount = Number(row.amount || 0);
 
     return {
       payment_date: row.payment_date,
       invoice_id: row.invoice_id != null && row.invoice_id !== '' ? Number(row.invoice_id) : null,
       received_from_id: receivedFromId,
-      total_billed_amount: totalBilledAmount,
-      tds_deducted: tdsDeducted,
-      other_deduction: otherDeduction,
-      net_amount: totalBilledAmount - tdsDeducted - otherDeduction,
-      deduction_remarks: row.deduction_remarks?.trim() || null,
+      amount,
       payment_mode: row.payment_mode || 'BANK',
       financial_year: row.financial_year || fy,
+      notes: row.notes?.trim() || null,
     };
   }, [clientIdByName, fy]);
 
   const submit = async () => {
-    if (!form.payment_date || !form.received_from_id || !form.total_billed_amount) {
-      alert('Payment date, received from, and allocated billed amount are required');
+    if (!form.payment_date || !form.received_from_id || !form.amount) {
+      alert('Payment date, received from, and amount are required');
       return;
     }
 
-    if (computedNetAmount < 0) {
-      alert('Net amount cannot be negative');
+    if (Number(form.amount || 0) < 0) {
+      alert('Amount cannot be negative');
       return;
     }
 
@@ -318,13 +292,10 @@ export default function PaymentReceiptsRegister() {
       invoice_id: row.invoice_id ?? existingRow?.invoice_id ?? null,
       received_from_id: row.received_from_id ?? existingRow?.received_from_id ?? null,
       received_from: String(row.received_from || existingRow?.received_from || '').trim(),
-      total_billed_amount: Number(row.total_billed_amount ?? existingRow?.total_billed_amount ?? 0),
-      tds_deducted: Number(row.tds_deducted ?? existingRow?.tds_deducted ?? 0),
-      other_deduction: Number(row.other_deduction ?? existingRow?.other_deduction ?? 0),
-      deduction_remarks: row.deduction_remarks ?? existingRow?.deduction_remarks ?? null,
+      amount: Number(row.amount ?? existingRow?.amount ?? 0),
       payment_mode: String(row.payment_mode || existingRow?.payment_mode || 'BANK'),
       financial_year: String(row.financial_year || existingRow?.financial_year || fy),
-      net_amount: Number(row.net_amount ?? existingRow?.net_amount ?? 0),
+      notes: row.notes ?? existingRow?.notes ?? null,
     };
 
     const payload = buildPaymentReceiptPayload(mergedRow);
@@ -338,8 +309,8 @@ export default function PaymentReceiptsRegister() {
       await loadRows();
       return;
     }
-    if (payload.net_amount < 0) {
-      alert('Net amount cannot be negative');
+    if (Number(payload.amount || 0) < 0) {
+      alert('Amount cannot be negative');
       await loadRows();
       return;
     }
@@ -421,9 +392,7 @@ export default function PaymentReceiptsRegister() {
           const clientName = clientNameById[invoice.client_id] || params.data.received_from || '';
           params.data.received_from_id = invoice.client_id;
           params.data.received_from = clientName;
-          params.data.total_billed_amount = Number(invoice.outstanding_amount || 0);
-          params.data.tds_deducted = 0;
-          params.data.other_deduction = 0;
+          params.data.amount = Number(invoice.outstanding_amount || 0);
         }
 
         return (params.data.invoice_id ?? null) !== previousInvoiceId;
@@ -445,51 +414,13 @@ export default function PaymentReceiptsRegister() {
       },
     },
     {
-      field: 'total_billed_amount',
-      headerName: 'ALLOCATED BILLED AMOUNT',
-      minWidth: 190,
-      flex: 1,
-      editable: true,
-      currencyTotal: true,
-      valueParser: (params: { newValue: unknown }) => Number(params.newValue || 0),
-      cellStyle: { textAlign: 'right' },
-      valueFormatter: (params: { value: unknown }) => Number(params.value || 0).toFixed(2),
-    },
-    {
-      field: 'tds_deducted',
-      headerName: 'TDS DEDUCTED',
+      field: 'amount',
+      headerName: 'AMOUNT RECEIVED',
       minWidth: 150,
       flex: 1,
       editable: true,
       currencyTotal: true,
       valueParser: (params: { newValue: unknown }) => Number(params.newValue || 0),
-      cellStyle: { textAlign: 'right' },
-      valueFormatter: (params: { value: unknown }) => Number(params.value || 0).toFixed(2),
-    },
-    {
-      field: 'other_deduction',
-      headerName: 'ANY OTHER DEDUCTION',
-      minWidth: 190,
-      flex: 1,
-      editable: true,
-      currencyTotal: true,
-      valueParser: (params: { newValue: unknown }) => Number(params.newValue || 0),
-      cellStyle: { textAlign: 'right' },
-      valueFormatter: (params: { value: unknown }) => Number(params.value || 0).toFixed(2),
-    },
-    {
-      field: 'net_amount',
-      headerName: 'NET AMOUNT',
-      minWidth: 150,
-      flex: 1,
-      editable: false,
-      currencyTotal: true,
-      valueGetter: (params: { data: PaymentReceiptRow }) => {
-        const totalBilledAmount = Number(params.data.total_billed_amount || 0);
-        const tdsDeducted = Number(params.data.tds_deducted || 0);
-        const otherDeduction = Number(params.data.other_deduction || 0);
-        return totalBilledAmount - tdsDeducted - otherDeduction;
-      },
       cellStyle: { textAlign: 'right' },
       valueFormatter: (params: { value: unknown }) => Number(params.value || 0).toFixed(2),
     },
@@ -505,8 +436,8 @@ export default function PaymentReceiptsRegister() {
       },
     },
     {
-      field: 'deduction_remarks',
-      headerName: 'REMARKS FOR DEDUCTIONS',
+      field: 'notes',
+      headerName: 'NOTES',
       minWidth: 220,
       flex: 1.4,
       editable: true,
@@ -623,20 +554,8 @@ export default function PaymentReceiptsRegister() {
               </select>
             </div>
             <div className="space-y-1 md:col-span-3">
-              <label htmlFor="receipt_total_billed_amount" className="text-sm font-medium text-slate-700">Allocated billed amount</label>
-              <input id="receipt_total_billed_amount" type="number" value={form.total_billed_amount} onChange={(e) => setForm((p) => ({ ...p, total_billed_amount: e.target.value }))} className="w-full rounded border px-2 py-2" />
-            </div>
-            <div className="space-y-1 md:col-span-2">
-              <label htmlFor="receipt_tds_deducted" className="text-sm font-medium text-slate-700">TDS deducted</label>
-              <input id="receipt_tds_deducted" type="number" value={form.tds_deducted} onChange={(e) => setForm((p) => ({ ...p, tds_deducted: e.target.value }))} className="w-full rounded border px-2 py-2" />
-            </div>
-            <div className="space-y-1 md:col-span-2">
-              <label htmlFor="receipt_other_deduction" className="text-sm font-medium text-slate-700">Any other deduction</label>
-              <input id="receipt_other_deduction" type="number" value={form.other_deduction} onChange={(e) => setForm((p) => ({ ...p, other_deduction: e.target.value }))} className="w-full rounded border px-2 py-2" />
-            </div>
-            <div className="space-y-1 md:col-span-2">
-              <label htmlFor="receipt_net_amount" className="text-sm font-medium text-slate-700">Net amount</label>
-              <input id="receipt_net_amount" type="number" value={computedNetAmount.toFixed(2)} readOnly className="w-full rounded border bg-slate-50 px-2 py-2 text-slate-600" />
+              <label htmlFor="receipt_amount" className="text-sm font-medium text-slate-700">Amount</label>
+              <input id="receipt_amount" type="number" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} className="w-full rounded border px-2 py-2" />
             </div>
             <div className="space-y-1 md:col-span-2">
               <label htmlFor="receipt_payment_mode" className="text-sm font-medium text-slate-700">Mode of payment</label>
@@ -647,8 +566,8 @@ export default function PaymentReceiptsRegister() {
               </select>
             </div>
             <div className="space-y-1 md:col-span-8">
-              <label htmlFor="receipt_deduction_remarks" className="text-sm font-medium text-slate-700">Remarks for deductions</label>
-              <input id="receipt_deduction_remarks" value={form.deduction_remarks} onChange={(e) => setForm((p) => ({ ...p, deduction_remarks: e.target.value }))} className="w-full rounded border px-2 py-2" />
+              <label htmlFor="receipt_notes" className="text-sm font-medium text-slate-700">Notes</label>
+              <input id="receipt_notes" value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} className="w-full rounded border px-2 py-2" />
             </div>
             {selectedInvoice && (
               <div className="rounded border bg-slate-50 px-3 py-2 text-sm text-slate-700 md:col-span-4">

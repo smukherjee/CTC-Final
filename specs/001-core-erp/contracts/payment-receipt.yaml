@@ -15,9 +15,6 @@ paths:
         - name: fy
           in: query
           schema: { type: string, example: "2025-26" }
-        - name: received_from
-          in: query
-          schema: { type: string }
       responses:
         "200":
           description: Payment receipt list
@@ -38,7 +35,7 @@ paths:
             schema:
               $ref: "#/components/schemas/PaymentReceiptCreate"
       responses:
-        "201":
+        "200":
           description: Created
           content:
             application/json:
@@ -77,8 +74,14 @@ paths:
           required: true
           schema: { type: integer }
       responses:
-        "204":
+        "200":
           description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
 
 components:
   schemas:
@@ -87,9 +90,11 @@ components:
       required: [payment_date, amount, received_from, financial_year]
       properties:
         payment_date: { type: string, format: date }
+        invoice_id: { type: integer, nullable: true }
         amount: { type: number, format: float, minimum: 0.01 }
         received_from: { type: string }
         received_from_id: { type: integer, nullable: true }
+        payment_mode: { type: string, example: "BANK" }
         financial_year: { type: string, example: "2025-26" }
         notes: { type: string, nullable: true }
 
@@ -97,9 +102,11 @@ components:
       type: object
       properties:
         payment_date: { type: string, format: date }
+        invoice_id: { type: integer, nullable: true }
         amount: { type: number, format: float, minimum: 0.01 }
         received_from: { type: string }
         received_from_id: { type: integer, nullable: true }
+        payment_mode: { type: string }
         financial_year: { type: string }
         notes: { type: string, nullable: true }
 
@@ -109,8 +116,10 @@ components:
         id: { type: integer }
         payment_date: { type: string, format: date }
         amount: { type: number }
+        invoice_id: { type: integer, nullable: true }
         received_from: { type: string }
         received_from_id: { type: integer, nullable: true }
+        payment_mode: { type: string }
         financial_year: { type: string }
         notes: { type: string, nullable: true }
         created_at: { type: string, format: date-time }

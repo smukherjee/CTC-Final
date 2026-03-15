@@ -12,6 +12,9 @@ interface VoucherRow {
   reference_id?: number;
   reference_type?: string;
   amount: number;
+  debit?: number;
+  credit?: number;
+  running_balance?: number;
   narration?: string;
   date: string;
 }
@@ -43,6 +46,18 @@ export default function LedgerBook() {
   const ledgerRows = useMemo(() => {
     let running = 0;
     return rows.map((row) => {
+      if (
+        typeof row.debit === 'number' &&
+        typeof row.credit === 'number' &&
+        typeof row.running_balance === 'number'
+      ) {
+        return {
+          ...row,
+          debit: row.debit,
+          credit: row.credit,
+          running_balance: row.running_balance,
+        };
+      }
       const isDebit = String(row.voucher_type || '').toLowerCase().includes('debit');
       const debit = isDebit ? Number(row.amount || 0) : 0;
       const credit = isDebit ? 0 : Number(row.amount || 0);

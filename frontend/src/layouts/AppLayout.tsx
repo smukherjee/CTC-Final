@@ -1,10 +1,13 @@
-import { useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard,
     Truck,
     FileText,
     Banknote,
+    MapPin,
+    CheckSquare,
+    Settings,
     Menu,
     ChevronLeft,
     ChevronDown,
@@ -16,20 +19,36 @@ import { cn } from '@/lib/utils';
 export default function AppLayout() {
     const [collapsed, setCollapsed] = useState(false);
     const [mastersOpen, setMastersOpen] = useState(false);
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    const currentRole = useMemo(() => {
+        const raw = localStorage.getItem('ctc_user_role') || localStorage.getItem('user_role') || 'ADMIN';
+        return String(raw).trim().toUpperCase();
+    }, []);
+    const canAccessFinance = currentRole === 'ADMIN' || currentRole === 'ACCOUNTS';
+
+    useEffect(() => {
+        if (!canAccessFinance && location.pathname.startsWith('/finance')) {
+            navigate('/operations/dispatch', { replace: true });
+        }
+    }, [canAccessFinance, location.pathname, navigate]);
 
     const navItems = [
         // Dashboard hidden per request; default landing page is Dispatch Register
         { label: 'Dispatch Register', icon: Truck, path: '/operations/dispatch' },
-        // { label: 'Create LR', icon: FileText, path: '/operations/create-lr' },
+        { label: 'Create LR', icon: FileText, path: '/operations/create-lr' },
         { label: 'Hire Memo Register', icon: FileText, path: '/operations/hire-memo-register' },
-        // { label: 'Vehicle Tracking', icon: MapPin, path: '/operations/tracking' },
-        // { label: 'Tracking Log', icon: MapPin, path: '/operations/tracking-log' },
-        // { label: 'POD Management', icon: CheckSquare, path: '/pod' },
-        { label: 'Invoice Register', icon: Banknote, path: '/finance/invoices' },
-        { label: 'Payment Receipts', icon: Banknote, path: '/finance/payment-receipts' },
-        // { label: 'Ledger Book', icon: Banknote, path: '/finance/vouchers' },
-        // { label: 'Reports', icon: LayoutDashboard, path: '/reports' },
-        // { label: 'Settings', icon: Settings, path: '/admin/settings' },
+        { label: 'Vehicle Tracking', icon: MapPin, path: '/operations/tracking' },
+        { label: 'Tracking Log', icon: MapPin, path: '/operations/tracking-log' },
+        { label: 'POD Management', icon: CheckSquare, path: '/pod' },
+        ...(canAccessFinance ? [
+            { label: 'Invoice Register', icon: Banknote, path: '/finance/invoices' },
+            { label: 'Payment Receipts', icon: Banknote, path: '/finance/payment-receipts' },
+            { label: 'Ledger Book', icon: Banknote, path: '/finance/vouchers' },
+        ] : []),
+        { label: 'Reports', icon: LayoutDashboard, path: '/reports' },
+        { label: 'Settings', icon: Settings, path: '/admin/settings' },
         {
             label: 'Masters',
             icon: LayoutDashboard,

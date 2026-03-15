@@ -19,10 +19,6 @@ def _as_decimal(value, default: str = "0") -> Decimal:
     return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def _compute_net_amount(total_billed_amount: Decimal, tds_deducted: Decimal, other_deduction: Decimal) -> Decimal:
-    return (total_billed_amount - tds_deducted - other_deduction).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-
 def _resolve_received_from(session, payload: dict, existing: Optional[PaymentReceiptModel] = None) -> tuple[Optional[int], str]:
     received_from_id = payload.get("received_from_id")
     received_from = (payload.get("received_from") or "").strip()
@@ -55,17 +51,25 @@ def _resolve_invoice(session, payload: dict, existing: Optional[PaymentReceiptMo
     return invoice
 
 
-def _extract_amounts(payload: dict, existing: Optional[PaymentReceiptModel] = None) -> tuple[Decimal, Decimal, Decimal, Decimal]:
-    total_billed_amount = _as_decimal(
-        payload.get("total_billed_amount", existing.total_billed_amount if existing else payload.get("amount", 0))
-    )
-    tds_deducted = _as_decimal(payload.get("tds_deducted", existing.tds_deducted if existing else 0))
-    other_deduction = _as_decimal(payload.get("other_deduction", existing.other_deduction if existing else 0))
-    if payload.get("net_amount") is not None:
-        net_amount = _as_decimal(payload.get("net_amount"))
+def _extract_amount(payload: dict, existing: Optional[PaymentReceiptModel] = None) -> Decimal:
+    if payload.get("amount") is not None:
+        amount = _as_decimal(payload.get("amount"))
+    elif payload.get("net_amount") is not None:
+        amount = _as_decimal(payload.get("net_amount"))
+    elif existing is not None:
+        amount = _as_decimal(existing.amount)
     else:
-        net_amount = _compute_net_amount(total_billed_amount, tds_deducted, other_deduction)
-    return total_billed_amount, tds_deducted, other_deduction, net_amount
+        amount = Decimal("0.00")
+    if amount < 0:
+        raise ValueError("Receipt amount cannot be negative")
+    return amount
+
+
+def _reject_commercial_deduction_fields(payload: dict) -> None:
+    disallowed = ("total_billed_amount", "tds_deducted", "other_deduction", "deduction_remarks")
+    for field in disallowed:
+        if field in payload and payload.get(field) not in (None, "", 0, 0.0, "0", "0.0"):
+            raise ValueError("Payment receipts cannot include commercial deduction fields")
 
 
 def _to_dict(row: PaymentReceiptModel) -> dict:
@@ -75,24 +79,23 @@ def _to_dict(row: PaymentReceiptModel) -> dict:
         "invoice_id": row.invoice_id,
         "received_from_id": row.received_from_id,
         "received_from": row.received_from,
-        "total_billed_amount": float(row.total_billed_amount) if row.total_billed_amount is not None else 0.0,
-        "tds_deducted": float(row.tds_deducted) if row.tds_deducted is not None else 0.0,
+        "amount": float(row.amount) if row.amount is not None else 0.0,
         "net_amount": float(row.net_amount) if row.net_amount is not None else 0.0,
-        "other_deduction": float(row.other_deduction) if row.other_deduction is not None else 0.0,
-        "deduction_remarks": row.deduction_remarks,
         "payment_mode": row.payment_mode,
         "financial_year": row.financial_year,
+        "notes": row.notes,
         "created_at": row.created_at,
     }
 
 
 def create(db: Session, payload: dict) -> dict:
     try:
+        _reject_commercial_deduction_fields(payload)
         payment_date = payload.get("payment_date") or date.today()
         invoice = _resolve_invoice(db, payload)
         fy = payload.get("financial_year") or (invoice.financial_year if invoice else _fy_from_date(payment_date))
         received_from_id, received_from = _resolve_received_from(db, payload)
-        total_billed_amount, tds_deducted, other_deduction, net_amount = _extract_amounts(payload)
+        amount = _extract_amount(payload)
 
         if invoice is not None:
             if int(invoice.client_id) != int(received_from_id):
@@ -101,20 +104,20 @@ def create(db: Session, payload: dict) -> dict:
                 PaymentReceiptModel.invoice_id == invoice.id
             ).scalar()
             max_receivable = _as_decimal(invoice.net_amount or invoice.total_amount or 0)
-            if _as_decimal(current_received) + net_amount > max_receivable + Decimal("0.01"):
+            if _as_decimal(current_received) + amount > max_receivable + Decimal("0.01"):
                 raise ValueError("Receipt exceeds the invoice outstanding balance")
 
         row = PaymentReceiptModel(
             payment_date=payment_date,
-            amount=net_amount,
+            amount=amount,
             invoice_id=invoice.id if invoice else None,
             received_from_id=received_from_id,
             received_from=received_from,
-            total_billed_amount=total_billed_amount,
-            tds_deducted=tds_deducted,
-            net_amount=net_amount,
-            other_deduction=other_deduction,
-            deduction_remarks=payload.get("deduction_remarks"),
+            total_billed_amount=amount,
+            tds_deducted=Decimal("0.00"),
+            net_amount=amount,
+            other_deduction=Decimal("0.00"),
+            deduction_remarks=None,
             payment_mode=(payload.get("payment_mode") or "BANK").strip().upper(),
             financial_year=fy,
             notes=payload.get("notes"),
@@ -142,6 +145,7 @@ def list_receipts(db: Session, fy: Optional[str] = None) -> List[dict]:
 
 def update(db: Session, receipt_id: int, payload: dict) -> Optional[dict]:
     try:
+        _reject_commercial_deduction_fields(payload)
         row = db.query(PaymentReceiptModel).filter(PaymentReceiptModel.id == receipt_id).first()
         if not row:
             return None
@@ -161,16 +165,14 @@ def update(db: Session, receipt_id: int, payload: dict) -> Optional[dict]:
         if any(key in payload for key in ("received_from_id", "received_from")):
             row.received_from_id, row.received_from = _resolve_received_from(db, payload, existing=row)
 
-        if any(key in payload for key in ("total_billed_amount", "tds_deducted", "other_deduction", "net_amount", "amount")):
-            total_billed_amount, tds_deducted, other_deduction, net_amount = _extract_amounts(payload, existing=row)
-            row.total_billed_amount = total_billed_amount
-            row.tds_deducted = tds_deducted
-            row.other_deduction = other_deduction
-            row.net_amount = net_amount
-            row.amount = net_amount
-
-        if "deduction_remarks" in payload:
-            row.deduction_remarks = payload["deduction_remarks"]
+        if any(key in payload for key in ("amount", "net_amount")):
+            amount = _extract_amount(payload, existing=row)
+            row.total_billed_amount = amount
+            row.tds_deducted = Decimal("0.00")
+            row.other_deduction = Decimal("0.00")
+            row.deduction_remarks = None
+            row.net_amount = amount
+            row.amount = amount
 
         if "payment_mode" in payload:
             row.payment_mode = (payload.get("payment_mode") or "BANK").strip().upper()
@@ -192,7 +194,7 @@ def update(db: Session, receipt_id: int, payload: dict) -> Optional[dict]:
                 PaymentReceiptModel.id != row.id,
             ).scalar()
             max_receivable = _as_decimal(invoice.net_amount or invoice.total_amount or 0)
-            if _as_decimal(existing_receipts) + _as_decimal(row.net_amount) > max_receivable + Decimal("0.01"):
+            if _as_decimal(existing_receipts) + _as_decimal(row.amount) > max_receivable + Decimal("0.01"):
                 raise ValueError("Receipt exceeds the invoice outstanding balance")
 
         if previous_invoice_id and previous_invoice_id != row.invoice_id:

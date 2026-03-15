@@ -12,7 +12,9 @@ from ..core.financial_year_utils import (
 )
 from ..models.audit_log import AuditLogModel
 from ..models.invoice import InvoiceLineModel, InvoiceModel
+from ..models.lr import LRModel, LRDeductionModel
 from ..models.payment_receipt import PaymentReceiptModel
+from ..core.amount_in_words import inr_words
 from .audit_service import log_action
 from .billing_computations import compute_net_amount, compute_outstanding, derive_payment_status
 
@@ -33,7 +35,30 @@ def _as_date(value) -> Optional[date]:
     return None
 
 
-def _line_to_dict(line: InvoiceLineModel) -> dict:
+def _get_deductions_by_lr(db: Session, lr_ids: list[int]) -> dict[int, list[dict]]:
+    if not lr_ids:
+        return {}
+    rows = (
+        db.query(LRDeductionModel)
+        .filter(LRDeductionModel.lr_id.in_(lr_ids))
+        .order_by(LRDeductionModel.lr_id.asc(), LRDeductionModel.sort_order.asc(), LRDeductionModel.id.asc())
+        .all()
+    )
+    grouped: dict[int, list[dict]] = {}
+    for row in rows:
+        key = int(row.lr_id)
+        grouped.setdefault(key, []).append(
+            {
+                "label": row.deduction_label,
+                "amount": _to_float(row.deduction_amount) or 0.0,
+            }
+        )
+    return grouped
+
+
+def _line_to_dict(line: InvoiceLineModel, deductions_by_lr: dict[int, list[dict]] | None = None) -> dict:
+    lr_id = int(line.lr_id) if line.lr_id is not None else None
+    line_total = _to_float(line.total) or 0.0
     return {
         "id": line.id,
         "invoice_id": line.invoice_id,
@@ -54,7 +79,9 @@ def _line_to_dict(line: InvoiceLineModel) -> dict:
         "unloading_charges": _to_float(line.unloading_charges),
         "unloading_detention": _to_float(line.unloading_detention),
         "other_charges": _to_float(line.other_charges),
-        "total": _to_float(line.total),
+        "total": line_total,
+        "line_amount": line_total,
+        "deductions": deductions_by_lr.get(lr_id, []) if deductions_by_lr and lr_id else [],
     }
 
 
@@ -110,6 +137,11 @@ def _invoice_edit_hint(db: Session, invoice: InvoiceModel) -> tuple[bool, Option
 def _invoice_to_dict(db: Session, invoice: InvoiceModel, lines: List[InvoiceLineModel]) -> dict:
     amount_received, outstanding_amount = compute_invoice_receipt_summary(db, invoice.id)
     edited, edited_at, edited_by = _invoice_edit_hint(db, invoice)
+    lr_ids = [int(line.lr_id) for line in lines if line.lr_id is not None]
+    deductions_by_lr = _get_deductions_by_lr(db, lr_ids)
+    gross_amount = _to_float(invoice.total_amount) or 0
+    tds_amount = _to_float(invoice.tds_amount) or 0
+    net_amount = compute_net_amount(gross_amount, tds_amount)
     return {
         "id": invoice.id,
         "invoice_no": invoice.invoice_no,
@@ -119,42 +151,52 @@ def _invoice_to_dict(db: Session, invoice: InvoiceModel, lines: List[InvoiceLine
         "po_no": invoice.po_no,
         "po_date": invoice.po_date,
         "hsn_code": invoice.hsn_code,
+        "tax_on_reverse_charge": bool(invoice.reverse_charge),
         "reverse_charge": bool(invoice.reverse_charge),
         "gst_paid_by": invoice.gst_paid_by,
-        "total_amount": _to_float(invoice.total_amount) or 0,
-        "tds_amount": _to_float(invoice.tds_amount) or 0,
-        "net_amount": _to_float(invoice.net_amount) or 0,
+        "gross_amount": gross_amount,
+        "total_amount": gross_amount,
+        "tds_amount": tds_amount,
+        "net_amount": net_amount,
         "amount_received": amount_received,
         "outstanding_amount": outstanding_amount,
         "status": invoice.status,
         "edited": edited,
         "edited_at": edited_at,
         "edited_by": edited_by,
-        "lines": [_line_to_dict(line) for line in lines],
+        "lines": [_line_to_dict(line, deductions_by_lr=deductions_by_lr) for line in lines],
     }
 
 
-def _create_line(invoice_id: int, item: dict) -> InvoiceLineModel:
+def _create_line_from_lr(db: Session, invoice_id: int, item: dict, s_no: int) -> InvoiceLineModel:
+    lr_id = int(item.get("lr_id") or 0)
+    if lr_id <= 0:
+        raise ValueError("Each invoice line requires a valid lr_id")
+    lr = db.query(LRModel).filter(LRModel.id == lr_id).first()
+    if not lr:
+        raise ValueError(f"LR not found: {lr_id}")
+
+    line_amount = _to_float(lr.total) or 0.0
     return InvoiceLineModel(
         invoice_id=invoice_id,
-        lr_id=item.get("lr_id"),
-        s_no=item.get("s_no"),
-        lr_no=item.get("lr_no"),
-        lr_date=_as_date(item.get("lr_date")),
-        qty=item.get("qty"),
-        particulars=item.get("particulars"),
-        v_type=item.get("v_type"),
-        vehicle_no=item.get("vehicle_no"),
-        consignor=item.get("consignor"),
-        consignee=item.get("consignee"),
-        from_city=item.get("from_city"),
-        to_city=item.get("to_city"),
-        freight=item.get("freight", 0),
-        loading_detention=item.get("loading_detention", 0),
-        unloading_charges=item.get("unloading_charges", 0),
-        unloading_detention=item.get("unloading_detention", 0),
-        other_charges=item.get("other_charges", 0),
-        total=item.get("total", 0),
+        lr_id=lr_id,
+        s_no=s_no,
+        lr_no=lr.lr_number,
+        lr_date=lr.date,
+        qty=1,
+        particulars="Transport Service",
+        v_type=lr.vehicle_type,
+        vehicle_no=lr.vehicle_number,
+        consignor=lr.consignor_name,
+        consignee=lr.consignee_name,
+        from_city=lr.origin,
+        to_city=lr.destination,
+        freight=line_amount,
+        loading_detention=0,
+        unloading_charges=0,
+        unloading_detention=0,
+        other_charges=0,
+        total=line_amount,
     )
 
 
@@ -185,9 +227,11 @@ def create_invoice(db: Session, payload: dict) -> dict:
     try:
         invoice_date = _as_date(payload.get("invoice_date")) or date.today()
         fy = payload.get("financial_year") or _fy_from_date(invoice_date)
-        total_amount = float(payload.get("total_amount") or 0)
+        lines_payload = payload.get("lines") or []
+        if not lines_payload:
+            raise ValueError("At least one LR is required to create an invoice")
+
         tds_amount = float(payload.get("tds_amount") or 0)
-        net_amount = compute_net_amount(total_amount, tds_amount)
 
         seq = _next_invoice_seq(db, fy)
         invoice_no = _format_invoice_no(seq, fy)
@@ -200,18 +244,24 @@ def create_invoice(db: Session, payload: dict) -> dict:
             po_no=payload.get("po_no"),
             po_date=_as_date(payload.get("po_date")),
             hsn_code=payload.get("hsn_code") or "996791",
-            reverse_charge=bool(payload.get("reverse_charge", False)),
+            reverse_charge=bool(payload.get("tax_on_reverse_charge", payload.get("reverse_charge", False))),
             gst_paid_by=payload.get("gst_paid_by"),
-            total_amount=total_amount,
+            total_amount=0,
             tds_amount=tds_amount,
-            net_amount=net_amount,
+            net_amount=0,
             status=payload.get("status") or "issued",
         )
         db.add(invoice)
         db.flush()
 
-        for item in payload.get("lines", []):
-            db.add(_create_line(invoice.id, item))
+        line_total = 0.0
+        for idx, item in enumerate(lines_payload, start=1):
+            line = _create_line_from_lr(db, invoice.id, item, s_no=idx)
+            line_total += _to_float(line.total) or 0.0
+            db.add(line)
+
+        invoice.total_amount = line_total
+        invoice.net_amount = compute_net_amount(line_total, tds_amount)
 
         sync_invoice_payment_status(db, invoice)
         after = _invoice_to_dict(db, invoice, db.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).all())
@@ -243,28 +293,34 @@ def update_invoice(db: Session, invoice_id: int, payload: dict) -> Optional[dict
             "hsn_code",
             "status",
             "financial_year",
-            "reverse_charge",
         ):
             if key in payload:
                 setattr(invoice, key, payload[key])
+        if "tax_on_reverse_charge" in payload:
+            invoice.reverse_charge = bool(payload.get("tax_on_reverse_charge"))
+        elif "reverse_charge" in payload:
+            invoice.reverse_charge = bool(payload.get("reverse_charge"))
 
         if "invoice_date" in payload:
             invoice.invoice_date = _as_date(payload.get("invoice_date")) or invoice.invoice_date
         if "po_date" in payload:
             invoice.po_date = _as_date(payload.get("po_date"))
 
-        if "total_amount" in payload or "tds_amount" in payload or "net_amount" in payload:
-            total_amount = float(payload.get("total_amount", _to_float(invoice.total_amount) or 0))
-            tds_amount = float(payload.get("tds_amount", _to_float(invoice.tds_amount) or 0))
-            net_amount = float(payload.get("net_amount", total_amount - tds_amount))
-            invoice.total_amount = total_amount
-            invoice.tds_amount = tds_amount
-            invoice.net_amount = net_amount
-
         if "lines" in payload and payload["lines"] is not None:
             db.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).delete()
-            for item in payload["lines"]:
-                db.add(_create_line(invoice.id, item))
+            line_total = 0.0
+            for idx, item in enumerate(payload["lines"], start=1):
+                line = _create_line_from_lr(db, invoice.id, item, s_no=idx)
+                line_total += _to_float(line.total) or 0.0
+                db.add(line)
+            invoice.total_amount = line_total
+
+        if "tds_amount" in payload:
+            invoice.tds_amount = float(payload.get("tds_amount") or 0)
+
+        total_amount = _to_float(invoice.total_amount) or 0.0
+        tds_amount = _to_float(invoice.tds_amount) or 0.0
+        invoice.net_amount = compute_net_amount(total_amount, tds_amount)
 
         sync_invoice_payment_status(db, invoice)
         after = _invoice_to_dict(db, invoice, db.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).all())
@@ -292,3 +348,27 @@ def delete_invoice(db: Session, invoice_id: int) -> bool:
     except Exception:
         db.rollback()
         raise
+
+
+def get_invoice_print_data(db: Session, invoice_id: int) -> Optional[dict]:
+    invoice_payload = get_invoice(db, invoice_id)
+    if not invoice_payload:
+        return None
+
+    less_totals: dict[str, float] = {}
+    for line in invoice_payload.get("lines", []):
+        for deduction in line.get("deductions", []):
+            label = str(deduction.get("label") or "LESS").strip() or "LESS"
+            amount = float(deduction.get("amount") or 0)
+            less_totals[label] = less_totals.get(label, 0.0) + amount
+
+    less_lines = [
+        {"label": label, "amount": amount}
+        for label, amount in less_totals.items()
+    ]
+
+    return {
+        "invoice": invoice_payload,
+        "amount_in_words": inr_words(invoice_payload.get("net_amount") or 0),
+        "less_lines": less_lines,
+    }

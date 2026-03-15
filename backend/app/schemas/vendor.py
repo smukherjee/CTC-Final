@@ -1,8 +1,10 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
 
 class Vendor(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     id: int
     name: str
     type: str
@@ -13,6 +15,8 @@ class Vendor(BaseModel):
 
 
 class VendorCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     name: str
     type: str
     mobile: Optional[str] = None
@@ -22,6 +26,8 @@ class VendorCreate(BaseModel):
 
 
 class VendorUpdate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     name: Optional[str] = None
     type: Optional[str] = None
     mobile: Optional[str] = None

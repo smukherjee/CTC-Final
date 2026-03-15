@@ -1,5 +1,27 @@
 # Parallel Run Support
 
-This document will describe how to run the new system in parallel with the legacy system for validation and transition.
+This document defines the minimum smoke checks for running CTC-ERP in parallel with legacy/manual books.
 
-(Work in progress)
+## Smoke Verification Checklist
+
+- [ ] Backend API reachable at `/docs` and health endpoints.
+- [ ] Frontend login/layout loads and FY selector defaults correctly.
+- [ ] Create one LR and verify it appears in Dispatch Register.
+- [ ] Mark POD received and verify LR appears in pending-billing report after aging rule conditions.
+- [ ] Generate one invoice and verify print payload endpoint returns 200.
+- [ ] Create one payment receipt (amount-only event) linked to invoice.
+- [ ] Verify invoice status updates (`issued` -> `partially_paid` or `paid`).
+- [ ] Verify outstanding receivables report reflects payment impact.
+- [ ] Verify voucher/ledger entries are visible with running balance.
+- [ ] Confirm finance API access is blocked for non-finance role header.
+
+## Daily Sign-off Template
+
+- Date:
+- FY:
+- Operator:
+- Accounts reviewer:
+- Smoke checklist completed: Yes/No
+- Mismatches found:
+- Corrective action taken:
+- Final sign-off:

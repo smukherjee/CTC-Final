@@ -4,7 +4,7 @@ from datetime import date as dt_date, datetime as dt_datetime, timedelta, timezo
 from sqlalchemy.orm import Session
 
 from ..schemas.lr import LRCreate
-from ..models.lr import LRModel
+from ..models.lr import LRModel, LRDeductionModel
 from ..models.ewaybill import EWayBillModel
 from ..models.file_upload import FileUploadModel
 from ..models.hirememo import HireMemoModel
@@ -15,6 +15,18 @@ from .audit_service import log_action
 
 
 def _model_to_dict(m: LRModel) -> dict:
+    deduction_rows = sorted(list(getattr(m, 'lr_deductions', []) or []), key=lambda d: (d.sort_order or 0, d.id or 0))
+    deduction_payload = [
+        {
+            'id': d.id,
+            'lr_id': d.lr_id,
+            'deduction_label': d.deduction_label,
+            'deduction_amount': float(d.deduction_amount) if d.deduction_amount is not None else 0.0,
+            'sort_order': int(d.sort_order or 0),
+        }
+        for d in deduction_rows
+    ]
+
     return {
         'id': m.id,
         'lr_number': m.lr_number,
@@ -56,6 +68,7 @@ def _model_to_dict(m: LRModel) -> dict:
         'bill_date': m.bill_date.isoformat() if m.bill_date else None,
         'amount_passed': float(m.amount_passed) if m.amount_passed is not None else None,
         'deductions': m.deductions,
+        'lr_deductions': deduction_payload,
         'cm_no': m.cm_no,
         'cm_date': m.cm_date.isoformat() if m.cm_date else None,
         'remarks': m.remarks,
@@ -70,6 +83,61 @@ def _model_to_dict(m: LRModel) -> dict:
         'financial_year': m.financial_year,
         'fob_client_id': m.fob_client_id,
     }
+
+
+def _to_float(value) -> float:
+    if value is None:
+        return 0.0
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _sync_lr_deductions(db: Session, lr: LRModel, rows: list[dict] | None) -> None:
+    """Replace LR deduction child rows with the provided payload."""
+    db.query(LRDeductionModel).filter(LRDeductionModel.lr_id == lr.id).delete(synchronize_session=False)
+    if not rows:
+        return
+
+    for idx, item in enumerate(rows):
+        label = str((item or {}).get('deduction_label') or (item or {}).get('deduction_name') or '').strip()
+        amount = _to_float((item or {}).get('deduction_amount') if (item or {}).get('deduction_amount') is not None else (item or {}).get('amount'))
+        sort_order = int((item or {}).get('sort_order') or idx)
+        if not label:
+            continue
+        db.add(
+            LRDeductionModel(
+                lr_id=lr.id,
+                deduction_label=label,
+                deduction_amount=amount,
+                sort_order=sort_order,
+            )
+        )
+
+
+def _recompute_lr_total_from_components(lr: LRModel, payload_deductions: list[dict] | None = None) -> None:
+    """Compute LR total from components and deduction rows.
+
+    Formula: (freight + surcharge + hamali + st) - sum(deduction_amount)
+    """
+    gross = (
+        _to_float(lr.freight_amount)
+        + _to_float(lr.surcharge)
+        + _to_float(lr.hamali_charges)
+        + _to_float(lr.st_charges)
+    )
+
+    if payload_deductions is not None:
+        deduction_sum = sum(
+            _to_float((row or {}).get('deduction_amount') if (row or {}).get('deduction_amount') is not None else (row or {}).get('amount'))
+            for row in payload_deductions
+        )
+    else:
+        deduction_sum = sum(_to_float(d.deduction_amount) for d in (getattr(lr, 'lr_deductions', []) or []))
+
+    net = gross - deduction_sum
+    lr.total = net if net > 0 else 0.0
 
 
 def _map_eway_model(e: EWayBillModel) -> dict:
@@ -177,6 +245,8 @@ def create_lr(db: Session, payload: LRCreate) -> dict:
     lr_date = payload_dict.get('date')
     if not isinstance(lr_date, dt_date):
         lr_date = dt_date.today()
+    lr_deductions = payload_dict.pop('lr_deductions', None)
+
     obj = LRModel(
         lr_number=payload_dict.get('lr_number'),
         date=payload_dict.get('date'),
@@ -233,6 +303,9 @@ def create_lr(db: Session, payload: LRCreate) -> dict:
     )
     db.add(obj)
     db.flush()
+
+    _sync_lr_deductions(db, obj, lr_deductions)
+    _recompute_lr_total_from_components(obj, lr_deductions)
     log_action(db, "LR", obj.id, "CREATE", after=_model_to_dict(obj))
     db.commit()
     db.refresh(obj)
@@ -276,9 +349,16 @@ def update_lr(db: Session, lr_id: int, payload: dict) -> dict:
     before = _model_to_dict(obj)
     normalized = _coerce_lr_payload(payload)
 
+    lr_deductions = normalized.pop('lr_deductions', None) if 'lr_deductions' in normalized else None
+
     for key, value in normalized.items():
         if hasattr(obj, key):
             setattr(obj, key, value)
+
+    if lr_deductions is not None:
+        _sync_lr_deductions(db, obj, lr_deductions)
+
+    _recompute_lr_total_from_components(obj, lr_deductions)
 
     log_action(db, "LR", lr_id, "UPDATE", before=before, after=_model_to_dict(obj))
     db.commit()

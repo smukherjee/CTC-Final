@@ -4,16 +4,18 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..db import get_db
+from .security import require_finance_role
 from ..schemas.invoice import InvoiceCreate, InvoiceResponse, InvoiceUpdate
 from ..services.billing_service import (
     create_invoice,
     delete_invoice,
     get_invoice,
+    get_invoice_print_data,
     list_invoices,
     update_invoice,
 )
 
-router = APIRouter(prefix="/billing/invoices", tags=["billing"])
+router = APIRouter(prefix="/billing/invoices", tags=["billing"], dependencies=[Depends(require_finance_role)])
 
 
 @router.get("/", response_model=List[InvoiceResponse])
@@ -33,6 +35,14 @@ def get_billing_invoice(invoice_id: int, db: Session = Depends(get_db)):
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
     return invoice
+
+
+@router.get("/{invoice_id}/print-data")
+def get_billing_invoice_print_data(invoice_id: int, db: Session = Depends(get_db)):
+    payload = get_invoice_print_data(db, invoice_id)
+    if not payload:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    return payload
 
 
 @router.post("/", response_model=InvoiceResponse)

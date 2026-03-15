@@ -169,6 +169,12 @@
   <div class="totals">
     <div class="summary">
       <div class="line"><b>Amount in words:</b> {{amountInWords}}</div>
+      {{#if less_lines.length}}
+      <div class="line" style="margin-top:6px;"><b>LESS (LR Deductions):</b></div>
+      {{#each less_lines}}
+      <div class="row"><span>{{label}}</span><span>{{amount}}</span></div>
+      {{/each}}
+      {{/if}}
     </div>
     <div class="summary">
       <div class="row"><span>Total Amount</span><span>{{total_amount}}</span></div>

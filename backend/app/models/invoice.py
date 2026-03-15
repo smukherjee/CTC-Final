@@ -8,6 +8,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import relationship
@@ -17,6 +18,9 @@ from ..db import Base, engine
 
 class InvoiceModel(Base):
     __tablename__ = "invoices"
+    __table_args__ = (
+        UniqueConstraint("invoice_no", "financial_year", name="uq_invoices_no_fy"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     invoice_no = Column(String(64), nullable=False)

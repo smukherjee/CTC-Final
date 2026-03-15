@@ -49,6 +49,24 @@ def _sync_lr_financials(hm: HireMemoModel, session) -> None:
     hm.mamul = 0.0
 
 
+def _ensure_unique_hirememo_number(db: Session, financial_year: Optional[str], hire_memo_no: Optional[str], exclude_id: Optional[int] = None) -> None:
+    """Service-side guard so callers get a deterministic validation error before commit."""
+    fy = (financial_year or '').strip()
+    hm_no = (hire_memo_no or '').strip()
+    if not fy or not hm_no:
+        return
+
+    query = db.query(HireMemoModel).filter(
+        HireMemoModel.financial_year == fy,
+        HireMemoModel.hire_memo_no == hm_no,
+    )
+    if exclude_id is not None:
+        query = query.filter(HireMemoModel.id != exclude_id)
+
+    if query.first() is not None:
+        raise ValueError(f"Hire Memo number '{hm_no}' already exists for financial year '{fy}'")
+
+
 def get_all_hirememos(db: Session, lr_id: Optional[int] = None, fy: Optional[str] = None):
     query = db.query(HireMemoModel)
     if lr_id is not None:
@@ -150,6 +168,7 @@ def create_hirememo(db: Session, payload: dict):
     if existing:
         _apply_payload(existing, payload, db, partial=False)
         existing.financial_year = fy
+        _ensure_unique_hirememo_number(db, existing.financial_year, existing.hire_memo_no, exclude_id=existing.id)
         hm = existing
     else:
         hm = HireMemoModel(lr_id=lr_id)
@@ -158,6 +177,7 @@ def create_hirememo(db: Session, payload: dict):
         # Auto-assign hire memo sequence scoped to financial year.
         seq = _next_hirememo_seq(db, fy)
         hm.hire_memo_no = str(seq)
+        _ensure_unique_hirememo_number(db, hm.financial_year, hm.hire_memo_no, exclude_id=None)
 
     try:
         db.add(hm)
@@ -187,6 +207,7 @@ def update_hirememo(db: Session, hm_id: int, payload: dict):
         return None
     before = _hm_to_dict(hm)
     _apply_payload(hm, payload, db, partial=True)
+    _ensure_unique_hirememo_number(db, hm.financial_year, hm.hire_memo_no, exclude_id=hm.id)
     db.flush()
     _sync_hirememo_advance_vouchers(
         db,

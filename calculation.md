@@ -127,26 +127,20 @@ Primary numeric fields:
 	- `tds_amount`
 	- `net_amount`
 - Line:
-	- `freight`
-	- `loading_detention`
-	- `unloading_charges`
-	- `unloading_detention`
-	- `other_charges`
-	- `total`
+	- `lr_id`
+	- `total` (derived from LR `total`)
 
 Observed formulas:
 
-- LR selection seeds line `freight` from `LR.freight_amount`
-- Line total:
-	- `line_total = freight + loading_detention + unloading_charges + unloading_detention + other_charges`
+- LR selection seeds invoice line amount from LR `total`.
 - Invoice totals:
-	- `total_amount = sum(line_total)`
+	- `total_amount = sum(selected LR totals)`
 	- `net_amount = total_amount - tds_amount` (floored non-negative in backend compute)
 
 CA note:
 
-- This is the correct place to assemble final client bill.
-- Good practice: detention/other recovery lines are explicit and auditable.
+- Invoice billable amount must remain tied to LR totals to avoid recomposition drift.
+- Additional adjustments should be reflected upstream at LR stage, not manual invoice line edits.
 
 ## 2.6 Invoice Register (`BillBook`)
 
@@ -174,22 +168,18 @@ CA note:
 
 Primary numeric fields:
 
-- `total_billed_amount` (currently allocated billed amount, often invoice outstanding)
-- `tds_deducted`
-- `other_deduction`
-- `net_amount`
+- `amount` (receipt event amount)
 
 Observed formulas and controls:
 
-- Receipt net:
-	- `net_amount = total_billed_amount - tds_deducted - other_deduction`
-- Backend prevents over-allocation beyond invoice receivable.
-- Invoice status auto-syncs to `issued` / `partially_paid` / `paid` based on aggregate receipts.
+- Receipt posting is amount-only and may optionally link to `invoice_id`.
+- Backend prevents over-allocation beyond invoice receivable when linked to invoice.
+- Invoice status auto-syncs to `issued` / `partially_paid` / `paid` based on aggregate receipt amounts.
 
 CA note:
 
-- Correct accounting treatment if `net_amount` is actual cash/bank realization.
-- Keep TDS in receipt for reconciliation against Form 26AS/TDS certificates.
+- Receipt register is for realization events only.
+- Commercial deduction components are not captured in payment receipt payloads.
 
 ## 2.8 Reports (`pending-billing`, `outstanding-receivables`)
 
@@ -223,15 +213,7 @@ CA note:
 
 For each billed LR:
 
-- `Freight_Base = LR.freight_amount`
-- `Loading_Detention = user input / contractual value`
-- `Unloading_Charges = user input / contractual value`
-- `Unloading_Detention = user input / contractual value`
-- `Other_Charges = user input / contractual value`
-
-Then:
-
-- `Invoice_Line_Total = Freight_Base + Loading_Detention + Unloading_Charges + Unloading_Detention + Other_Charges`
+- `Invoice_Line_Total = LR.total`
 
 ## 3.2 Canonical header formula
 
@@ -243,11 +225,11 @@ Then:
 
 For each receipt linked to invoice:
 
-- `Receipt_Net = total_billed_amount - tds_deducted - other_deduction`
+- `Receipt_Amount = payment_receipt.amount`
 
 Invoice collection status:
 
-- `Amount_Received = sum(Receipt_Net)`
+- `Amount_Received = sum(Receipt_Amount)`
 - `Outstanding = max(Invoice_Net_Receivable - Amount_Received, 0)`
 - Status:
 	- `issued` if received = 0
@@ -284,8 +266,8 @@ Many transport invoices are printed as:
 
 Current application behavior note:
 
-- Invoice line amount fields are validated as non-negative in schema/service path.
-- Therefore, direct negative component entry (for example `-20`) is not a native first-class field today.
+- Deductions are modeled at LR level and flow into LR `total`.
+- Invoice lines consume LR totals directly; explicit negative invoice component entry is out of scope.
 
 Recommended implementation policy (audit-safe):
 
@@ -315,9 +297,9 @@ Recommended implementation policy (audit-safe):
 - `Invoice_Gross_Total = sum(Line_Net)`
 - `Invoice_Net_Receivable = Invoice_Gross_Total - TDS`
 
-Interim workaround if schema change is deferred:
+Interim workaround if invoice-level deduction display is required:
 
-- Net-off deduction into line freight before save (store 61,980 instead of 62,000 and keep remark `LESS SEAL COST 20`).
+- Use LR deduction rows as source and render them in print payload as `LESS` lines.
 - This is not preferred because deduction visibility is reduced for audit.
 
 ## 4) Proposed Data Relations for Strong Billing Integrity

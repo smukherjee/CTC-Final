@@ -1,0 +1,351 @@
+openapi: "3.0.3"
+info:
+  title: CTC-ERP Reporting API
+  version: "1.0"
+  description: |
+    Active FR10 reporting contracts. All report endpoints are FY-aware unless noted.
+
+paths:
+  /api/reports/pending-billing:
+    get:
+      summary: Pending billing report
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string, example: "2025-26" }
+      responses:
+        "200":
+          description: Pending billing rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/outstanding-receivables:
+    get:
+      summary: Outstanding receivables report
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string, example: "2025-26" }
+      responses:
+        "200":
+          description: Outstanding rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/hirememo-register:
+    get:
+      summary: Hire memo register report
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Hire memo register rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/advance-payment-register:
+    get:
+      summary: Advance payment register report
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Advance payment rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/driver-settlement:
+    get:
+      summary: Driver settlement report
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Driver settlement rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/driver-outstanding:
+    get:
+      summary: Driver outstanding report
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Driver outstanding rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/vendor-spend:
+    get:
+      summary: Vendor spend report
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Vendor spend rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/settlement-variance:
+    get:
+      summary: Settlement variance report
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Settlement variance rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/advance-aging:
+    get:
+      summary: Advance aging report
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Advance aging rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/cash-advance-utilization:
+    get:
+      summary: Cash advance utilization report
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Utilization rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/hirememo-print-trace:
+    get:
+      summary: Hire memo print trace report
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Print trace rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/trip-profitability:
+    get:
+      summary: Trip profitability report
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Profitability rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/per-vehicle-cost:
+    get:
+      summary: Per vehicle cost report
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Vehicle cost rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/per-driver-performance:
+    get:
+      summary: Per driver performance report
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Driver performance rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/pod-status-worklist:
+    get:
+      summary: POD status worklist report
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: POD worklist rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/eway-expiring:
+    get:
+      summary: E-way expiry alert report
+      parameters:
+        - name: hours
+          in: query
+          schema: { type: integer, default: 8, minimum: 1, maximum: 168 }
+      responses:
+        "200":
+          description: E-way alert rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/receivables-aging:
+    get:
+      summary: Receivables aging report
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Aging buckets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/audit-log:
+    get:
+      summary: Audit log report
+      parameters:
+        - name: entity
+          in: query
+          schema: { type: string, example: "Invoice" }
+        - name: user
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 200, minimum: 1, maximum: 1000 }
+      responses:
+        "200":
+          description: Audit log rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/debit-voucher-register:
+    get:
+      summary: Debit voucher register report
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Debit voucher rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/bank-book:
+    get:
+      summary: Bank book report
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Bank book rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/cash-book:
+    get:
+      summary: Cash book report
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Cash book rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+  /api/reports/contract-expiry:
+    get:
+      summary: Contract expiry report
+      parameters:
+        - name: days
+          in: query
+          schema: { type: integer, default: 30 }
+      responses:
+        "200":
+          description: Contract expiry rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRows"
+
+components:
+  schemas:
+    ReportRows:
+      type: array
+      items:
+        type: object
+        additionalProperties: true

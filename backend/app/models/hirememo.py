@@ -1,9 +1,12 @@
-from sqlalchemy import Column, ForeignKey, Integer, String, Text, Numeric, DateTime, func, Date
+from sqlalchemy import Column, ForeignKey, Integer, String, Text, Numeric, DateTime, func, Date, UniqueConstraint
 from ..db import engine, Base
 
 
 class HireMemoModel(Base):
     __tablename__ = "hirememos"
+    __table_args__ = (
+        UniqueConstraint("hire_memo_no", "financial_year", name="uq_hirememos_no_fy"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     lr_id = Column(Integer, ForeignKey("lrs.id"), nullable=False)

@@ -26,6 +26,11 @@ export interface InvoicePrintLine {
   total?: number;
 }
 
+export interface InvoicePrintLessLine {
+  label?: string;
+  amount?: number;
+}
+
 export interface InvoicePrintData {
   invoice_no?: string;
   invoice_date?: string;
@@ -41,6 +46,7 @@ export interface InvoicePrintData {
   tds_amount?: number;
   net_amount?: number;
   lines?: InvoicePrintLine[];
+  less_lines?: InvoicePrintLessLine[];
 }
 
 function money(value: unknown): string {
@@ -76,6 +82,10 @@ export function printInvoice(data: InvoicePrintData) {
     net_amount: money(netAmount),
     amountInWords: inrWords(netAmount),
     generated_at: format(new Date(), 'dd/MM/yyyy HH:mm:ss'),
+    less_lines: (data.less_lines || []).map((item) => ({
+      label: item.label || 'LESS',
+      amount: money(item.amount),
+    })),
     lines: (data.lines || []).map((line, index) => ({
       s_no: line.s_no ?? index + 1,
       lr_no: line.lr_no || '',

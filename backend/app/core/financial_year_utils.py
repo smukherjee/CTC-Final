@@ -3,7 +3,11 @@
 FY format: 'YYYY-YY'  e.g. '2025-26'
 """
 from datetime import date
+import re
 from sqlalchemy.orm import Session
+
+
+_FY_RE = re.compile(r"^\d{4}-\d{2}$")
 
 
 def get_current_fy() -> str:
@@ -51,3 +55,19 @@ def format_invoice_no(seq: int, fy: str) -> str:
     """Format an invoice number, e.g. format_invoice_no(1543, '2025-26') → '1543/25-26'."""
     fy_suffix = fy[2:]  # '2025-26' → '25-26'
     return f"{seq}/{fy_suffix}"
+
+
+def is_valid_fy(fy: str) -> bool:
+    """Return True when FY matches YYYY-YY and the trailing year is consistent."""
+    if not fy or not _FY_RE.match(fy):
+        return False
+    start = int(fy[:4])
+    end = int(fy[-2:])
+    return (start + 1) % 100 == end
+
+
+def normalize_or_current_fy(fy: str | None) -> str:
+    """Return provided FY if valid, else current FY."""
+    if fy and is_valid_fy(fy):
+        return fy
+    return get_current_fy()

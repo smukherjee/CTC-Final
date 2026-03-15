@@ -96,8 +96,26 @@ This specification defines the core features required for the CTC-ERP system, fo
    - Role-based permissions: Dispatch, Tracking, Accounts, Admin.
    - Restrict financial data (billing, payments, vouchers) from non-Accounts users.
 10. **Reporting**
-    - Pending billing report: unbilled LRs older than 15–20 days.
-    - Outstanding receivables report: unpaid invoices per client with total outstanding.
+   - Pending billing report: unbilled LRs older than 15–20 days.
+   - Outstanding receivables report: unpaid invoices per client with total outstanding.
+   - Hire Memo register report (FY-wise) with totals and settlement fields.
+   - Advance payment register for Hire Memo advances.
+   - Driver-wise settlement report.
+   - Driver outstanding / balance due report.
+   - Broker/Vendor-wise hire spend report.
+   - Advance vs final settlement variance report.
+   - Advance aging report.
+   - Cash advance utilization report.
+   - Hire Memo print trace report.
+   - Trip profitability report (hire cost vs invoice revenue).
+   - Per-vehicle cost report.
+   - Per-driver performance + cost report.
+   - POD delivery status report.
+   - POD verification worklist report (Accounts).
+   - E-way Bill expiry alert report.
+   - Receivables aging / dashboard export.
+   - Audit log report.
+   - Contract expiry report.
 11. **Deployment & Transition**
     - Web/Desktop-first deployment.
     - Manual books maintained in parallel for initial 2–3 months.

@@ -33,8 +33,9 @@ class InvoiceLineBase(BaseModel):
         return v
 
 
-class InvoiceLineCreate(InvoiceLineBase):
-    pass
+class InvoiceLineCreate(BaseModel):
+    lr_id: int
+    s_no: Optional[int] = None
 
 
 class InvoiceLineResponse(InvoiceLineBase):
@@ -52,9 +53,10 @@ class InvoiceBase(BaseModel):
     po_no: Optional[str] = None
     po_date: Optional[date] = None
     hsn_code: Optional[str] = "996791"
+    tax_on_reverse_charge: Optional[bool] = False
     reverse_charge: Optional[bool] = False
     gst_paid_by: Optional[str] = None
-    total_amount: float
+    total_amount: Optional[float] = 0
     tds_amount: Optional[float] = 0
     net_amount: Optional[float] = None
     status: Optional[str] = "draft"
@@ -85,6 +87,7 @@ class InvoiceUpdate(BaseModel):
     po_no: Optional[str] = None
     po_date: Optional[date] = None
     hsn_code: Optional[str] = None
+    tax_on_reverse_charge: Optional[bool] = None
     reverse_charge: Optional[bool] = None
     gst_paid_by: Optional[str] = None
     total_amount: Optional[float] = None
@@ -98,6 +101,7 @@ class InvoiceResponse(InvoiceBase):
     id: int
     invoice_no: str
     financial_year: str
+    gross_amount: float = 0
     amount_received: float = 0
     outstanding_amount: float = 0
     edited: bool = False

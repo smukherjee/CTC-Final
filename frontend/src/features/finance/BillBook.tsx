@@ -170,6 +170,16 @@ export default function BillBook() {
     );
   }, [rows, query, activeClientId]);
 
+  const outstandingSummary = useMemo(() => {
+    const invoiceMap = new Map<number, number>();
+    filteredRows.forEach((row) => {
+      if (!invoiceMap.has(row.invoice_id)) {
+        invoiceMap.set(row.invoice_id, Number(row.outstanding_amount || 0));
+      }
+    });
+    return Array.from(invoiceMap.values()).reduce((sum, value) => sum + value, 0);
+  }, [filteredRows]);
+
   const colDefs = useMemo<any[]>(() => [
     { field: 'invoice_no', headerName: 'INVOICE NO.', width: 130, editable: false },
     {
@@ -353,21 +363,24 @@ export default function BillBook() {
             <option key={opt} value={opt}>{opt}</option>
           ))}
         </select>
+      </div>
 
-        <label htmlFor="billbook_client" className="text-sm font-medium text-slate-700">Client</label>
-        <select
-          id="billbook_client"
-          value={activeClientId}
-          onChange={(e) => {
-            const v = e.target.value;
-            setActiveClientId(v === 'all' ? 'all' : Number(v));
-          }}
-          className="w-40 rounded border px-2 py-1 text-sm"
-        >
-          {clientOptions.map((opt) => (
-            <option key={opt.id} value={opt.id}>{opt.label}</option>
-          ))}
-        </select>
+      <div className="flex flex-wrap items-center gap-2">
+        {clientOptions.map((opt) => (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => setActiveClientId(opt.id)}
+            className={`rounded px-3 py-1.5 text-sm border ${activeClientId === opt.id ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="rounded border bg-white p-3 text-sm text-slate-700">
+        Outstanding Summary ({activeClientId === 'all' ? 'All Clients' : (clientMap[Number(activeClientId)] || `Client ${activeClientId}`)}):
+        <span className="ml-2 font-semibold text-slate-900">{outstandingSummary.toFixed(2)}</span>
       </div>
 
 

@@ -20,7 +20,7 @@ const BillBook = lazy(() => import('@/features/finance/BillBook'));
 const InvoiceForm = lazy(() => import('@/features/finance/InvoiceForm'));
 const PaymentReceiptsRegister = lazy(() => import('@/features/finance/PaymentReceiptsRegister'));
 const LedgerBook = lazy(() => import('@/features/finance/LedgerBook'));
-const PODVerification = lazy(() => import('@/features/finance/PODVerification'));
+const PODManagement = lazy(() => import('@/features/operations/PODManagement'));
 const Reports = lazy(() => import('@/features/reports/Reports'));
 
 interface ErrorBoundaryState {
@@ -70,7 +70,7 @@ function App() {
             <Route path="/" element={<AppLayout />}>
               <Route index element={<Navigate to="/operations/dispatch" replace />} />
               {/* dashboard route removed - users now start on dispatch register */}
-              <Route path="pod" element={<PODVerification />} />
+              <Route path="pod" element={<PODManagement />} />
               <Route path="hire-memo-register" element={<Navigate to="/operations/hire-memo-register" replace />} />
 
               <Route path="operations">
