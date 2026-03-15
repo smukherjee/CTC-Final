@@ -24,6 +24,9 @@ interface BillBookRow {
   net_amount: number;
   amount_received: number;
   outstanding_amount: number;
+  edited: boolean;
+  edited_at?: string;
+  edited_by?: string;
 }
 
 export default function BillBook() {
@@ -88,6 +91,9 @@ export default function BillBook() {
           );
           const amountReceived = Number(invoice.amount_received || 0);
           const outstandingAmount = Number(invoice.outstanding_amount || Math.max(netAmount - amountReceived, 0));
+          const edited = Boolean(invoice.edited);
+          const editedAt = invoice.edited_at ? String(invoice.edited_at) : undefined;
+          const editedBy = invoice.edited_by ? String(invoice.edited_by) : undefined;
           const lines = Array.isArray(invoice.lines) ? invoice.lines : [];
 
           if (lines.length === 0) {
@@ -109,6 +115,9 @@ export default function BillBook() {
               net_amount: netAmount,
               amount_received: amountReceived,
               outstanding_amount: outstandingAmount,
+              edited,
+              edited_at: editedAt,
+              edited_by: editedBy,
             }];
           }
 
@@ -130,6 +139,9 @@ export default function BillBook() {
             net_amount: netAmount,
             amount_received: amountReceived,
             outstanding_amount: outstandingAmount,
+            edited,
+            edited_at: editedAt,
+            edited_by: editedBy,
           }));
         });
         setRows(mappedRows);
@@ -264,6 +276,54 @@ export default function BillBook() {
       valueFormatter: (params: any) => Number(params.value || 0).toFixed(2),
     },
     { field: 'status', headerName: 'STATUS', width: 140, editable: false },
+    {
+      field: 'audit_hint',
+      headerName: 'EDITED AT/BY',
+      width: 190,
+      editable: false,
+      cellRenderer: (params: any) => {
+        const row: BillBookRow = params.data;
+        if (!String(row.id).endsWith('-1') && !String(row.id).endsWith('-0')) return '';
+        if (!row.edited || !row.edited_at) return <span className="text-xs text-slate-500">-</span>;
+        let editedAtLabel = row.edited_at;
+        try {
+          const dt = parseISO(String(row.edited_at));
+          editedAtLabel = Number.isNaN(dt.getTime()) ? String(row.edited_at) : format(dt, 'dd/MM/yyyy HH:mm');
+        } catch {
+          editedAtLabel = String(row.edited_at);
+        }
+        return (
+          <div className="text-xs leading-tight">
+            <div className="font-medium text-slate-700">{editedAtLabel}</div>
+            <div className="text-slate-500">{row.edited_by || 'system'}</div>
+          </div>
+        );
+      },
+    },
+    {
+      field: 'actions',
+      headerName: 'ACTIONS',
+      width: 130,
+      editable: false,
+      pinned: 'right',
+      cellRenderer: (params: any) => {
+        const row: BillBookRow = params.data;
+        const status = String(row.status || '').toLowerCase();
+        if (!row.invoice_id) return '-';
+        if (!String(row.id).endsWith('-1') && !String(row.id).endsWith('-0')) return '';
+        if (status === 'paid') {
+          return <span className="text-xs text-slate-500">Locked</span>;
+        }
+        return (
+          <Link
+            to={`/finance/invoices/${row.invoice_id}/edit`}
+            className="text-blue-700 hover:underline font-medium"
+          >
+            Edit
+          </Link>
+        );
+      },
+    },
   ], []);
 
   return (

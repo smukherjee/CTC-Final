@@ -3,6 +3,14 @@
 ## Overview
 This specification defines the core features required for the CTC-ERP system, focusing on the transition from manual registers to a centralized logistics ERP. It also documents the current implementation status and identifies key gaps to be addressed for a complete, simple, and functional system.
 
+## Clarifications
+### Session 2026-03-15
+- Q: What should be the per-LR billing base in invoice calculation? -> A: Use LR `total` (grand total) as invoice value per LR; do not use separate invoice charge components except TDS.
+- Q: How should commercial deductions (for example `LESS: SEAL COST`) be modeled with LR-total billing? -> A: Capture deduction metadata at LR level (label + amount); invoice copies LR `total` and uses LR deduction metadata for print/audit visibility.
+- Q: What deduction cardinality should LR billing support? -> A: Allow multiple named deductions per LR; each deduction stores its own label and amount.
+- Q: What value format should LR deductions use? -> A: Fixed INR amount only (no percentage-based deduction mode).
+- Q: At which stage should commercial deductions be captured? -> A: Only at LR stage; payment receipts capture receipt amount and notes, not commercial deductions.
+
 ## User Scenarios & Testing
 - A dispatch staff logs a new shipment, generates an LR, and uploads required documents.
 - A brokered vehicle is assigned, and a Hire Memo is created, capturing all financial and driver details.
@@ -26,6 +34,8 @@ This specification defines the core features required for the CTC-ERP system, fo
 ## Functional Requirements
 1. **Centralized Dispatch Register**
    - Capture all shipment details at dispatch: LR No, Date, Consignor, Consignee, Qty, Vehicle No, Origin, Destination, FOB (linked to client Master), Through (Vendor/Broker), Bill No, Remarks.
+   - LR MUST support one-to-many deduction metadata entries for billing transparency (`deduction_label`, `deduction_amount` per entry, fixed INR amount, non-negative).
+   - LR `total` MUST represent net billable amount after applying all LR-level deduction entries.
    - Grid MUST display `driver_mobile` as a visible column (field exists in DB: `driver_mobile`).
    - E-way Bill No and E-way Bill Expiry Date MUST be editable inline in the grid (not read-only).
    - FOB field MUST link to client Master (not freeform city input).
@@ -51,6 +61,9 @@ This specification defines the core features required for the CTC-ERP system, fo
    - Invoice Register MUST support a **per-client tab/filter** view (each client's invoices isolated, mirroring the Bill Notebook structure of one sheet per client).
    - Invoice Register MUST display a running **outstanding total** (sum of unpaid invoices) per client.
    - **Invoice numbering** MUST be auto-generated: sequential integer per financial year, format `{seq}/{YY}-{YY+1}` (e.g., `1543/25-26`). Sequence resets to 1 on April 1. No manual override.
+   - **Invoice value basis** MUST use LR `total` (grand total) as the billable amount per LR line.
+   - Invoice line amount MUST be sourced from LR grand total directly; separate editable charge components in invoice entry (freight/loading/unloading/other) are not permitted for billing computation.
+   - Any commercial charge composition must be finalized at LR stage; invoice computation layer should only apply header-level TDS to derive net amount.
    - All invoice records MUST carry `financial_year`.
    - **Invoice PDF fields** (required for generation):
      - Company header: name, PAN, GSTIN, address, bank details (ICICI Bank, Branch, IFSC, A/c No.).
@@ -58,19 +71,20 @@ This specification defines the core features required for the CTC-ERP system, fo
      - Invoice No. (auto-generated), Invoice Date.
      - PO NUMBER and PO DATE (client purchase order reference).
      - HSN Code: `996791` (standard transport services code, mandatory for GST compliance).
-     - Line items: S.NO, LR NO, DATE, QTY/NOS, PARTICULARS, V.TYPE, VEHICLE NO., C'GNR (Consignor), C'GNEE (Consignee), FROM, TO, FREIGHT, LOADING DETENTION, UNLOADING CHARGES, UNLOADING DETENTION, OTHER CHARGES, TOTAL.
-     - Deduction lines (e.g., SEAL COST) as separate line items.
+   - Line items: S.NO, LR NO, DATE, QTY/NOS, PARTICULARS, V.TYPE, VEHICLE NO., C'GNR (Consignor), C'GNEE (Consignee), FROM, TO, FREIGHT, LOADING DETENTION, UNLOADING CHARGES, UNLOADING DETENTION, OTHER CHARGES, TOTAL.
+   - Charge breakup columns in invoice PDF are display-only for LR context; billing total must still use LR `total` per selected LR.
+   - Deduction lines (e.g., SEAL COST) in invoice PDF MUST be sourced from LR deduction metadata and shown as individual `LESS` entries for transparency.
      - Amount total and "Amount in words" line.
      - Reverse charge fields: `gst_paid_by` (client name) and `tax_on_reverse_charge` (YES/NO boolean). Sample shows "GST PAYABLE BY [CLIENT NAME]" and "TAX PAYABLE ON REVERSE CHARGES: YES".
      - Authorised Signatory section.
    - Batch-select LRs for a single invoice; auto-generate annexure PDF.
-   - Allow manual addition of unloading, detention, and other charges per LR line.
 6. **Payment Receipts Register**
    - A dedicated screen to record payments received from clients.
    - Columns: PAYMENT DATE, AMOUNT, RECEIVED FROM (client name), NOTES (optional).
    - New route: `/payment-receipts`; model: `PaymentReceipt(id, payment_date, amount, received_from, financial_year, notes)`.
    - All records MUST carry `financial_year`; UI MUST provide a FY filter.
    - This register is separate from invoice passing (Amount Passed in Invoice Register) and records the actual cash/bank receipt event.
+   - Payment Receipts MUST NOT include commercial deduction fields; deduction accounting is finalized at LR stage.
 7. **Voucher & Ledger Automation**
    - Generate print-ready debit vouchers for all advances/balances.
    - Auto-populate Bank Book and Cash Book from daily entries.
@@ -99,6 +113,7 @@ This specification defines the core features required for the CTC-ERP system, fo
 
 ## Key Entities
 - LR (Lorry Receipt) — carries `financial_year`
+- LR Deduction — child entries under LR (`deduction_label`, `deduction_amount` as fixed INR amount)
 - Hire Memo — carries `financial_year`; auto-numbered per FY
 - Vehicle
 - client (Consignor/Consignee/Client) — has GSTIN

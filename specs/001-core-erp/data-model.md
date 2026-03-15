@@ -1,276 +1,112 @@
 # Data Model: CTC-ERP Core (001-core-erp)
 
-**Phase**: 1 — Design  
-**Date**: 2026-03-05  
-**Status**: Final — all entities confirmed
+**Phase**: 1 - Design  
+**Date**: 2026-03-15
 
----
+## Entities
 
-## Entity Relationship Overview
+- `LR`
+- `LRDeduction`
+- `HireMemo`
+- `Invoice`
+- `InvoiceLine`
+- `PaymentReceipt`
+- `Client`
+- `Vendor`
 
-```
-client ──────────────────────────────────┐
-  │ (1:N invoices, 1:N lrs)             │
-  │                                     ▼
-LR (lrs) ──── HireMemo (hirememos)   Invoice (invoices)
-  │                                     │ 1:N
-  └────────────────────────────────► InvoiceLine (invoice_lines)
+## Relationships
 
-PaymentReceipt (payment_receipts) — standalone, linked to client by name only
-Voucher (vouchers) — FY-scoped; auto-created from HireMemo advances
-Vehicle (vehicles) — referenced by LR
-Vendor (vendors) — referenced by LR (through/broker)
-```
+- `LR (1) -> (N) LRDeduction`
+- `Invoice (1) -> (N) InvoiceLine`
+- `InvoiceLine (N) -> (1) LR`
+- `Client (1) -> (N) Invoice`
+- `Client (1) -> (N) PaymentReceipt`
+- `LR (0..1) -> (1) HireMemo`
 
----
+## Entity Specifications
 
-## 1. `lrs` — MODIFIED
+### LR
 
-| Column | Type | Constraints | Notes |
-|--------|------|-------------|-------|
-| `id` | SERIAL | PK | |
-| `lr_no` | VARCHAR(50) | NOT NULL | Manual entry |
-| `date` | DATE | NOT NULL | Dispatch date |
-| `financial_year` | VARCHAR(7) | NOT NULL DEFAULT '2025-26' | **NEW** e.g. `2025-26` |
-| `consignor_id` | INTEGER | FK → clients.id | |
-| `consignee_id` | INTEGER | FK → clients.id | |
-| `origin` | VARCHAR(100) | | |
-| `destination` | VARCHAR(100) | | |
-| `qty` | INTEGER | | |
-| `vehicle_no` | VARCHAR(20) | | |
-| `driver_mobile` | VARCHAR(15) | | Grid-visible column |
-| `through_id` | INTEGER | FK → vendors.id | Broker/Vendor |
-| `fob_client_id` | INTEGER | FK → clients.id | FOB → Client Master |
-| `bill_no` | VARCHAR(50) | | |
-| `remarks` | TEXT | | |
-| `eway_bill_no` | VARCHAR(50) | | Inline-editable in grid |
-| `eway_bill_expiry` | TIMESTAMP | | Alert trigger |
-| `pod_received` | BOOLEAN | DEFAULT FALSE | |
-| `pod_file_id` | INTEGER | FK → file_uploads.id | |
-| `hire_memo_id` | INTEGER | FK → hirememos.id | |
-| `created_at` | TIMESTAMP | DEFAULT now() | |
+Key fields:
+- `id`, `lr_number`, `lr_date`, `financial_year`
+- `consignor_id`, `consignee_id`, `client_id`
+- `origin`, `destination`, `vehicle_no`, `driver_mobile`
+- `freight_amount`, `hamali_charges`, `st_charges`, `mamul`, `total`
 
----
+Validation:
+- `financial_year` must match `YYYY-YY`.
+- `total >= 0`.
 
-## 2. `hirememos` — MODIFIED
+### LRDeduction
 
-| Column | Type | Constraints | Notes |
-|--------|------|-------------|-------|
-| `id` | SERIAL | PK | |
-| `hire_memo_no` | INTEGER | NOT NULL | **Auto-generated** per FY |
-| `financial_year` | VARCHAR(7) | NOT NULL DEFAULT '2025-26' | **NEW** |
-| `lr_id` | INTEGER | FK → lrs.id | |
-| `date` | DATE | NOT NULL | |
-| `vehicle_no` | VARCHAR(20) | | |
-| `driver_name` | VARCHAR(100) | | |
-| `driver_mobile` | VARCHAR(15) | | |
-| `driver_license` | VARCHAR(50) | | |
-| `total_hire` | NUMERIC(12,2) | NOT NULL | |
-| `advance_cash` | NUMERIC(12,2) | DEFAULT 0 | |
-| `advance_bank` | NUMERIC(12,2) | DEFAULT 0 | |
-| `balance` | NUMERIC(12,2) | GENERATED | `total_hire - advance_cash - advance_bank` |
-| `remarks` | TEXT | | |
-| `created_at` | TIMESTAMP | DEFAULT now() | |
+Key fields:
+- `id`, `lr_id`, `deduction_label`, `deduction_amount`, `sort_order`
 
-**Constraints**:
-- `UNIQUE(hire_memo_no, financial_year)` — prevents duplicates within a FY
-- `hire_memo_no` is assigned by `next_hirememo_seq(session, fy)` — no manual override
+Validation:
+- `deduction_amount >= 0`.
+- fixed INR amount only (no percent mode).
+- `deduction_label` cannot be blank.
 
----
+### HireMemo
 
-## 3. `vendors` — MODIFIED (DROP gstin)
+Key fields:
+- `id`, `hirememo_number`, `financial_year`, `lr_id`
+- `total_hire`, `advance_cash`, `advance_bank`, `balance`
 
-| Column | Type | Constraints | Notes |
-|--------|------|-------------|-------|
-| `id` | SERIAL | PK | |
-| `name` | VARCHAR(200) | NOT NULL | |
-| `contact` | VARCHAR(100) | | |
-| `mobile` | VARCHAR(15) | | |
-| `vehicle_types` | TEXT | | JSON or CSV |
-| `pan_no` | VARCHAR(10) | | |
-| ~~`gstin`~~ | ~~VARCHAR(15)~~ | **DROPPED** | Vendor/Broker has no GSTIN |
+Validation:
+- unique `(financial_year, hirememo_number)`.
+- `balance = total_hire - advance_cash - advance_bank`.
 
----
+### Invoice
 
-## 4. `bills` — MODIFIED (legacy BillBook rows)
+Key fields:
+- `id`, `invoice_number`, `invoice_date`, `financial_year`, `client_id`
+- `po_number`, `po_date`, `hsn_code`, `gst_paid_by`, `tax_on_reverse_charge`
+- `gross_amount`, `tds_amount`, `net_amount`, `status`
 
-| Column | Type | Constraints | Notes |
-|--------|------|-------------|-------|
-| `id` | SERIAL | PK | |
-| `bill_no` | VARCHAR(50) | | |
-| `bill_date` | DATE | | |
-| `lr_id` | INTEGER | FK → lrs.id | |
-| `lr_date` | DATE | | **NEW** |
-| `origin` | VARCHAR(100) | | **NEW** |
-| `destination` | VARCHAR(100) | | **NEW** |
-| `client_id` | INTEGER | FK → clients.id | Customer |
-| `amount` | NUMERIC(12,2) | | Billed amount |
-| `amount_passed` | NUMERIC(12,2) | | Cleared amount |
-| `deductions` | NUMERIC(12,2) | | |
-| `tds_amount` | NUMERIC(12,2) | DEFAULT 0 | **NEW** |
-| `net_amount` | NUMERIC(12,2) | GENERATED | **NEW** `amount_passed - tds_amount` |
-| `financial_year` | VARCHAR(7) | NOT NULL DEFAULT '2025-26' | **NEW** |
-| `remarks` | TEXT | | |
-| `cm_no` | VARCHAR(50) | | Credit memo |
-| `cm_date` | DATE | | |
+Validation:
+- unique `(financial_year, invoice_number)`.
+- `net_amount = gross_amount - tds_amount`.
 
----
+### InvoiceLine
 
-## 5. `invoices` — NEW
+Key fields:
+- `id`, `invoice_id`, `lr_id`
+- `line_amount` (copied from LR `total`)
+- display snapshot fields (vehicle/route/party names)
 
-| Column | Type | Constraints | Notes |
-|--------|------|-------------|-------|
-| `id` | SERIAL | PK | |
-| `invoice_no` | VARCHAR(20) | NOT NULL | Auto: `{seq}/YY-YY` e.g. `1543/25-26` |
-| `invoice_date` | DATE | NOT NULL | |
-| `client_id` | INTEGER | FK → clients.id | Bill-to client |
-| `financial_year` | VARCHAR(7) | NOT NULL | e.g. `2025-26` |
-| `po_no` | VARCHAR(100) | | Client PO number |
-| `po_date` | DATE | | Client PO date |
-| `hsn_code` | VARCHAR(10) | DEFAULT '996791' | HSN for transport services |
-| `reverse_charge` | BOOLEAN | DEFAULT FALSE | RCM applies? |
-| `gst_paid_by` | VARCHAR(255) | | Client name paying GST |
-| `total_amount` | NUMERIC(12,2) | NOT NULL | Sum of line item totals |
-| `tds_amount` | NUMERIC(12,2) | DEFAULT 0 | |
-| `net_amount` | NUMERIC(12,2) | GENERATED | `total_amount - tds_amount` |
-| `status` | VARCHAR(20) | DEFAULT 'issued' | `draft`, `issued`, `partially_paid`, `paid` |
-| `created_at` | TIMESTAMP | DEFAULT now() | |
+Validation:
+- no duplicate LR in the same invoice.
+- line amount must be derived from LR total; not manually recomposed in invoice.
 
-**Constraints**:
-- `UNIQUE(invoice_no, financial_year)`
+### PaymentReceipt
 
----
+Key fields:
+- `id`, `payment_date`, `amount`, `received_from`, `received_from_id`, `financial_year`, `notes`
 
-## 6. `invoice_lines` — NEW
+Validation:
+- `amount > 0`.
+- no commercial deduction fields on this entity.
 
-One row per LR within an invoice (16-column annexure structure).
+## Derived Formulas
 
-| Column | Type | Constraints | Notes |
-|--------|------|-------------|-------|
-| `id` | SERIAL | PK | |
-| `invoice_id` | INTEGER | FK → invoices.id ON DELETE CASCADE | |
-| `lr_id` | INTEGER | FK → lrs.id | |
-| `s_no` | INTEGER | NOT NULL | Line sequence |
-| `lr_no` | VARCHAR(50) | | Denormalised for PDF |
-| `lr_date` | DATE | | |
-| `qty` | INTEGER | | |
-| `particulars` | TEXT | | Goods description |
-| `v_type` | VARCHAR(50) | | Vehicle type |
-| `vehicle_no` | VARCHAR(20) | | |
-| `consignor` | VARCHAR(200) | | |
-| `consignee` | VARCHAR(200) | | |
-| `from_city` | VARCHAR(100) | | |
-| `to_city` | VARCHAR(100) | | |
-| `freight` | NUMERIC(10,2) | DEFAULT 0 | |
-| `loading_detention` | NUMERIC(10,2) | DEFAULT 0 | |
-| `unloading_charges` | NUMERIC(10,2) | DEFAULT 0 | |
-| `unloading_detention` | NUMERIC(10,2) | DEFAULT 0 | |
-| `other_charges` | NUMERIC(10,2) | DEFAULT 0 | |
-| `total` | NUMERIC(10,2) | GENERATED | Sum of above charge columns |
-
----
-
-## 7. `payment_receipts` — NEW
-
-| Column | Type | Constraints | Notes |
-|--------|------|-------------|-------|
-| `id` | SERIAL | PK | |
-| `payment_date` | DATE | NOT NULL | |
-| `amount` | NUMERIC(12,2) | NOT NULL | Legacy compatibility field storing the effective net receipt amount |
-| `invoice_id` | INTEGER | FK → invoices.id | **NEW** Optional linkage to Invoice Register |
-| `received_from_id` | INTEGER | FK → clients.id | **NEW** Customer Master linkage |
-| `received_from` | VARCHAR(255) | NOT NULL | Snapshot of customer name for display/export |
-| `total_billed_amount` | NUMERIC(12,2) | NOT NULL | **NEW** Manual entry |
-| `tds_deducted` | NUMERIC(12,2) | DEFAULT 0 | **NEW** |
-| `other_deduction` | NUMERIC(12,2) | DEFAULT 0 | **NEW** |
-| `net_amount` | NUMERIC(12,2) | NOT NULL | **NEW** `total_billed_amount - tds_deducted - other_deduction` |
-| `deduction_remarks` | TEXT | | **NEW** Remarks for deductions |
-| `payment_mode` | VARCHAR(32) | NOT NULL DEFAULT 'BANK' | **NEW** |
-| `financial_year` | VARCHAR(7) | NOT NULL | e.g. `2025-26` |
-| `notes` | TEXT | | Optional remarks |
-| `created_at` | TIMESTAMP | DEFAULT now() | |
-
----
-
-## 8. `vouchers` — NEW
-
-| Column | Type | Constraints | Notes |
-|--------|------|-------------|-------|
-| `id` | SERIAL | PK | |
-| `voucher_type` | VARCHAR(20) | NOT NULL | `cash`, `bank`, `debit`, `credit` |
-| `reference_id` | INTEGER | | FK to source entity (e.g., hirememo.id) |
-| `reference_type` | VARCHAR(50) | | e.g. `hirememo`, `invoice`, `payment_receipt` |
-| `amount` | NUMERIC(12,2) | NOT NULL | |
-| `narration` | TEXT | | Description / purpose |
-| `date` | DATE | NOT NULL | Voucher date |
-| `financial_year` | VARCHAR(7) | NOT NULL | e.g. `2025-26` |
-| `created_at` | TIMESTAMP | DEFAULT now() | |
-
-**Note**: Auto-created by `voucher_service.py` when HireMemo advance is saved. Indexed by `financial_year` for LedgerBook queries.
-
----
-
-## Shared Utilities
-
-### `backend/app/core/financial_year_utils.py`
-
-```python
-from datetime import date
-from decimal import Decimal
-from sqlalchemy.orm import Session
-
-def get_current_fy() -> str:
-    today = date.today()
-    year = today.year if today.month >= 4 else today.year - 1
-    return f"{year}-{str(year+1)[2:]}"
-
-def fy_from_date(d: date) -> str:
-    year = d.year if d.month >= 4 else d.year - 1
-    return f"{year}-{str(year+1)[2:]}"
-
-def next_invoice_seq(session: Session, fy: str) -> int:
-    from app.models.invoice import Invoice
-    count = session.query(Invoice).filter(Invoice.financial_year == fy).count()
-    return count + 1
-
-def next_hirememo_seq(session: Session, fy: str) -> int:
-    from app.models.hirememo import HireMemo
-    count = session.query(HireMemo).filter(HireMemo.financial_year == fy).count()
-    return count + 1
-
-def format_invoice_no(seq: int, fy: str) -> str:
-    short_fy = fy[2:].replace("-", "-")  # "2025-26" -> "25-26"
-    return f"{seq}/{short_fy}"
-```
-
-### `backend/app/core/amount_in_words.py`
-
-Implements `inr_words(amount: Decimal) -> str` using Indian numbering (lakh, crore). See research.md §1 for implementation.
-
----
+- `LR.total = gross_operational_components - sum(LRDeduction.deduction_amount)`
+- `Invoice.gross_amount = sum(InvoiceLine.line_amount)`
+- `Invoice.net_amount = Invoice.gross_amount - Invoice.tds_amount`
+- `Outstanding = sum(invoice.net_amount) - sum(payment_receipt.amount)`
 
 ## State Transitions
 
-### Invoice Status
-```
-draft → issued → partially_paid → paid
-```
+### Invoice
 
-### LR/POD Status
-```
-dispatched → pod_received → billed → cleared
-```
+- `draft -> issued -> partially_paid -> paid`
 
----
+Guard conditions:
+- `issued`: has at least one line.
+- `partially_paid`: cumulative receipt amount is > 0 and < net amount.
+- `paid`: cumulative receipt amount is >= net amount.
 
-## Migration Execution Order
+### LR Billing State (derived)
 
-```
-1. YYYYMMDD_add_financial_year_to_lrs.py
-2. YYYYMMDD_add_financial_year_to_hirememos.py
-3. YYYYMMDD_enhance_bills_table.py         (+ financial_year, tds_amount, net_amount, lr_date, origin, destination)
-4. YYYYMMDD_drop_vendor_gstin.py
-5. YYYYMMDD_create_invoices.py
-6. YYYYMMDD_create_invoice_lines.py
-7. YYYYMMDD_create_payment_receipts.py
-```
+- `unbilled`: LR not linked to any invoice line.
+- `billed`: LR linked to an invoice line.

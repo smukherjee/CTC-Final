@@ -506,8 +506,18 @@ def _ensure_pdf(path: Path) -> tuple[int, str]:
 def _upsert_client(session, name: str, p_type: str = "customer") -> ClientModel:
     row = session.query(ClientModel).filter(ClientModel.name == name).first()
     if row:
-        if p_type == "customer" and row.type != "customer":
-            row.type = p_type
+        # Keep role coverage stable across screens: when one master is reused in
+        # multiple roles (customer/consignor/consignee), persist it as "both".
+        existing = (row.type or "").strip().lower()
+        requested = (p_type or "").strip().lower()
+        if requested and existing != requested:
+            if "both" in {existing, requested}:
+                row.type = "both"
+            elif {existing, requested} <= {"customer", "consignor", "consignee"}:
+                row.type = "both"
+            elif requested != "customer":
+                row.type = requested
+        session.flush()
         return row
     row = ClientModel(name=name, type=p_type, tds_rate=Decimal("2.00"))
     session.add(row)
@@ -519,10 +529,58 @@ def _require_existing_customer_master(session, name: str) -> ClientModel:
     row = session.query(ClientModel).filter(ClientModel.name == name).first()
     if not row:
         raise RuntimeError(f"Seed receipt customer master missing: {name}")
-    if row.type != "customer":
-        row.type = "customer"
+    # Do not downgrade a role-specialized master to customer; it breaks
+    # consignor/consignee option resolution in LR screens.
+    existing = (row.type or "").strip().lower()
+    if existing in {"consignor", "consignee"}:
+        row.type = "both"
         session.flush()
     return row
+
+
+def _repair_seed_lr_party_fields(session) -> int:
+    """Backfill missing LR party fields and keep referenced client roles usable."""
+    fixed = 0
+    rows = session.query(LRModel).filter(LRModel.lr_number.like("SEEDLR-%")).all()
+    for lr in rows:
+        changed = False
+
+        if lr.consignor_name and not lr.consignor_id:
+            consignor = _upsert_client(session, lr.consignor_name, "consignor")
+            lr.consignor_id = str(consignor.id)
+            changed = True
+        elif lr.consignor_id:
+            consignor = None
+            try:
+                consignor_id = int(str(lr.consignor_id))
+            except (TypeError, ValueError):
+                consignor_id = None
+            if consignor_id is not None:
+                consignor = session.query(ClientModel).filter(ClientModel.id == consignor_id).first()
+            if consignor:
+                _upsert_client(session, consignor.name, "consignor")
+
+        if lr.consignee_name and not lr.consignee_id:
+            consignee = _upsert_client(session, lr.consignee_name, "consignee")
+            lr.consignee_id = str(consignee.id)
+            changed = True
+        elif lr.consignee_id:
+            consignee = None
+            try:
+                consignee_id = int(str(lr.consignee_id))
+            except (TypeError, ValueError):
+                consignee_id = None
+            if consignee_id is not None:
+                consignee = session.query(ClientModel).filter(ClientModel.id == consignee_id).first()
+            if consignee:
+                _upsert_client(session, consignee.name, "consignee")
+
+        if changed:
+            fixed += 1
+
+    if fixed:
+        session.flush()
+    return fixed
 
 
 def _prime_receipt_customer_masters(session, receipt_rows: List[dict]):
@@ -1026,8 +1084,8 @@ def _seed(session):
         vendor_name = f"Vendor Seed {scenario.idx:02d}"
 
         customer = _upsert_client(session, customer_name, "customer")
-        _upsert_client(session, consignor_name, "consignor")
-        _upsert_client(session, consignee_name, "consignee")
+        consignor_client = _upsert_client(session, consignor_name, "consignor")
+        consignee_client = _upsert_client(session, consignee_name, "consignee")
         vehicle = None
         if has_vehicle:
             vendor = _upsert_vendor(session, vendor_name)
@@ -1044,9 +1102,9 @@ def _seed(session):
             {
                 "lr_number": lr_number,
                 "date": scenario.lr_date,
-                "consignor_id": str(customer.id),
+                "consignor_id": str(consignor_client.id),
                 "consignor_name": consignor_name,
-                "consignee_id": str(customer.id),
+                "consignee_id": str(consignee_client.id),
                 "consignee_name": consignee_name,
                 "origin": origin,
                 "destination": destination,
@@ -1080,7 +1138,12 @@ def _seed(session):
                 "total": (freight + Decimal("200.00")).quantize(Decimal("0.01")),
                 "bill_number": f"SEED-BILL-{scenario.idx:03d}",
                 "bill_date": bill_date,
-                "amount_passed": sample["amount_passed"] if sample["amount_passed"] > 0 else None,
+                "amount_passed": (
+                    sample["amount_passed"] if sample["amount_passed"] > 0
+                    else freight if scenario.invoice_status == "paid"
+                    else (freight * Decimal("0.6")).quantize(Decimal("0.01")) if scenario.invoice_status == "partially_paid"
+                    else None
+                ),
                 "deductions": sample["deductions"] or "NIL",
                 "cm_no": sample["cm_no"] or f"CM{scenario.idx:04d}",
                 "cm_date": sample["cm_date"] or (bill_date + timedelta(days=10)),
@@ -1139,6 +1202,8 @@ def _seed(session):
         created_lrs.append(lr)
 
     _prime_receipt_customer_masters(session, receipt_rows)
+
+    repaired = _repair_seed_lr_party_fields(session)
 
     # Seed standalone payment receipts from sample Sheet4.
     for i, rr in enumerate(receipt_rows, start=1):
@@ -1221,7 +1286,8 @@ def _seed(session):
     session.commit()
     print(
         f"Seed complete: lrs={len(created_lrs)} invoices={invoice_count} "
-        f"hirememos={hm_count} receipts={session.query(PaymentReceiptModel).filter(PaymentReceiptModel.notes.ilike(f'{SEED_TAG}%')).count()}"
+        f"hirememos={hm_count} receipts={session.query(PaymentReceiptModel).filter(PaymentReceiptModel.notes.ilike(f'{SEED_TAG}%')).count()} "
+        f"lr_party_repairs={repaired}"
     )
     print("FY coverage:", ", ".join(sorted({fy_from_date(s.lr_date) for s in SCENARIOS}, reverse=True)))
 

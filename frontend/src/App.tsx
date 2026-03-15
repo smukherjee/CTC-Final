@@ -87,6 +87,7 @@ function App() {
                 <Route path="pod-verify" element={<Navigate to="/pod" replace />} />
                 <Route path="invoices" element={<BillBook />} />
                 <Route path="invoices/new" element={<InvoiceForm />} />
+                <Route path="invoices/:invoiceId/edit" element={<InvoiceForm />} />
                 <Route path="payment-receipts" element={<PaymentReceiptsRegister />} />
                 <Route path="vouchers" element={<LedgerBook />} />
               </Route>

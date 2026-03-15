@@ -10,6 +10,7 @@ from ..core.financial_year_utils import (
     fy_from_date as _fy_from_date,
     next_invoice_seq as _next_invoice_seq,
 )
+from ..models.audit_log import AuditLogModel
 from ..models.invoice import InvoiceLineModel, InvoiceModel
 from ..models.payment_receipt import PaymentReceiptModel
 from .audit_service import log_action
@@ -79,8 +80,36 @@ def sync_invoice_payment_status(session, invoice: InvoiceModel) -> InvoiceModel:
     return invoice
 
 
+def _invoice_edit_hint(db: Session, invoice: InvoiceModel) -> tuple[bool, Optional[object], Optional[str]]:
+    """Return edited flag, timestamp, and editor for invoice register hints."""
+    try:
+        audit_row = (
+            db.query(AuditLogModel)
+            .filter(
+                AuditLogModel.entity_id == invoice.id,
+                AuditLogModel.action == "UPDATE",
+                AuditLogModel.entity_type.in_(["Invoice", "INVOICE", "invoice"]),
+            )
+            .order_by(AuditLogModel.created_at.desc(), AuditLogModel.id.desc())
+            .first()
+        )
+    except Exception:
+        audit_row = None
+
+    if audit_row:
+        return True, audit_row.created_at, audit_row.user_name or "system"
+
+    edited_at = invoice.updated_at
+    created_at = invoice.created_at
+    if edited_at and created_at and edited_at > created_at:
+        return True, edited_at, "system"
+
+    return False, None, None
+
+
 def _invoice_to_dict(db: Session, invoice: InvoiceModel, lines: List[InvoiceLineModel]) -> dict:
     amount_received, outstanding_amount = compute_invoice_receipt_summary(db, invoice.id)
+    edited, edited_at, edited_by = _invoice_edit_hint(db, invoice)
     return {
         "id": invoice.id,
         "invoice_no": invoice.invoice_no,
@@ -98,6 +127,9 @@ def _invoice_to_dict(db: Session, invoice: InvoiceModel, lines: List[InvoiceLine
         "amount_received": amount_received,
         "outstanding_amount": outstanding_amount,
         "status": invoice.status,
+        "edited": edited,
+        "edited_at": edited_at,
+        "edited_by": edited_by,
         "lines": [_line_to_dict(line) for line in lines],
     }
 
@@ -198,6 +230,10 @@ def update_invoice(db: Session, invoice_id: int, payload: dict) -> Optional[dict
         invoice = db.query(InvoiceModel).filter(InvoiceModel.id == invoice_id).first()
         if not invoice:
             return None
+        amount_received, _ = compute_invoice_receipt_summary(db, invoice.id)
+        invoice_net = _to_float(invoice.net_amount) or _to_float(invoice.total_amount) or 0.0
+        if derive_payment_status(invoice.status, invoice_net, amount_received) == "paid":
+            raise ValueError("Paid invoices cannot be edited")
         before = _invoice_to_dict(db, invoice, db.query(InvoiceLineModel).filter(InvoiceLineModel.invoice_id == invoice.id).all())
 
         for key in (

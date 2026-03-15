@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, field_validator, model_validator
@@ -100,6 +100,9 @@ class InvoiceResponse(InvoiceBase):
     financial_year: str
     amount_received: float = 0
     outstanding_amount: float = 0
+    edited: bool = False
+    edited_at: Optional[datetime] = None
+    edited_by: Optional[str] = None
     lines: List[InvoiceLineResponse] = []
 
     class Config:
