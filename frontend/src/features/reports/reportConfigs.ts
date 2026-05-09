@@ -134,7 +134,7 @@ export const REPORT_CONFIGS: ReportConfig[] = [
     label: 'Cash Advance Utilization',
     endpoint: 'cash-advance-utilization',
     noRowsMessage: 'No utilization rows.',
-    supportsFy: true,
+    supportsFy: false,
     columns: [
       { field: 'financial_year', headerName: 'FY', minWidth: 120, flex: 1 },
       { field: 'cash_advance_total', headerName: 'Cash Advance', minWidth: 150, flex: 1, valueFormatter: fmtMoney, currencyTotal: true },
@@ -148,12 +148,15 @@ export const REPORT_CONFIGS: ReportConfig[] = [
     endpoint: 'hirememo-print-trace',
     noRowsMessage: 'No print trace rows.',
     supportsFy: true,
+    serverSearch: true,
     columns: [
       { field: 'hire_memo_no', headerName: 'HM No', minWidth: 130, flex: 1 },
       { field: 'hire_memo_date', headerName: 'Date', minWidth: 120, flex: 1, valueFormatter: fmtDate },
       { field: 'driver_name', headerName: 'Driver', minWidth: 170, flex: 1.2 },
       { field: 'vehicle_number', headerName: 'Vehicle', minWidth: 130, flex: 1 },
       { field: 'print_status', headerName: 'Print Status', minWidth: 130, flex: 1 },
+      { field: 'print_count', headerName: 'Print Count', minWidth: 120, flex: 1 },
+      { field: 'printed_by', headerName: 'Printed By', minWidth: 140, flex: 1 },
       { field: 'last_printed_at', headerName: 'Last Printed At', minWidth: 160, flex: 1, valueFormatter: fmtDate },
     ],
   },
@@ -225,7 +228,6 @@ export const REPORT_CONFIGS: ReportConfig[] = [
     supportsFy: false,
     params: { hours: 8 },
     columns: [
-      { field: 'lr_id', headerName: 'LR ID', minWidth: 90, flex: 1 },
       { field: 'lr_number', headerName: 'LR No', minWidth: 120, flex: 1 },
       { field: 'vehicle_number', headerName: 'Vehicle', minWidth: 130, flex: 1 },
       { field: 'eway_bill_no', headerName: 'E-way Bill', minWidth: 140, flex: 1 },
@@ -254,6 +256,7 @@ export const REPORT_CONFIGS: ReportConfig[] = [
     endpoint: 'audit-log',
     noRowsMessage: 'No audit rows.',
     supportsFy: false,
+    serverSearch: true,
     params: { limit: 200 },
     columns: [
       { field: 'id', headerName: 'ID', minWidth: 90, flex: 1 },

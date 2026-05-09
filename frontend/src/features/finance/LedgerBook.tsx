@@ -9,6 +9,7 @@ import { printVoucher } from '@/utils/printVoucher';
 interface VoucherRow {
   id: number;
   voucher_type: string;
+  book: 'Cash' | 'Bank';
   reference_id?: number;
   reference_type?: string;
   amount: number;
@@ -19,29 +20,44 @@ interface VoucherRow {
   date: string;
 }
 
-type BookType = 'cash' | 'bank';
-
 export default function LedgerBook() {
   const currentFy = getCurrentFy();
   const fyOptions = generateFyDropdownOptions(currentFy);
   const [fy, setFy] = useState(currentFy);
-  const [book, setBook] = useState<BookType>('cash');
   const [rows, setRows] = useState<VoucherRow[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     setLoading(true);
-    axios
-      .get('/api/vouchers/', { params: { voucher_type: book, fy } })
-      .then((res) => {
-        setRows(Array.isArray(res.data) ? res.data : []);
+    Promise.all([
+      axios.get('/api/vouchers/', { params: { voucher_type: 'cash', fy } }),
+      axios.get('/api/vouchers/', { params: { voucher_type: 'bank', fy } }),
+    ])
+      .then(([cashRes, bankRes]) => {
+        const cashRows = (Array.isArray(cashRes.data) ? cashRes.data : []).map((row: any) => ({
+          ...row,
+          book: 'Cash' as const,
+        }));
+        const bankRows = (Array.isArray(bankRes.data) ? bankRes.data : []).map((row: any) => ({
+          ...row,
+          book: 'Bank' as const,
+        }));
+
+        const mergedRows = [...cashRows, ...bankRows].sort((a, b) => {
+          const ad = String(a.date || '');
+          const bd = String(b.date || '');
+          if (ad !== bd) return ad.localeCompare(bd);
+          return Number(a.id || 0) - Number(b.id || 0);
+        });
+
+        setRows(mergedRows);
       })
       .catch((err) => {
         console.error('Failed to load vouchers', err);
         setRows([]);
       })
       .finally(() => setLoading(false));
-  }, [book, fy]);
+  }, [fy]);
 
   const ledgerRows = useMemo(() => {
     let running = 0;
@@ -79,6 +95,13 @@ export default function LedgerBook() {
       flex: 1,
       editable: false,
       valueFormatter: (params: any) => formatDisplayDate(params.value),
+    },
+    {
+      field: 'book',
+      headerName: 'Cash/Bank',
+      minWidth: 130,
+      flex: 1,
+      editable: false,
     },
     {
       field: 'narration',
@@ -140,46 +163,28 @@ export default function LedgerBook() {
 
   return (
     <div className="space-y-4">
-      <div>
+      <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold tracking-tight text-slate-900">Ledger Book</h2>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <label htmlFor="ledger_fy" className="text-sm font-medium text-slate-700">FY</label>
-        <select
-          id="ledger_fy"
-          value={fy}
-          onChange={(e) => setFy(e.target.value)}
-          className="rounded border px-3 py-2 text-sm"
-        >
-          {fyOptions.map((opt) => (
-            <option key={opt} value={opt}>{opt}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => setBook('cash')}
-          className={`rounded px-3 py-1 text-sm ${book === 'cash' ? 'bg-slate-900 text-white' : 'bg-white border text-slate-700'}`}
-        >
-          Cash Book
-        </button>
-        <button
-          type="button"
-          onClick={() => setBook('bank')}
-          className={`rounded px-3 py-1 text-sm ${book === 'bank' ? 'bg-slate-900 text-white' : 'bg-white border text-slate-700'}`}
-        >
-          Bank Book
-        </button>
+        <div className="flex items-center gap-2">
+          <label htmlFor="ledger_fy" className="text-sm font-medium text-slate-700">FY</label>
+          <select
+            id="ledger_fy"
+            value={fy}
+            onChange={(e) => setFy(e.target.value)}
+            className="rounded border px-3 py-2 text-sm bg-white"
+          >
+            {fyOptions.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <AppAgGrid<(VoucherRow & { debit: number; credit: number; running_balance: number })>
         rowData={ledgerRows}
         columnDefs={colDefs}
         loading={loading}
-        noRowsMessage={`No ${book} book vouchers found for FY ${fy}.`}
+        noRowsMessage={`No cash/bank vouchers found for FY ${fy}.`}
         defaultColDef={{ editable: false }}
         getRowId={(params: any) => String(params.data.id)}
         rowSelection={{ mode: 'singleRow', enableClickSelection: false, checkboxes: false }}

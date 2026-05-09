@@ -1,7 +1,7 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
 
-from sqlalchemy import and_, func, or_
+from sqlalchemy import String, and_, cast, func, or_
 from sqlalchemy.orm import Session
 
 from .lr_service import get_eway_expiring
@@ -29,6 +29,53 @@ def _apply_fy_filter(query, model, fy: Optional[str]):
     return query
 
 
+def _normalize_filter_text(value: Optional[str], lower: bool = False) -> Optional[str]:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    return cleaned.lower() if lower else cleaned
+
+
+def _parse_filter_date(value: Optional[str]) -> Optional[date]:
+    cleaned = _normalize_filter_text(value)
+    if not cleaned:
+        return None
+    try:
+        return datetime.strptime(cleaned, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def parse_report_filters(
+    *,
+    fy: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    entity: Optional[str] = None,
+    role: Optional[str] = None,
+) -> dict:
+    """Normalize common report filters in one place.
+
+    This keeps API handlers and report services aligned on FY/date/entity/role
+    semantics without duplicating trim/parse logic.
+    """
+    parsed_from = _parse_filter_date(date_from)
+    parsed_to = _parse_filter_date(date_to)
+
+    if parsed_from and parsed_to and parsed_from > parsed_to:
+        parsed_from, parsed_to = parsed_to, parsed_from
+
+    return {
+        "fy": _normalize_filter_text(fy),
+        "date_from": parsed_from,
+        "date_to": parsed_to,
+        "entity": _normalize_filter_text(entity),
+        "role": _normalize_filter_text(role, lower=True),
+    }
+
+
 def _days_between(base_date: Optional[date], ref: date) -> int:
     if not base_date:
         return 0
@@ -41,6 +88,8 @@ def get_eway_expiry_alerts(db: Session, hours: int = 8, months: Optional[int] = 
 
 
 def get_pending_billing_rows(db: Session, fy: Optional[str] = None) -> list[dict]:
+    filters = parse_report_filters(fy=fy)
+    fy = filters["fy"]
     cutoff = date.today() - timedelta(days=15)
     rows = (
         db.query(LRModel)
@@ -72,6 +121,8 @@ def get_pending_billing_rows(db: Session, fy: Optional[str] = None) -> list[dict
 
 
 def get_outstanding_receivables_rows(db: Session, fy: Optional[str] = None) -> list[dict]:
+    filters = parse_report_filters(fy=fy)
+    fy = filters["fy"]
     rows = (
         db.query(
             InvoiceModel,
@@ -257,21 +308,59 @@ def get_cash_advance_utilization_rows(db: Session, fy: Optional[str] = None) -> 
     ]
 
 
-def get_hirememo_print_trace_rows(db: Session, fy: Optional[str] = None) -> list[dict]:
-    rows = db.query(HireMemoModel)
-    rows = _apply_fy_filter(rows, HireMemoModel, fy).all()
-    return [
-        {
-            "hirememo_id": hm.id,
-            "hire_memo_no": hm.hire_memo_no,
-            "hire_memo_date": hm.hire_memo_date,
-            "driver_name": hm.driver_name,
-            "vehicle_number": hm.vehicle_number,
-            "print_status": "AVAILABLE",
-            "last_printed_at": None,
-        }
-        for hm in rows
-    ]
+def get_hirememo_print_trace_rows(db: Session, fy: Optional[str] = None, q: Optional[str] = None) -> list[dict]:
+    hm_q = db.query(HireMemoModel)
+    hm_q = _apply_fy_filter(hm_q, HireMemoModel, fy)
+    if q and q.strip():
+        pattern = f"%{q.strip()}%"
+        hm_q = hm_q.filter(
+            or_(
+                HireMemoModel.hire_memo_no.ilike(pattern),
+                HireMemoModel.driver_name.ilike(pattern),
+                HireMemoModel.vehicle_number.ilike(pattern),
+            )
+        )
+    hirememos = hm_q.all()
+
+    hm_ids = [int(hm.id) for hm in hirememos if hm.id is not None]
+    print_logs: dict[int, list] = {}
+    if hm_ids:
+        logs = (
+            db.query(AuditLogModel)
+            .filter(
+                AuditLogModel.entity_type.in_(["HireMemo", "HIREMEMO", "hirememo"]),
+                AuditLogModel.action == "PRINT",
+                AuditLogModel.entity_id.in_(hm_ids),
+            )
+            .order_by(AuditLogModel.created_at.desc(), AuditLogModel.id.desc())
+            .all()
+        )
+        for log in logs:
+            hm_id = int(log.entity_id or 0)
+            if hm_id <= 0:
+                continue
+            print_logs.setdefault(hm_id, []).append(log)
+
+    output: list[dict] = []
+    for hm in hirememos:
+        hm_id = int(hm.id or 0)
+        logs = print_logs.get(hm_id, [])
+        last_log = logs[0] if logs else None
+        output.append(
+            {
+                "hirememo_id": hm.id,
+                "hire_memo_no": hm.hire_memo_no,
+                "hire_memo_date": hm.hire_memo_date,
+                "driver_name": hm.driver_name,
+                "vehicle_number": hm.vehicle_number,
+                "print_status": "PRINTED" if logs else "NOT_PRINTED",
+                "print_count": len(logs),
+                "printed_by": (last_log.user_name if last_log else None) or "system",
+                "last_printed_at": last_log.created_at if last_log else None,
+            }
+        )
+
+    return sorted(output, key=lambda r: (r.get("last_printed_at") is not None, r.get("last_printed_at")), reverse=True)
 
 
 def get_trip_profitability_rows(db: Session, fy: Optional[str] = None) -> list[dict]:
@@ -411,6 +500,7 @@ def get_audit_log_rows(
     db: Session,
     entity: Optional[str] = None,
     user: Optional[str] = None,
+    q: Optional[str] = None,
     limit: int = 200,
 ) -> list[dict]:
     rows = db.query(AuditLogModel)
@@ -418,6 +508,16 @@ def get_audit_log_rows(
         rows = rows.filter(AuditLogModel.entity_type.ilike(f"%{entity.strip()}%"))
     if user:
         rows = rows.filter(or_(AuditLogModel.user_name.ilike(f"%{user.strip()}%"), AuditLogModel.user_id == user))
+    if q and q.strip():
+        pattern = f"%{q.strip()}%"
+        rows = rows.filter(
+            or_(
+                AuditLogModel.entity_type.ilike(pattern),
+                AuditLogModel.action.ilike(pattern),
+                AuditLogModel.user_name.ilike(pattern),
+                cast(AuditLogModel.entity_id, String).ilike(pattern),
+            )
+        )
     rows = rows.order_by(AuditLogModel.created_at.desc()).limit(limit).all()
     return [
         {

@@ -1,7 +1,7 @@
 from typing import List
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import or_
+from sqlalchemy import asc, desc, or_
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -31,9 +31,23 @@ from ..services.reports_service import (
     get_trip_profitability_rows,
     get_vehicle_cost_rows,
     get_vendor_spend_rows,
+    parse_report_filters,
 )
 
 router = APIRouter(prefix="/reports", tags=["reports"], dependencies=[Depends(require_finance_role)])
+
+
+def _apply_query_sorting(query, *, sort_by: str | None, sort_dir: str, sort_map: dict, default_sort):
+    sort_column = sort_map.get((sort_by or "").strip(), default_sort)
+    sort_direction = (sort_dir or "desc").strip().lower()
+    order_expr = asc(sort_column) if sort_direction == "asc" else desc(sort_column)
+    return query.order_by(order_expr)
+
+
+def _apply_query_pagination(query, *, page: int, page_size: int):
+    current_page = max(int(page), 1)
+    size = max(min(int(page_size), 500), 1)
+    return query.offset((current_page - 1) * size).limit(size)
 
 
 @router.get("/eway-expiring")
@@ -51,9 +65,25 @@ def pod_search(
     lr_number: str | None = Query(default=None),
     vehicle_number: str | None = Query(default=None),
     fy: str | None = Query(default=None),
+    date_from: str | None = Query(default=None, description="YYYY-MM-DD"),
+    date_to: str | None = Query(default=None, description="YYYY-MM-DD"),
+    role: str | None = Query(default=None),
+    entity: str | None = Query(default=None),
+    sort_by: str | None = Query(default="uploaded_at"),
+    sort_dir: str = Query(default="desc", pattern="^(?i)(asc|desc)$"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=100, ge=1, le=500),
     include_archived: bool = Query(default=False),
     db: Session = Depends(get_db),
 ) -> List[dict]:
+    parsed_filters = parse_report_filters(
+        fy=fy,
+        date_from=date_from,
+        date_to=date_to,
+        entity=entity,
+        role=role,
+    )
+
     rows = (
         db.query(FileUploadModel, LRModel)
         .join(LRModel, FileUploadModel.lr_id == LRModel.id)
@@ -61,8 +91,12 @@ def pod_search(
     )
     if not include_archived:
         rows = rows.filter(FileUploadModel.is_archived.is_(False))
-    if fy:
-        rows = rows.filter(LRModel.financial_year == fy)
+    if parsed_filters["fy"]:
+        rows = rows.filter(LRModel.financial_year == parsed_filters["fy"])
+    if parsed_filters["date_from"]:
+        rows = rows.filter(LRModel.date >= parsed_filters["date_from"])
+    if parsed_filters["date_to"]:
+        rows = rows.filter(LRModel.date <= parsed_filters["date_to"])
     if lr_number:
         rows = rows.filter(LRModel.lr_number.ilike(f"%{lr_number.strip()}%"))
     if vehicle_number:
@@ -79,7 +113,20 @@ def pod_search(
             )
         )
 
-    rows = rows.order_by(FileUploadModel.created_at.desc()).all()
+    sort_map = {
+        "uploaded_at": FileUploadModel.created_at,
+        "lr_number": LRModel.lr_number,
+        "vehicle_number": LRModel.vehicle_number,
+        "date": LRModel.date,
+    }
+    rows = _apply_query_sorting(
+        rows,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        sort_map=sort_map,
+        default_sort=FileUploadModel.created_at,
+    )
+    rows = _apply_query_pagination(rows, page=page, page_size=page_size).all()
     return [
         {
             "file_id": doc.id,
@@ -150,8 +197,12 @@ def cash_advance_utilization(fy: str | None = Query(default=None), db: Session =
 
 
 @router.get("/hirememo-print-trace")
-def hirememo_print_trace(fy: str | None = Query(default=None), db: Session = Depends(get_db)) -> List[dict]:
-    return get_hirememo_print_trace_rows(db, fy=fy)
+def hirememo_print_trace(
+    fy: str | None = Query(default=None),
+    q: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> List[dict]:
+    return get_hirememo_print_trace_rows(db, fy=fy, q=q)
 
 
 @router.get("/trip-profitability")
@@ -183,10 +234,11 @@ def receivables_aging(fy: str | None = Query(default=None), db: Session = Depend
 def audit_log(
     entity: str | None = Query(default=None),
     user: str | None = Query(default=None),
+    q: str | None = Query(default=None),
     limit: int = Query(default=200, ge=1, le=1000),
     db: Session = Depends(get_db),
 ) -> List[dict]:
-    return get_audit_log_rows(db, entity=entity, user=user, limit=limit)
+    return get_audit_log_rows(db, entity=entity, user=user, q=q, limit=limit)
 
 
 @router.get("/contract-expiry")

@@ -158,24 +158,21 @@ export default function TrackingLog({ initialLrId, lockLrId = false, embedded = 
   return (
     <div className="space-y-4">
       {!embedded && (
-        <div>
+        <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">Tracking Log</h2>
-        </div>
-      )}
-
-      {!embedded && (
-        <div className="flex items-center gap-2">
-          <label htmlFor="tracking_fy" className="text-sm font-medium text-slate-700">FY</label>
-          <select
-            id="tracking_fy"
-            value={fy}
-            onChange={(e) => setFy(e.target.value)}
-            className="rounded border px-3 py-2 text-sm"
-          >
-            {fyOptions.map((opt) => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <label htmlFor="tracking_fy" className="text-sm font-medium text-slate-700">FY</label>
+            <select
+              id="tracking_fy"
+              value={fy}
+              onChange={(e) => setFy(e.target.value)}
+              className="rounded border px-3 py-2 text-sm bg-white"
+            >
+              {fyOptions.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
 
@@ -217,7 +214,7 @@ export default function TrackingLog({ initialLrId, lockLrId = false, embedded = 
           disabled={saving}
           className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-60"
         >
-          {saving ? 'Saving...' : 'Add Log'}
+          {saving ? 'Saving...' : '+ Log'}
         </button>
       </form>
 

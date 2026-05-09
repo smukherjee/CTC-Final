@@ -258,7 +258,14 @@ export default function HireMemoForm() {
     navigate('/operations/dispatch');
   });
 
-  function handlePrint() {
+  async function handlePrint() {
+    if (existingMemoId) {
+      try {
+        await apiClient.post(`/api/hirememo/${existingMemoId}/print`);
+      } catch (err) {
+        console.error('Failed to log hire memo print event', err);
+      }
+    }
     const values = watch();
     printHireMemo({
       ...values,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 
@@ -110,6 +110,7 @@ export default function AppAgGrid<T>({
 }: AppAgGridProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<AgGridReact<T>>(null);
+  const [pinnedBottomRowData, setPinnedBottomRowData] = useState<T[] | undefined>(undefined);
 
   useEffect(() => {
     if (!fitColumns) return;
@@ -176,10 +177,22 @@ export default function AppAgGrid<T>({
     [columnDefs],
   );
 
-  const pinnedBottomRowData = useMemo(() => {
-    if (!showCurrencyTotals || rowData.length === 0) return undefined;
+  const recalculateTotals = useCallback((api: any) => {
+    if (!showCurrencyTotals || totalColumnDefs.length === 0) {
+      setPinnedBottomRowData(undefined);
+      return;
+    }
 
-    if (totalColumnDefs.length === 0) return undefined;
+    const visibleRows: any[] = [];
+    api.forEachNodeAfterFilterAndSort((node: any) => {
+      if (node?.rowPinned || node?.group || !node?.data) return;
+      visibleRows.push(node.data);
+    });
+
+    if (visibleRows.length === 0) {
+      setPinnedBottomRowData(undefined);
+      return;
+    }
 
     const totalRow: Record<string, unknown> = {};
     if (currencyTotalLabelField) {
@@ -191,19 +204,25 @@ export default function AppAgGrid<T>({
       if (!field) return;
 
       if (columnDef.currencyTotalMode === 'last') {
-        const lastRow = [...rowData].reverse().find((row) => Number.isFinite(Number((row as any)?.[field])));
-        totalRow[field] = lastRow ? Number((lastRow as any)[field] || 0) : 0;
+        const lastRow = [...visibleRows].reverse().find((row) => Number.isFinite(Number(row?.[field])));
+        totalRow[field] = lastRow ? Number(lastRow[field] || 0) : 0;
         return;
       }
 
-      totalRow[field] = rowData.reduce((sum, row) => {
-        const value = Number((row as any)?.[field] || 0);
+      totalRow[field] = visibleRows.reduce((sum, row) => {
+        const value = Number(row?.[field] || 0);
         return Number.isFinite(value) ? sum + value : sum;
       }, 0);
     });
 
-    return [totalRow as T];
-  }, [currencyTotalLabel, currencyTotalLabelField, rowData, showCurrencyTotals, totalColumnDefs]);
+    setPinnedBottomRowData([totalRow as T]);
+  }, [currencyTotalLabel, currencyTotalLabelField, showCurrencyTotals, totalColumnDefs]);
+
+  useEffect(() => {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    recalculateTotals(api);
+  }, [recalculateTotals, rowData]);
 
   const resolvedExportFileName = useMemo(
     () => exportFileName || defaultExportFileName(),
@@ -312,8 +331,13 @@ export default function AppAgGrid<T>({
             if (!loading && rowData.length === 0 && overlayNoRowsTemplate) {
               params.api.showNoRowsOverlay();
             }
+            recalculateTotals(params.api);
             onFirstDataRendered?.(params);
           }}
+          onFilterChanged={(params) => recalculateTotals(params.api)}
+          onSortChanged={(params) => recalculateTotals(params.api)}
+          onModelUpdated={(params) => recalculateTotals(params.api)}
+          onPaginationChanged={(params) => recalculateTotals(params.api)}
         />
       </div>
     </div>

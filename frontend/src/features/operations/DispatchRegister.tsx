@@ -739,7 +739,7 @@ export default function DispatchRegister() {
                         onClick={() => handleCreateLr()}
                         className="bg-slate-900 text-white hover:bg-slate-800 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                     >
-                        + New LR
+                        + LR
                     </button>
                 </div>
             </div>

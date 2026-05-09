@@ -28,8 +28,8 @@
 
 - [X] T007 Add `financial_year` enforcement guards for register entities in `backend/app/core/financial_year_utils.py`
 - [X] T008 Add FY/index constraints migration checks in `backend/alembic/versions/`
-- [ ] T009 Add reusable report filter parsing (fy/date/entity/role) in `backend/app/services/reports_service.py`
-- [ ] T010 [P] Add reusable report pagination/sorting helpers in `backend/app/api/reports.py`
+- [X] T009 Add reusable report filter parsing (fy/date/entity/role) in `backend/app/services/reports_service.py`
+- [X] T010 [P] Add reusable report pagination/sorting helpers in `backend/app/api/reports.py`
 - [X] T011 [P] Add report DTO builders for money/ageing aggregates in `backend/app/services/reports_service.py`
 - [X] T012 Add role guard checks for finance and reporting endpoints in `backend/app/api/reports.py`
 - [X] T013 [P] Add shared report response typings in `frontend/src/types/reports.ts`

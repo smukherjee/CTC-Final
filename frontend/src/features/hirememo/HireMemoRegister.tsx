@@ -117,7 +117,10 @@ export default function HireMemoRegister() {
       headerName: 'LR',
       width: 140,
       editable: false,
-      valueGetter: (params: any) => params.data.lr_number || `LR-${params.data.lr_id}`,
+      valueGetter: (params: any) => {
+        if (params.node?.rowPinned) return '';
+        return params.data.lr_number || `LR-${params.data.lr_id}`;
+      },
     },
     {
       field: 'vehicle_number',
@@ -200,16 +203,20 @@ export default function HireMemoRegister() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">Hire Memo Register</h2>
         </div>
-        <select
-          value={fy}
-          onChange={(e) => setFy(e.target.value)}
-          aria-label="Financial year"
-          className="px-3 py-2 border border-slate-200 rounded-md bg-white"
-        >
-          {fyOptions.map((opt) => (
-            <option key={opt} value={opt}>{opt}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <label htmlFor="hirememo_register_fy" className="text-sm font-medium text-slate-700">FY</label>
+          <select
+            id="hirememo_register_fy"
+            value={fy}
+            onChange={(e) => setFy(e.target.value)}
+            aria-label="Financial year"
+            className="px-3 py-2 border border-slate-200 rounded-md bg-white"
+          >
+            {fyOptions.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <AppAgGrid<HireMemoRow>

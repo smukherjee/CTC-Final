@@ -15,24 +15,40 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { REPORT_CONFIGS } from '@/features/reports/reportConfigs';
 
 export default function AppLayout() {
     const [collapsed, setCollapsed] = useState(false);
     const [mastersOpen, setMastersOpen] = useState(false);
+    const [reportsOpen, setReportsOpen] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
+    const activeReportTab = useMemo(() => new URLSearchParams(location.search).get('tab') || 'pending-billing', [location.search]);
 
     const currentRole = useMemo(() => {
         const raw = localStorage.getItem('ctc_user_role') || localStorage.getItem('user_role') || 'ADMIN';
         return String(raw).trim().toUpperCase();
     }, []);
     const canAccessFinance = currentRole === 'ADMIN' || currentRole === 'ACCOUNTS';
+    const reportChildren = useMemo(
+        () => REPORT_CONFIGS.map((config) => ({ label: config.label, path: `/reports?tab=${config.id}` })),
+        []
+    );
 
     useEffect(() => {
         if (!canAccessFinance && location.pathname.startsWith('/finance')) {
             navigate('/operations/dispatch', { replace: true });
         }
     }, [canAccessFinance, location.pathname, navigate]);
+
+    useEffect(() => {
+        if (location.pathname.startsWith('/masters')) {
+            setMastersOpen(true);
+        }
+        if (location.pathname.startsWith('/reports')) {
+            setReportsOpen(true);
+        }
+    }, [location.pathname]);
 
     const navItems = [
         // Dashboard hidden per request; default landing page is Dispatch Register
@@ -47,7 +63,12 @@ export default function AppLayout() {
             { label: 'Payment Receipts', icon: Banknote, path: '/finance/payment-receipts' },
             { label: 'Ledger Book', icon: Banknote, path: '/finance/vouchers' },
         ] : []),
-        { label: 'Reports', icon: LayoutDashboard, path: '/reports' },
+        {
+            label: 'Reports',
+            icon: LayoutDashboard,
+            path: '#',
+            children: reportChildren,
+        },
         { label: 'Settings', icon: Settings, path: '/admin/settings' },
         {
             label: 'Masters',
@@ -93,10 +114,17 @@ export default function AppLayout() {
                             return (
                                 <div key={item.label}>
                                     <button
-                                        onClick={() => !collapsed && setMastersOpen(!mastersOpen)}
+                                        onClick={() => {
+                                            if (collapsed) return;
+                                            if (item.label === 'Reports') {
+                                                setReportsOpen(!reportsOpen);
+                                                return;
+                                            }
+                                            setMastersOpen(!mastersOpen);
+                                        }}
                                         className={cn(
                                             "flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium w-full text-left",
-                                            mastersOpen ? "text-slate-900 bg-slate-50" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+                                            (item.label === 'Reports' ? reportsOpen : mastersOpen) ? "text-slate-900 bg-slate-50" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
                                             collapsed && "justify-center"
                                         )}
                                         title={collapsed ? item.label : undefined}
@@ -105,27 +133,32 @@ export default function AppLayout() {
                                         {!collapsed && (
                                             <>
                                                 <span className="flex-1">{item.label}</span>
-                                                {mastersOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                                {(item.label === 'Reports' ? reportsOpen : mastersOpen) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                                             </>
                                         )}
                                     </button>
 
                                     {/* Submenu */}
-                                    {!collapsed && mastersOpen && (
+                                    {!collapsed && (item.label === 'Reports' ? reportsOpen : mastersOpen) && (
                                         <div className="ml-9 border-l border-slate-200 pl-2 space-y-1 mt-1">
                                             {item.children.map((child) => (
-                                                <NavLink
+                                                <button
                                                     key={child.path}
-                                                    to={child.path}
-                                                    className={({ isActive }) => cn(
-                                                        "block px-3 py-2 rounded-md transition-colors text-sm font-medium",
-                                                        isActive
-                                                            ? "bg-slate-100 text-slate-900"
-                                                            : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                                                    type="button"
+                                                    onClick={() => navigate(child.path)}
+                                                    className={cn(
+                                                        "block w-full text-left px-3 py-2 rounded-md transition-colors text-sm font-medium",
+                                                        (location.pathname === '/reports' && child.path.includes('?tab='))
+                                                            ? (activeReportTab === child.path.split('?tab=')[1]
+                                                                ? 'bg-slate-100 text-slate-900'
+                                                                : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50')
+                                                            : (location.pathname === child.path
+                                                                ? 'bg-slate-100 text-slate-900'
+                                                                : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50')
                                                     )}
                                                 >
                                                     {child.label}
-                                                </NavLink>
+                                                </button>
                                             ))}
                                         </div>
                                     )}

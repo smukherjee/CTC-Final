@@ -219,6 +219,19 @@ export default function PODVerification() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">POD Management</h2>
         </div>
+        <div className="flex items-center gap-2">
+          <label htmlFor="pod_fy" className="text-sm font-medium text-slate-700">FY</label>
+          <select
+            id="pod_fy"
+            value={fy}
+            onChange={(e) => setFy(e.target.value)}
+            className="rounded border px-3 py-2 text-sm bg-white"
+          >
+            {fyOptions.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="bg-white border rounded-lg p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -254,19 +267,6 @@ export default function PODVerification() {
       </div>
 
       <div className="bg-white border rounded-lg p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <label htmlFor="pod_fy" className="text-sm font-medium text-slate-700">FY</label>
-          <select
-            id="pod_fy"
-            value={fy}
-            onChange={(e) => setFy(e.target.value)}
-            className="rounded border px-3 py-2 text-sm"
-          >
-            {fyOptions.map((opt) => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
-        </div>
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}

@@ -4,7 +4,13 @@ from typing import List, Optional
 
 from ..db import get_db
 from ..schemas.hirememo import HireMemo, HireMemoCreate, HireMemoUpdate
-from ..services.hirememo_service import get_all_hirememos, get_hirememo_by_id, create_hirememo, update_hirememo
+from ..services.hirememo_service import (
+    get_all_hirememos,
+    get_hirememo_by_id,
+    create_hirememo,
+    update_hirememo,
+    log_hirememo_print,
+)
 
 router = APIRouter(prefix="/hirememo", tags=["hirememo"])
 
@@ -38,3 +44,11 @@ def update_existing_hirememo(hm_id: int, payload: HireMemoUpdate, db: Session = 
     if not hm:
         raise HTTPException(status_code=404, detail="HireMemo not found")
     return hm
+
+
+@router.post("/{hm_id}/print")
+def mark_hirememo_printed(hm_id: int, db: Session = Depends(get_db)):
+    hm = log_hirememo_print(db, hm_id, user_name="system")
+    if not hm:
+        raise HTTPException(status_code=404, detail="HireMemo not found")
+    return {"ok": True, "hirememo_id": hm_id}

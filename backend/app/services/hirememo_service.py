@@ -221,3 +221,16 @@ def update_hirememo(db: Session, hm_id: int, payload: dict):
     db.commit()
     db.refresh(hm)
     return hm
+
+
+def log_hirememo_print(db: Session, hm_id: int, user_name: Optional[str] = None):
+    hm = db.query(HireMemoModel).filter(HireMemoModel.id == hm_id).first()
+    if not hm:
+        return None
+
+    snapshot = _hm_to_dict(hm)
+    snapshot["print_type"] = "HIRE_MEMO"
+    log_action(db, "HireMemo", hm_id, "PRINT", after=snapshot, user_name=user_name)
+    db.commit()
+    db.refresh(hm)
+    return hm

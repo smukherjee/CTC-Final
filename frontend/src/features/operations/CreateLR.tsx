@@ -662,7 +662,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
             {isModal && (
                 <div className="flex items-center justify-between px-6 py-4 border-b bg-white">
                     <div>
-                        <h2 className="text-xl font-bold text-slate-900">
+                        <h2 className="text-2xl font-bold tracking-tight text-slate-900">
                             {lrId ? (isReadOnly ? 'View Lorry Receipt' : 'Edit Lorry Receipt') : 'Create Lorry Receipt'}
                         </h2>
                         {isReadOnly && (
@@ -698,7 +698,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
                         {!isReadOnly && (
                             <Button type="submit" className="gap-2">
                                 <Save size={16} />
-                                <span className='text-white'>{isSubmitting ? 'Saving...' : 'Save LR'}</span>
+                                <span className='text-white'>{isSubmitting ? 'Saving...' : 'Save'}</span>
                             </Button>
                         )}
                         {toastMessage && <div className="text-green-600 self-center">{toastMessage}</div>}

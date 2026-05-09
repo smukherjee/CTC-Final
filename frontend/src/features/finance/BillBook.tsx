@@ -37,17 +37,6 @@ export default function BillBook() {
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [fy, setFy] = useState(currentFy);
-  const [activeClientId, setActiveClientId] = useState<number | 'all'>('all');
-
-  const clientOptions = useMemo(() => {
-    const opts: {id: number | 'all'; label: string}[] = [{ id: 'all', label: 'ALL' }];
-    Object.entries(clientMap)
-      .sort((a, b) => a[1].localeCompare(b[1]))
-      .forEach(([id, label]) => {
-        opts.push({ id: Number(id), label });
-      });
-    return opts;
-  }, [clientMap]);
 
   useEffect(() => {
     axios.get('/api/clients/')
@@ -159,16 +148,15 @@ export default function BillBook() {
 
   const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const base = activeClientId === 'all' ? rows : rows.filter((row) => row.client_id === activeClientId);
-    if (!q) return base;
-    return base.filter((r) =>
+    if (!q) return rows;
+    return rows.filter((r) =>
       r.invoice_no.toLowerCase().includes(q) ||
       r.lr_number.toLowerCase().includes(q) ||
       r.client_name.toLowerCase().includes(q) ||
       r.origin.toLowerCase().includes(q) ||
       r.destination.toLowerCase().includes(q)
     );
-  }, [rows, query, activeClientId]);
+  }, [rows, query]);
 
   const outstandingSummary = useMemo(() => {
     const invoiceMap = new Map<number, number>();
@@ -340,57 +328,38 @@ export default function BillBook() {
     <div className="h-full flex flex-col gap-4">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Invoice Register</h2>        </div>
-        <div className="text-right text-sm space-y-2">
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Invoice Register</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search Invoice No / LR No / Client / Origin / Destination"
+            className="w-72 px-3 py-2 border border-slate-200 rounded-lg text-sm"
+          />
+          <label htmlFor="billbook_fy" className="text-sm font-medium text-slate-700">FY</label>
+          <select
+            id="billbook_fy"
+            value={fy}
+            onChange={(e) => setFy(e.target.value)}
+            className="w-28 rounded border px-2 py-2 text-sm bg-white"
+          >
+            {fyOptions.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
           <Link
             to="/finance/invoices/new"
-            className="inline-block rounded bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800"
+            className="inline-block rounded bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800"
           >
-            Create Invoice
+            + Invoice
           </Link>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <label htmlFor="billbook_fy" className="text-sm font-medium text-slate-700">FY</label>
-        <select
-          id="billbook_fy"
-          value={fy}
-          onChange={(e) => setFy(e.target.value)}
-          className="w-28 rounded border px-2 py-1 text-sm"
-        >
-          {fyOptions.map((opt) => (
-            <option key={opt} value={opt}>{opt}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        {clientOptions.map((opt) => (
-          <button
-            key={opt.id}
-            type="button"
-            onClick={() => setActiveClientId(opt.id)}
-            className={`rounded px-3 py-1.5 text-sm border ${activeClientId === opt.id ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
-
       <div className="rounded border bg-white p-3 text-sm text-slate-700">
-        Outstanding Summary ({activeClientId === 'all' ? 'All Clients' : (clientMap[Number(activeClientId)] || `Client ${activeClientId}`)}):
+        Outstanding Summary:
         <span className="ml-2 font-semibold text-slate-900">{outstandingSummary.toFixed(2)}</span>
-      </div>
-
-
-      <div className="bg-white border rounded-lg p-4">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search Invoice No / LR No / Client / Origin / Destination"
-          className="w-full md:w-96 border rounded px-3 py-2"
-        />
       </div>
 
       <AppAgGrid<BillBookRow>
@@ -398,7 +367,7 @@ export default function BillBook() {
         columnDefs={colDefs}
         className="dispatch-grid"
         loading={loading}
-        noRowsMessage={`No invoices found for FY ${fy}${activeClientId === 'all' ? '' : ' and the selected client'}.`}
+        noRowsMessage={`No invoices found for FY ${fy}.`}
         getRowId={(params: any) => params.data.id}
         rowSelection={{
           mode: 'singleRow',

@@ -12,6 +12,7 @@ export interface ReportConfig {
   endpoint: string;
   noRowsMessage: string;
   supportsFy?: boolean;
+  serverSearch?: boolean;
   params?: Record<string, string | number | boolean>;
   columns: Array<{
     field?: string;

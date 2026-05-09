@@ -472,27 +472,26 @@ export default function PaymentReceiptsRegister() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">Payment Receipts Register</h2>
         </div>
-        <button
-          type="button"
-          onClick={handleOpenCreateModal}
-          className="bg-slate-900 text-white hover:bg-slate-800 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-        >
-          + New Payment Receipt
-        </button>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <label htmlFor="receipts_fy" className="text-sm font-medium text-slate-700">FY</label>
-        <select
-          id="receipts_fy"
-          value={fy}
-          onChange={(e) => setFy(e.target.value)}
-          className="w-28 rounded border px-2 py-1 text-sm"
-        >
-          {fyOptions.map((opt) => (
-            <option key={opt} value={opt}>{opt}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <label htmlFor="receipts_fy" className="text-sm font-medium text-slate-700">FY</label>
+          <select
+            id="receipts_fy"
+            value={fy}
+            onChange={(e) => setFy(e.target.value)}
+            className="w-28 rounded border px-2 py-2 text-sm bg-white"
+          >
+            {fyOptions.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={handleOpenCreateModal}
+            className="bg-slate-900 text-white hover:bg-slate-800 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            + Payment Receipt
+          </button>
+        </div>
       </div>
 
       <AppAgGrid<PaymentReceiptRow>
