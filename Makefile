@@ -4,7 +4,7 @@
         dev-up dev-down dev-logs dev-ps \
         build-all clean reset \
         rebuild-frontend rebuild-backend \
-        migrate seed seed-sample
+        migrate seed-sample
 
 # ─── Colours ──────────────────────────────────────────────────────────────────
 CYAN  := \033[0;36m
@@ -17,7 +17,7 @@ help:
 	@echo "$(CYAN)CTC ERP — Development Commands$(RESET)"
 	@echo "================================"
 	@echo ""
-	@echo "  $(CYAN)make build-all$(RESET)        Full clean rebuild: reset → clean → build → up → seed"
+	@echo "  $(CYAN)make build-all$(RESET)        Full clean rebuild: reset → clean → build → up → seed-sample"
 	@echo ""
 	@echo "  $(CYAN)make dev-up$(RESET)           Start all dev services (build if needed)"
 	@echo "  $(CYAN)make dev-down$(RESET)         Stop all running services"
@@ -25,7 +25,6 @@ help:
 	@echo "  $(CYAN)make dev-ps$(RESET)           Show running container status"
 	@echo ""
 	@echo "  $(CYAN)make migrate$(RESET)          Run alembic upgrade head inside the backend container"
-	@echo "  $(CYAN)make seed$(RESET)             Seed cities master data (idempotent)"
 	@echo "  $(CYAN)make seed-sample$(RESET)      Seed full 15-scenario sample dataset (idempotent)"
 	@echo ""
 	@echo "  $(CYAN)make clean$(RESET)            Remove local build artefacts (frontend dist)"
@@ -95,10 +94,6 @@ dev-ps:
 migrate:
 	@echo "Running alembic upgrade head..."
 	docker-compose exec -T backend alembic upgrade head
-
-seed:
-	@echo "Seeding comprehensive sample data (includes well-known cities)..."
-	docker-compose exec -T backend python app/scripts/seed_comprehensive_sample_data.py
 
 seed-sample:
 	@echo "Seeding comprehensive 15-scenario sample data..."

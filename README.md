@@ -6,30 +6,40 @@ CTC-ERP Core is a split web application:
 - `frontend/`: React + TypeScript + Vite
 - `specs/`: feature specs, contracts, and delivery tasks
 
-## Deployment Paths
+## Quick Start (Recommended)
 
-### Option A: Docker Compose (recommended)
-
-1. From repository root, build and start all services:
+From repository root, use the Makefile to orchestrate all services:
 
 ```bash
-docker compose up --build -d
+make dev-up          # Start all dev services (build if needed)
+make dev-ps          # View running container status
+make dev-logs        # Tail combined service logs
+make seed-sample     # Load comprehensive 15-scenario sample dataset
 ```
 
-2. Confirm service health:
+For a full clean rebuild with sample data:
 
 ```bash
-docker compose ps
-docker compose logs -f backend
-docker compose logs -f frontend
+make build-all       # Reset DB, clean build, seed full dataset
 ```
 
-3. Open applications:
+Applications:
 
 - Frontend: `http://localhost:5173`
 - Backend OpenAPI: `http://localhost:8000/docs`
 
-### Option B: Native process deployment
+Available commands:
+
+```bash
+make help            # Show all commands
+make dev-down        # Stop all services
+make migrate         # Run alembic upgrade head
+make reset           # Delete all volumes (destructive)
+make rebuild-backend # No-cache rebuild of backend image
+make rebuild-frontend # No-cache rebuild of frontend image
+```
+
+## Alternative: Native Process Deployment
 
 1. Backend setup and start:
 
