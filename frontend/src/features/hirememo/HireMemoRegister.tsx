@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import apiClient from '@/lib/apiClient';
 import AppAgGrid from '@/components/grid/AppAgGrid';
 import { formatDisplayDate } from '@/utils/dateFormat';
 import { generateFyDropdownOptions, getCurrentFy } from '@/utils/financialYear';
@@ -33,8 +33,8 @@ export default function HireMemoRegister() {
     setLoading(true);
     try {
       const [hmRes, lrRes] = await Promise.all([
-        axios.get('/api/hirememo/', { params: { fy } }),
-        axios.get('/api/lr/', { params: { fy } }),
+        apiClient.get('/api/hirememo/', { params: { fy } }),
+        apiClient.get('/api/lr/', { params: { fy } }),
       ]);
       const hmRows = Array.isArray(hmRes.data) ? hmRes.data : [];
       const lrRows = Array.isArray(lrRes.data) ? lrRes.data : [];
@@ -66,7 +66,7 @@ export default function HireMemoRegister() {
     const row = event?.data as HireMemoRow | undefined;
     if (!row?.id) return;
     try {
-      await axios.put(`/api/hirememo/${row.id}`, {
+      await apiClient.put(`/api/hirememo/${row.id}`, {
         hire_memo_date: row.hire_memo_date || null,
         vehicle_number: row.vehicle_number || null,
         driver_name: row.driver_name || null,

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import apiClient from '@/lib/apiClient';
 
 import AppAgGrid from '@/components/grid/AppAgGrid';
 import { formatDisplayDate } from '@/utils/dateFormat';
@@ -30,8 +30,8 @@ export default function LedgerBook() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      axios.get('/api/vouchers/', { params: { voucher_type: 'cash', fy } }),
-      axios.get('/api/vouchers/', { params: { voucher_type: 'bank', fy } }),
+      apiClient.get('/api/vouchers/', { params: { voucher_type: 'cash', fy } }),
+      apiClient.get('/api/vouchers/', { params: { voucher_type: 'bank', fy } }),
     ])
       .then(([cashRes, bankRes]) => {
         const cashRows = (Array.isArray(cashRes.data) ? cashRes.data : []).map((row: any) => ({

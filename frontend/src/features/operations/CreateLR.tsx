@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import axios from 'axios';
+import apiClient from '@/lib/apiClient';
 import { useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -140,10 +140,10 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
             try {
                 // 1. Load Master Lists in parallel
                 const [citiesRes, vendorsRes, clientRes, vehicleRes, optionsRes] = await Promise.all([
-                    axios.get('/api/city/').catch(() => ({ data: [] })),
-                    axios.get('/api/vendor/').catch(() => ({ data: [] })),
-                    axios.get('/api/clients/').catch(() => ({ data: [] })),
-                    axios.get('/api/vehicle/').catch(() => ({ data: [] })),
+                    apiClient.get('/api/city/').catch(() => ({ data: [] })),
+                    apiClient.get('/api/vendor/').catch(() => ({ data: [] })),
+                    apiClient.get('/api/clients/').catch(() => ({ data: [] })),
+                    apiClient.get('/api/vehicle/').catch(() => ({ data: [] })),
                     fetchFormOptions().catch(() => EMPTY_FORM_OPTIONS),
                 ]);
 
@@ -292,7 +292,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
 
                 if (canTryFetchById) {
                     try {
-                        const freshRes = await axios.get(`/api/lr/${candidateId}`, {
+                        const freshRes = await apiClient.get(`/api/lr/${candidateId}`, {
                             params: { _ts: Date.now() },
                             headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
                         });
@@ -528,12 +528,12 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave 
             }
 
             if (updateId) {
-                const res = await axios.put(`/api/lr/${updateId}`, sanitizedData);
+                const res = await apiClient.put(`/api/lr/${updateId}`, sanitizedData);
                 // Use backend response which includes all fields
                 savedLR = res.data;
                 setResolvedLrId(updateId);
             } else {
-                const res = await axios.post('/api/lr/', sanitizedData);
+                const res = await apiClient.post('/api/lr/', sanitizedData);
                 // Backend returns full object including new ID
                 if (res.data) {
                     savedLR = res.data;

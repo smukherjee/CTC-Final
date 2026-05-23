@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import apiClient from '@/lib/apiClient';
 import { formatDisplayDate, formatDisplayDateTime } from '@/utils/dateFormat';
 
 interface EwayExpiringRow {
@@ -32,7 +32,7 @@ export default function Dashboard() {
   const loadAlerts = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get('/api/lr/eway-expiring', {
+      const res = await apiClient.get('/api/lr/eway-expiring', {
         params: { months: 3 },
       });
       setRows(Array.isArray(res.data) ? res.data : []);
@@ -46,7 +46,7 @@ export default function Dashboard() {
 
   const loadContractAlerts = useCallback(async () => {
     try {
-      const res = await axios.get('/api/contracts/expiring', {
+      const res = await apiClient.get('/api/contracts/expiring', {
         params: { days: 30 },
       });
       setContractRows(Array.isArray(res.data) ? res.data : []);

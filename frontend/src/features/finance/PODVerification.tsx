@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import apiClient from '@/lib/apiClient';
 import AppAgGrid from '@/components/grid/AppAgGrid';
 import { confirmDestructiveAction } from '@/utils/destructiveAction';
 import { formatDisplayDateTime } from '@/utils/dateFormat';
@@ -36,7 +36,7 @@ export default function PODVerification() {
   const loadRows = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get('/api/files/', {
+      const res = await apiClient.get('/api/files/', {
         params: {
           document_type: 'POD',
           q: query || undefined,
@@ -60,7 +60,7 @@ export default function PODVerification() {
   const handleArchive = useCallback(async (id: number) => {
     if (!confirmDestructiveAction({ action: 'Archive POD file' })) return;
     try {
-      await axios.post(`/api/files/${id}/archive`);
+      await apiClient.post(`/api/files/${id}/archive`);
       await loadRows();
     } catch (err: any) {
       alert(`Archive failed: ${err?.response?.data?.detail || err?.message || 'Unknown error'}`);
@@ -178,7 +178,7 @@ export default function PODVerification() {
     if (!lrNumber.trim() || !selectedFile) return;
     setUploading(true);
     try {
-      const lrRes = await axios.get(`/api/lr/by-number/${encodeURIComponent(lrNumber.trim())}`);
+      const lrRes = await apiClient.get(`/api/lr/by-number/${encodeURIComponent(lrNumber.trim())}`);
       const lrId = Number(lrRes.data?.id);
       if (!Number.isFinite(lrId) || lrId <= 0) {
         throw new Error('Invalid LR id');
@@ -189,7 +189,7 @@ export default function PODVerification() {
       formData.append('lr_id', String(lrId));
       formData.append('file', selectedFile);
 
-      await axios.post('/api/files/upload', formData, {
+      await apiClient.post('/api/files/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setLrNumber('');
@@ -205,7 +205,7 @@ export default function PODVerification() {
   const handleVerify = async (lrId?: number) => {
     if (!lrId) return;
     try {
-      await axios.post(`/api/lr/${lrId}/pod/verify`);
+      await apiClient.post(`/api/lr/${lrId}/pod/verify`);
       await loadRows();
       setVerifyPreview(null);
     } catch (err: any) {

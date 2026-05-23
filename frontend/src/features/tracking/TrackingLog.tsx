@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import apiClient from '@/lib/apiClient';
 import AppAgGrid from '@/components/grid/AppAgGrid';
 import { formatDisplayDateTime } from '@/utils/dateFormat';
 import { generateFyDropdownOptions, getCurrentFy } from '@/utils/financialYear';
@@ -48,7 +48,7 @@ export default function TrackingLog({ initialLrId, lockLrId = false, embedded = 
     const numeric = Number(raw);
     if (Number.isFinite(numeric) && numeric > 0) return numeric;
     try {
-      const res = await axios.get(`/api/lr/by-number/${encodeURIComponent(raw)}`);
+      const res = await apiClient.get(`/api/lr/by-number/${encodeURIComponent(raw)}`);
       const id = Number(res.data?.id);
       return Number.isFinite(id) && id > 0 ? id : null;
     } catch {
@@ -66,7 +66,7 @@ export default function TrackingLog({ initialLrId, lockLrId = false, embedded = 
     setLoading(true);
     try {
       const selectedLrId = Number(lrId);
-      const res = await axios.get('/api/vehicle-locations/', {
+      const res = await apiClient.get('/api/vehicle-locations/', {
         params: {
           fy,
           lr_id: Number.isFinite(selectedLrId) && selectedLrId > 0 ? selectedLrId : undefined,
@@ -138,7 +138,7 @@ export default function TrackingLog({ initialLrId, lockLrId = false, embedded = 
 
     setSaving(true);
     try {
-      await axios.post('/api/vehicle-locations/', {
+      await apiClient.post('/api/vehicle-locations/', {
         lr_id: parsedLrId,
         location: location.trim(),
         status,

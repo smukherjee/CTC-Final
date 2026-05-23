@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import apiClient from '@/lib/apiClient';
 import { format, parseISO } from 'date-fns';
 import AppAgGrid from '@/components/grid/AppAgGrid';
 import { generateFyDropdownOptions, getCurrentFy } from '@/utils/financialYear';
@@ -39,7 +39,7 @@ export default function BillBook() {
   const [fy, setFy] = useState(currentFy);
 
   useEffect(() => {
-    axios.get('/api/clients/')
+    apiClient.get('/api/clients/')
       .then((res) => {
         const data = Array.isArray(res.data) ? res.data : [];
         const mapped: Record<number, string> = {};
@@ -59,7 +59,7 @@ export default function BillBook() {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    axios.get('/api/billing/invoices/', { params: { fy } })
+    apiClient.get('/api/billing/invoices/', { params: { fy } })
       .then((res) => {
         if (!mounted) return;
         const invoices = Array.isArray(res.data) ? res.data : [];

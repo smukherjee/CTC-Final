@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import axios from 'axios';
+import apiClient from '@/lib/apiClient';
 
 interface UseApiListOptions<T> {
   endpoint: string;
@@ -26,7 +26,7 @@ export function useApiList<T>({
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get(endpoint);
+      const res = await apiClient.get(endpoint);
       const list = extractList<any>(res.data);
       setData(mapItem ? list.map(mapItem) : list);
     } catch (err) {

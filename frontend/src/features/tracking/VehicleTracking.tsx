@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import axios from 'axios';
+import apiClient from '@/lib/apiClient';
 import { format, isValid, parseISO } from 'date-fns';
 import { MapPin, History, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -70,7 +70,7 @@ export default function VehicleTracking() {
     const loadLatestLocations = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await axios.get('/api/vehicle-locations/latest');
+            const res = await apiClient.get('/api/vehicle-locations/latest');
             const data = Array.isArray(res.data) ? res.data : [];
             const normalizedRows: VehicleLocationItem[] = data.map((row: any) => {
                 const rawLocation = row?.location ? String(row.location).trim() : '';
@@ -144,7 +144,7 @@ export default function VehicleTracking() {
             return;
         }
         try {
-            const res = await axios.get(`/api/vehicle-locations/history/lr/${lrId}`);
+            const res = await apiClient.get(`/api/vehicle-locations/history/lr/${lrId}`);
             setHistoryData(res.data || []);
             setSelectedEntry(entryLabel);
             setHistoryOpen(true);
@@ -167,7 +167,7 @@ export default function VehicleTracking() {
         }
 
         try {
-            await axios.post('/api/vehicle-locations/', {
+            await apiClient.post('/api/vehicle-locations/', {
                 lr_id: row.lr_id,
                 vehicle_number: row.vehicle_number,
                 location: currentCity,

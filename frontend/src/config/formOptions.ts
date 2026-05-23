@@ -1,4 +1,4 @@
-import axios from 'axios';
+import apiClient from '@/lib/apiClient';
 
 export interface FormOptions {
   lr_statuses: string[];
@@ -19,6 +19,6 @@ export const EMPTY_FORM_OPTIONS: FormOptions = {
 };
 
 export async function fetchFormOptions(): Promise<FormOptions> {
-  const res = await axios.get('/api/config/form-options');
+  const res = await apiClient.get('/api/config/form-options');
   return { ...EMPTY_FORM_OPTIONS, ...(res.data || {}) };
 }

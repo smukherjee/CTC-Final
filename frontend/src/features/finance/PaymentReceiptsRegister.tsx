@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import apiClient from '@/lib/apiClient';
 import { Trash2 } from 'lucide-react';
 
 import AppAgGrid from '@/components/grid/AppAgGrid';
@@ -90,7 +91,7 @@ export default function PaymentReceiptsRegister() {
   });
 
   useEffect(() => {
-    axios.get('/api/clients/')
+    apiClient.get('/api/clients/')
       .then((res) => {
         const data = Array.isArray(res.data) ? res.data : [];
         setClients(
@@ -112,7 +113,7 @@ export default function PaymentReceiptsRegister() {
   }, []);
 
   useEffect(() => {
-    axios.get('/api/billing/invoices/', { params: { fy } })
+    apiClient.get('/api/billing/invoices/', { params: { fy } })
       .then((res) => {
         const data = Array.isArray(res.data) ? res.data : [];
         setInvoices(
@@ -197,7 +198,7 @@ export default function PaymentReceiptsRegister() {
   const loadRows = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get('/api/payment-receipts/', { params: { fy } });
+      const res = await apiClient.get('/api/payment-receipts/', { params: { fy } });
       setRows(Array.isArray(res.data) ? res.data.map(normalizePaymentReceiptRow) : []);
     } catch (err) {
       console.error('Failed to load payment receipts', err);
@@ -270,7 +271,7 @@ export default function PaymentReceiptsRegister() {
     const payload = buildPaymentReceiptPayload(form);
 
     try {
-      await axios.post('/api/payment-receipts/', payload);
+      await apiClient.post('/api/payment-receipts/', payload);
       resetForm();
       setIsCreateModalOpen(false);
       await loadRows();
@@ -316,7 +317,7 @@ export default function PaymentReceiptsRegister() {
     }
 
     try {
-      await axios.put(`/api/payment-receipts/${row.id}`, payload);
+      await apiClient.put(`/api/payment-receipts/${row.id}`, payload);
       await loadRows();
     } catch (err: unknown) {
       const message = axios.isAxiosError(err) ? err.response?.data?.detail || err.message : 'Unknown error';
@@ -330,7 +331,7 @@ export default function PaymentReceiptsRegister() {
     const subject = row?.received_from || `Receipt ${id}`;
     if (!confirmDestructiveAction({ action: 'Delete this payment receipt', subject })) return;
     try {
-      await axios.delete(`/api/payment-receipts/${id}`);
+      await apiClient.delete(`/api/payment-receipts/${id}`);
       await loadRows();
     } catch (err: unknown) {
       const message = axios.isAxiosError(err) ? err.response?.data?.detail || err.message : 'Unknown error';

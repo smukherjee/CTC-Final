@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import apiClient from '@/lib/apiClient';
 
 import MasterCrudGrid from '@/components/grid/MasterCrudGrid';
 
@@ -22,7 +22,7 @@ export default function VehicleMaster() {
 
   useEffect(() => {
     let mounted = true;
-    axios.get('/api/vendor/')
+    apiClient.get('/api/vendor/')
       .then((res) => {
         if (!mounted) return;
         const rows = Array.isArray(res.data) ? res.data : [];

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import apiClient from '@/lib/apiClient';
 
 import MasterCrudGrid from '@/components/grid/MasterCrudGrid';
 import { formatDisplayDate } from '@/utils/dateFormat';
@@ -25,7 +25,7 @@ export default function ContractMaster() {
 
   useEffect(() => {
     let mounted = true;
-    axios.get('/api/clients/')
+    apiClient.get('/api/clients/')
       .then((res) => {
         if (!mounted) return;
         const rows = Array.isArray(res.data) ? res.data : [];

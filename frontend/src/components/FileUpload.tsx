@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import apiClient from '@/lib/apiClient';
 import { confirmDestructiveAction } from '@/utils/destructiveAction';
 import { formatDisplayDateTime } from '@/utils/dateFormat';
 
@@ -69,7 +69,7 @@ export default function FileUpload({
     }
     setLoading(true);
     try {
-      const res = await axios.get('/api/files/', {
+      const res = await apiClient.get('/api/files/', {
         params: {
           lr_id: lrId,
           hirememo_id: hirememoId,
@@ -100,7 +100,7 @@ export default function FileUpload({
       if (lrId) formData.append('lr_id', String(lrId));
       if (hirememoId) formData.append('hirememo_id', String(hirememoId));
 
-      const res = await axios.post('/api/files/upload', formData, {
+      const res = await apiClient.post('/api/files/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setSelectedFile(null);
@@ -117,7 +117,7 @@ export default function FileUpload({
     if (!allowArchive) return;
     if (!confirmDestructiveAction({ action: 'Archive this file' })) return;
     try {
-      await axios.post(`/api/files/${docId}/archive`);
+      await apiClient.post(`/api/files/${docId}/archive`);
       await loadDocuments();
     } catch (err: any) {
       alert(`Archive failed: ${err?.response?.data?.detail || err?.message || 'Unknown error'}`);

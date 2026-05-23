@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import apiClient from '@/lib/apiClient';
 import { confirmDestructiveAction } from '@/utils/destructiveAction';
 import { formatDisplayDate, formatDisplayDateTime } from '@/utils/dateFormat';
 
@@ -44,7 +44,7 @@ export default function EWayBillManager({ lrId }: EWayBillManagerProps) {
     }
     setLoading(true);
     try {
-      const res = await axios.get('/api/ewaybill/', { params: { lr_id: lrId } });
+      const res = await apiClient.get('/api/ewaybill/', { params: { lr_id: lrId } });
       setRows(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Failed to load e-way bills', err);
@@ -80,7 +80,7 @@ export default function EWayBillManager({ lrId }: EWayBillManagerProps) {
 
     setSaving(true);
     try {
-      const createRes = await axios.post('/api/ewaybill/', {
+      const createRes = await apiClient.post('/api/ewaybill/', {
         lr_id: lrId,
         number: newBill.number.trim(),
         valid_from: newBill.valid_from || null,
@@ -94,10 +94,10 @@ export default function EWayBillManager({ lrId }: EWayBillManagerProps) {
           formData.append('document_type', 'EWAY_BILL');
           formData.append('lr_id', String(lrId));
           formData.append('file', newBillPdf);
-          const fileRes = await axios.post('/api/files/upload', formData, {
+          const fileRes = await apiClient.post('/api/files/upload', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
           });
-          await axios.put(`/api/ewaybill/${createdId}`, {
+          await apiClient.put(`/api/ewaybill/${createdId}`, {
             file_url: fileRes.data?.file_url || null,
           });
         } catch (uploadErr: any) {
@@ -123,7 +123,7 @@ export default function EWayBillManager({ lrId }: EWayBillManagerProps) {
     }
     setSaving(true);
     try {
-      await axios.put(`/api/ewaybill/${ewayId}/extend`, { valid_upto: date });
+      await apiClient.put(`/api/ewaybill/${ewayId}/extend`, { valid_upto: date });
       setExtendDates((prev) => ({ ...prev, [ewayId]: '' }));
       await loadRows();
     } catch (err: any) {
@@ -136,7 +136,7 @@ export default function EWayBillManager({ lrId }: EWayBillManagerProps) {
   const deleteBill = async (ewayId: number) => {
     if (!confirmDestructiveAction({ action: 'Delete E-way Bill record' })) return;
     try {
-      await axios.delete(`/api/ewaybill/${ewayId}`);
+      await apiClient.delete(`/api/ewaybill/${ewayId}`);
       await loadRows();
     } catch (err: any) {
       alert(`Failed to delete E-way Bill: ${err?.response?.data?.detail || err?.message || 'Unknown error'}`);

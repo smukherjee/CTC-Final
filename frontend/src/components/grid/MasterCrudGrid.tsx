@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import axios from 'axios';
+import apiClient from '@/lib/apiClient';
 import { Trash2 } from 'lucide-react';
 
 import { useApiList } from '@/hooks/useApiList';
@@ -46,7 +46,7 @@ export default function MasterCrudGrid<T extends { id?: RowId }>({
   const onAdd = useCallback(async () => {
     const draft = createDraft();
     const payload = toCreatePayload(draft);
-    const res = await axios.post(listEndpoint, payload);
+    const res = await apiClient.post(listEndpoint, payload);
     const created = mapItem ? mapItem(res.data) : (res.data as T);
     setData((prev) => [created, ...prev]);
   }, [createDraft, listEndpoint, mapItem, setData, toCreatePayload]);
@@ -58,7 +58,7 @@ export default function MasterCrudGrid<T extends { id?: RowId }>({
     if (!confirmDestructiveAction({ action: 'Delete this record', subject: rowLabel })) {
       return;
     }
-    await axios.delete(`${listEndpoint}${id}`);
+    await apiClient.delete(`${listEndpoint}${id}`);
     setData((prev) => prev.filter((it) => String(it.id) !== String(id)));
   }, [listEndpoint, setData]);
 
@@ -69,7 +69,7 @@ export default function MasterCrudGrid<T extends { id?: RowId }>({
     setSaving(id, true);
     try {
       const payload = toUpdatePayload(row);
-      const res = await axios.put(`${listEndpoint}${id}`, payload);
+      const res = await apiClient.put(`${listEndpoint}${id}`, payload);
       const updated = mapItem ? mapItem(res.data) : (res.data as T);
       setData((prev) => prev.map((it) => (String(it.id) === String(id) ? updated : it)));
     } catch (error) {

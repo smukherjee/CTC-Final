@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import axios from 'axios';
+import apiClient from '@/lib/apiClient';
 import type { LR } from '@/types';
 import { format, isBefore, addHours, parseISO } from 'date-fns';
 import { Trash2, Truck } from 'lucide-react';
@@ -109,7 +109,7 @@ export default function DispatchRegister() {
         if (!open && selectedLR) {
             const lrId = Number(selectedLR.id);
             if (Number.isFinite(lrId) && lrId > 0) {
-                axios.get(`/api/lr/${lrId}`)
+                apiClient.get(`/api/lr/${lrId}`)
                     .then(res => {
                         const fresh = mapApiLrsToUi([res.data], defaultStatus)[0];
                         setRowData(prev => prev.map(row =>
@@ -124,7 +124,7 @@ export default function DispatchRegister() {
 
     useEffect(() => {
         let mounted = true;
-        axios.get('/api/city/')
+        apiClient.get('/api/city/')
             .then(res => {
                 const data = res.data;
                 if (!mounted) return;
@@ -137,7 +137,7 @@ export default function DispatchRegister() {
                 console.debug('Failed to load cities master', err);
             });
 
-        axios.get('/api/vendor/')
+        apiClient.get('/api/vendor/')
             .then(res => {
                 const data = res.data;
                 if (!mounted) return;
@@ -151,7 +151,7 @@ export default function DispatchRegister() {
                 console.debug('Failed to load vendors master', err);
             });
 
-        axios.get('/api/vehicle/')
+        apiClient.get('/api/vehicle/')
             .then(res => {
                 const data = res.data;
                 if (!mounted) return;
@@ -166,7 +166,7 @@ export default function DispatchRegister() {
                 console.debug('Failed to load vehicle master', err);
             });
 
-        axios.get('/api/clients/')
+        apiClient.get('/api/clients/')
             .then(res => {
                 const data = res.data;
                 if (!mounted) return;
@@ -200,7 +200,7 @@ export default function DispatchRegister() {
     // Load persisted LRs from backend on mount
     useEffect(() => {
         let mounted = true;
-        axios.get('/api/lr/', { params: { fy: fyFilter } })
+        apiClient.get('/api/lr/', { params: { fy: fyFilter } })
             .then(res => {
                 if (!mounted) return;
                 const data = res.data;
@@ -264,7 +264,7 @@ export default function DispatchRegister() {
             return;
         }
         try {
-            await axios.delete(`/api/lr/${numericId}`);
+            await apiClient.delete(`/api/lr/${numericId}`);
             setRowData((prev) => prev.filter((row) => String(row.id) !== String(lr.id)));
         } catch (err: any) {
             const detail = err?.response?.data?.detail || err?.message || 'Delete failed';
@@ -322,7 +322,7 @@ export default function DispatchRegister() {
         // Persist to backend - use lightweight PATCH for inline E-way updates
         const lrId = updatedData.id;
         if (event.colDef.field === 'eway_bill_no' || event.colDef.field === 'eway_bill_expiry') {
-            axios.patch(`/api/lr/${lrId}`, {
+            apiClient.patch(`/api/lr/${lrId}`, {
                 eway_bill_no: updatedData.eway_bill_no || null,
                 eway_bill_expiry: updatedData.eway_bill_expiry || null,
             })
@@ -332,7 +332,7 @@ export default function DispatchRegister() {
         }
 
         const payload = { ...updatedData };
-        axios.put(`/api/lr/${lrId}`, payload)
+        apiClient.put(`/api/lr/${lrId}`, payload)
             .then(() => console.log('LR saved:', lrId))
             .catch(err => console.error('Failed to save LR:', err));
     }, [consignorsList, consigneesList, vendorNameById, vehicleMap, vehicleIdByNumber, isRowReadOnly]);
