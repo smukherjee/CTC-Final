@@ -9,7 +9,7 @@ _origins_env = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localh
 _allowed_origins = [o.strip() for o in _origins_env.split(",") if o.strip()]
 _allowed_origin_regex = os.getenv(
     "ALLOWED_ORIGIN_REGEX",
-    r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?$",
+    r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?$|^https://ctc-final-.*\.vercel\.app$",
 )
 
 app.add_middleware(
