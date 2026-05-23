@@ -98,9 +98,9 @@ export default function VehicleTracking() {
 
     useEffect(() => {
         let mounted = true;
-        axios
+        apiClient
             .get('/api/city/')
-            .then((res) => {
+            .then((res: { data: any }) => {
                 if (!mounted) return;
                 if (!Array.isArray(res.data)) {
                     setCityMaster([]);
@@ -117,7 +117,7 @@ export default function VehicleTracking() {
                     .filter(Boolean);
                 setCityMaster(Array.from(new Set(names)));
             })
-            .catch((err) => {
+            .catch((err: unknown) => {
                 console.debug('Failed to load cities for vehicle tracking', err);
                 setCityMaster([]);
             });
