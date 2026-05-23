@@ -5,6 +5,10 @@ build/
 coverage/
 *.log
 .env*
+.claude/
+.github/
+.specify/
+.vscode/
 
 # Python / Backend
 __pycache__/
