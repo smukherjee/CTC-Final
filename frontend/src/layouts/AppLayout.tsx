@@ -1,27 +1,89 @@
-import { useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard,
     Truck,
     FileText,
-    CheckSquare,
     Banknote,
+    MapPin,
+    CheckSquare,
     Settings,
     Menu,
-    ChevronLeft
+    ChevronLeft,
+    ChevronDown,
+    ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { REPORT_CONFIGS } from '@/features/reports/reportConfigs';
 
 export default function AppLayout() {
     const [collapsed, setCollapsed] = useState(false);
+    const [mastersOpen, setMastersOpen] = useState(false);
+    const [reportsOpen, setReportsOpen] = useState(false);
+    const navigate = useNavigate();
+    const location = useLocation();
+    const activeReportTab = useMemo(() => new URLSearchParams(location.search).get('tab') || 'pending-billing', [location.search]);
+
+    const currentRole = useMemo(() => {
+        const raw = localStorage.getItem('ctc_user_role') || localStorage.getItem('user_role') || 'ADMIN';
+        return String(raw).trim().toUpperCase();
+    }, []);
+    const canAccessFinance = currentRole === 'ADMIN' || currentRole === 'ACCOUNTS';
+    const reportChildren = useMemo(
+        () => REPORT_CONFIGS.map((config) => ({ label: config.label, path: `/reports?tab=${config.id}` })),
+        []
+    );
+
+    useEffect(() => {
+        if (!canAccessFinance && location.pathname.startsWith('/finance')) {
+            navigate('/operations/dispatch', { replace: true });
+        }
+    }, [canAccessFinance, location.pathname, navigate]);
+
+    useEffect(() => {
+        if (location.pathname.startsWith('/masters')) {
+            setMastersOpen(true);
+        }
+        if (location.pathname.startsWith('/reports')) {
+            setReportsOpen(true);
+        }
+    }, [location.pathname]);
 
     const navItems = [
+        // Dashboard hidden per request; default landing page is Dispatch Register
         { label: 'Dispatch Register', icon: Truck, path: '/operations/dispatch' },
         { label: 'Create LR', icon: FileText, path: '/operations/create-lr' },
-        { label: 'POD Verification', icon: CheckSquare, path: '/finance/pod-verify' },
-        { label: 'Invoices', icon: Banknote, path: '/finance/invoices' },
+        { label: 'Hire Memo Register', icon: FileText, path: '/operations/hire-memo-register' },
+        { label: 'Vehicle Tracking', icon: MapPin, path: '/operations/tracking' },
+        { label: 'Tracking Log', icon: MapPin, path: '/operations/tracking-log' },
+        { label: 'POD Management', icon: CheckSquare, path: '/pod' },
+        ...(canAccessFinance ? [
+            { label: 'Invoice Register', icon: Banknote, path: '/finance/invoices' },
+            { label: 'Payment Receipts', icon: Banknote, path: '/finance/payment-receipts' },
+            { label: 'Ledger Book', icon: Banknote, path: '/finance/vouchers' },
+        ] : []),
+        {
+            label: 'Reports',
+            icon: LayoutDashboard,
+            path: '#',
+            children: reportChildren,
+        },
         { label: 'Settings', icon: Settings, path: '/admin/settings' },
+        {
+            label: 'Masters',
+            icon: LayoutDashboard,
+            path: '#', // Placeholder for parent
+            children: [
+                { label: 'Clients', path: '/masters/clients' },
+                { label: 'Vendors', path: '/masters/vendors' },
+                { label: 'Vehicles', path: '/masters/vehicles' },
+                // { label: 'Contracts', path: '/masters/contracts' },
+                // { label: 'Users', path: '/masters/users' },
+                { label: 'Cities', path: '/masters/cities' },
+            ]
+        },
+        
     ];
 
     return (
@@ -45,23 +107,84 @@ export default function AppLayout() {
                     </Button>
                 </div>
 
-                <nav className="flex-1 p-2 space-y-1">
-                    {navItems.map((item) => (
-                        <NavLink
-                            key={item.path}
-                            to={item.path}
-                            className={({ isActive }) => cn(
-                                "flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium",
-                                isActive
-                                    ? "bg-slate-900 text-white"
-                                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
-                                collapsed && "justify-center"
-                            )}
-                        >
-                            <item.icon className="h-5 w-5" />
-                            {!collapsed && <span>{item.label}</span>}
-                        </NavLink>
-                    ))}
+                <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
+                    {navItems.map((item) => {
+                        if (item.children) {
+                            // Render Parent with Dropdown logic
+                            return (
+                                <div key={item.label}>
+                                    <button
+                                        onClick={() => {
+                                            if (collapsed) return;
+                                            if (item.label === 'Reports') {
+                                                setReportsOpen(!reportsOpen);
+                                                return;
+                                            }
+                                            setMastersOpen(!mastersOpen);
+                                        }}
+                                        className={cn(
+                                            "flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium w-full text-left",
+                                            (item.label === 'Reports' ? reportsOpen : mastersOpen) ? "text-slate-900 bg-slate-50" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+                                            collapsed && "justify-center"
+                                        )}
+                                        title={collapsed ? item.label : undefined}
+                                    >
+                                        <item.icon className="h-5 w-5 shrink-0" />
+                                        {!collapsed && (
+                                            <>
+                                                <span className="flex-1">{item.label}</span>
+                                                {(item.label === 'Reports' ? reportsOpen : mastersOpen) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                            </>
+                                        )}
+                                    </button>
+
+                                    {/* Submenu */}
+                                    {!collapsed && (item.label === 'Reports' ? reportsOpen : mastersOpen) && (
+                                        <div className="ml-9 border-l border-slate-200 pl-2 space-y-1 mt-1">
+                                            {item.children.map((child) => (
+                                                <button
+                                                    key={child.path}
+                                                    type="button"
+                                                    onClick={() => navigate(child.path)}
+                                                    className={cn(
+                                                        "block w-full text-left px-3 py-2 rounded-md transition-colors text-sm font-medium",
+                                                        (location.pathname === '/reports' && child.path.includes('?tab='))
+                                                            ? (activeReportTab === child.path.split('?tab=')[1]
+                                                                ? 'bg-slate-100 text-slate-900'
+                                                                : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50')
+                                                            : (location.pathname === child.path
+                                                                ? 'bg-slate-100 text-slate-900'
+                                                                : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50')
+                                                    )}
+                                                >
+                                                    {child.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        }
+
+                        // Render regular item
+                        return (
+                            <NavLink
+                                key={item.path}
+                                to={item.path}
+                                end
+                                className={({ isActive }) => cn(
+                                    "flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium",
+                                    isActive
+                                        ? "bg-slate-900 text-white"
+                                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+                                    collapsed && "justify-center"
+                                )}
+                            >
+                                <item.icon className="h-5 w-5 shrink-0" />
+                                {!collapsed && <span>{item.label}</span>}
+                            </NavLink>
+                        );
+                    })}
                 </nav>
 
                 <div className="p-4 border-t border-slate-100">
@@ -81,12 +204,6 @@ export default function AppLayout() {
 
             {/* Main Content */}
             <main className="flex-1 overflow-auto flex flex-col">
-                <header className="h-16 bg-white border-b border-slate-200 flex items-center px-6 sticky top-0 z-10">
-                    <h1 className="text-lg font-semibold text-slate-800">
-                        {/* Dynamic Header could go here */}
-                        Operations Output
-                    </h1>
-                </header>
                 <div className="flex-1 p-6">
                     <Outlet />
                 </div>

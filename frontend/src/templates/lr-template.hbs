@@ -5,351 +5,639 @@
     <title>Lorry Receipt - {{lr_number}}</title>
     <style>
         @page {
-            size: A4;
-            margin: 20mm;
+            size: A6 landscape;
+            margin: 2mm;
         }
-        
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            color: #000;
+            background: #fff;
+        }
+
         @media print {
             body {
-                margin: 0;
-                padding: 0;
-            }
-            .no-print {
-                display: none;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
         }
-        
-        body {
-            font-family: 'Arial', sans-serif;
-            font-size: 12px;
-            line-height: 1.4;
-            color: #000;
-            max-width: 210mm;
-            margin: 0 auto;
-            padding: 10mm;
+
+        .sheet {
+            width: 100%;
+            border: 1.4px solid #000;
+            padding: 2.4mm;
+            position: relative;
         }
-        
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #000;
-            padding-bottom: 10px;
-        }
-        
-        .company-name {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        
-        .company-address {
+
+        .top-strip {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            align-items: center;
             font-size: 10px;
-            color: #666;
+            font-weight: 700;
+            margin-bottom: 1.4mm;
         }
-        
-        .lr-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 15px;
-            padding: 10px;
-            background: #f5f5f5;
-            border: 1px solid #000;
+
+        .top-strip .subject {
+            text-align: center;
         }
-        
-        .lr-number {
-            font-size: 16px;
-            font-weight: bold;
+
+        .brand-row {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            align-items: end;
+            column-gap: 1.8mm;
+            margin-bottom: 0.8mm;
         }
-        
-        .lr-date {
-            font-size: 14px;
+
+        .brand-row .logo {
+            font-size: 21px;
+            font-weight: 800;
+            letter-spacing: 0.4px;
+            line-height: 1;
         }
-        
-        .section {
-            margin-bottom: 15px;
-        }
-        
-        .section-title {
-            font-weight: bold;
-            font-size: 13px;
-            margin-bottom: 8px;
+
+        .brand-row .name {
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 0.3px;
+            line-height: 1;
             text-transform: uppercase;
-            border-bottom: 1px solid #ccc;
-            padding-bottom: 3px;
         }
-        
-        .row {
+
+        .address-row,
+        .tax-row {
+            font-size: 9px;
+            font-weight: 700;
+            margin-bottom: 0.5mm;
+            line-height: 1.2;
+        }
+
+        .meta-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 10px;
-        }
-        
-        .field {
-            margin-bottom: 8px;
-        }
-        
-        .field-label {
-            font-weight: bold;
-            font-size: 10px;
-            color: #666;
-            text-transform: uppercase;
-        }
-        
-        .field-value {
+            gap: 2mm;
+            margin-top: 0.4mm;
+            margin-bottom: 0.4mm;
             font-size: 12px;
-            padding: 3px 0;
-            border-bottom: 1px dotted #999;
+            font-weight: 700;
         }
-        
+
+        .meta-row .value {
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1;
+            margin-left: 1.2mm;
+        }
+
+        .meta-right {
+            text-align: right;
+        }
+
+        .line-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2mm;
+            margin-bottom: 0.4mm;
+            font-size: 13px;
+            font-weight: 700;
+            align-items: end;
+        }
+
+        .line-field {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            column-gap: 1mm;
+            align-items: end;
+        }
+
+        .line-field .line {
+            border-bottom: 1px solid #000;
+            min-height: 4.8mm;
+            line-height: 4.3mm;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            padding: 0 1mm;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .from-to-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2mm;
+            margin-bottom: 0.6mm;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .from-to-row .left {
+            display: grid;
+            grid-template-columns: auto 1fr auto 1fr;
+            column-gap: 1mm;
+            align-items: end;
+        }
+
+        .from-to-row .right {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            column-gap: 1mm;
+            align-items: end;
+        }
+
+        .from-to-row .line {
+            border-bottom: 1px solid #000;
+            min-height: 4.8mm;
+            line-height: 4.3mm;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            padding: 0 1mm;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 15px;
         }
-        
-        th, td {
+
+        .goods-table {
+            table-layout: fixed;
+            margin-top: 0.4mm;
+        }
+
+        .goods-table th,
+        .goods-table td {
             border: 1px solid #000;
-            padding: 6px 8px;
-            text-align: left;
+            vertical-align: top;
+            padding: 0.5mm;
         }
-        
-        th {
-            background: #f0f0f0;
-            font-weight: bold;
+
+        .goods-table th {
             font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            text-align: center;
+            line-height: 1.05;
+        }
+
+        .goods-body {
+            height: 30mm;
+        }
+
+        .stack {
+            font-size: 17px;
+            line-height: 1.1;
+            font-weight: 700;
+            word-break: break-word;
+        }
+
+        .stack div {
+            margin-bottom: 0.6mm;
+        }
+
+        .desc {
+            font-size: 10px;
+            line-height: 1.15;
+            font-weight: 500;
+            text-transform: uppercase;
+            word-break: break-word;
+        }
+
+        .center {
+            text-align: center;
+        }
+
+        .right {
+            text-align: right;
+        }
+
+        .bottom {
+            display: grid;
+            grid-template-columns: 58% 42%;
+            margin-top: 0;
+            border-left: 1px solid #000;
+            border-right: 1px solid #000;
+            border-bottom: 1px solid #000;
+        }
+
+        .left-block {
+            border-right: 1px solid #000;
+            padding: 1mm;
+        }
+
+        .value-line {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            align-items: end;
+            gap: 1mm;
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 0.6mm;
+        }
+
+        .value-line .value {
+            border-bottom: 1px solid #000;
+            min-height: 3.8mm;
+            line-height: 3.4mm;
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 0 0.8mm;
+        }
+
+        .copy-label {
+            font-size: 16px;
+            font-weight: 800;
+            margin-bottom: 0.6mm;
+            text-transform: uppercase;
+            line-height: 1;
+        }
+
+        .risk-line {
+            font-size: 11px;
+            font-weight: 700;
+            margin-bottom: 0.8mm;
+            line-height: 1.1;
+        }
+
+        .vehicle-loading {
+            display: grid;
+            grid-template-columns: 42% 58%;
+            border: 1px solid #000;
+            margin-bottom: 0.8mm;
+        }
+
+        .vehicle-box {
+            border-right: 1px solid #000;
+            padding: 0.8mm;
+        }
+
+        .vehicle-box .label {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            margin-bottom: 0.6mm;
+        }
+
+        .vehicle-box .value {
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.1;
+            text-transform: uppercase;
+            word-break: break-word;
+            min-height: 10mm;
+        }
+
+        .loading-box .title {
+            text-align: center;
+            font-size: 10px;
+            font-weight: 800;
+            border-bottom: 1px solid #000;
+            text-transform: uppercase;
+            padding: 0.4mm;
+        }
+
+        .loading-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+        }
+
+        .loading-grid .cell {
+            border-bottom: 1px solid #000;
+            min-height: 4.2mm;
+            line-height: 3.8mm;
+            padding: 0 0.6mm;
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+        .loading-grid .cell:nth-last-child(-n+2) {
+            border-bottom: 0;
+        }
+
+        .decl {
+            font-size: 9px;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-bottom: 0.6mm;
+        }
+
+        .liability {
+            font-size: 12px;
+            font-weight: 800;
+            margin-bottom: 1.5mm;
             text-transform: uppercase;
         }
-        
-        td {
-            font-size: 11px;
-        }
-        
-        .totals {
-            margin-top: 15px;
-            padding: 10px;
-            background: #f9f9f9;
-            border: 1px solid #000;
-        }
-        
-        .totals-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 5px;
-        }
-        
-        .totals-row.grand-total {
-            font-weight: bold;
-            font-size: 14px;
-            border-top: 2px solid #000;
-            padding-top: 8px;
-            margin-top: 8px;
-        }
-        
-        .footer {
-            margin-top: 30px;
-            padding-top: 15px;
-            border-top: 1px solid #ccc;
-        }
-        
-        .signature-section {
+
+        .sign-row {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 20px;
-            margin-top: 40px;
+            grid-template-columns: 1fr;
+            align-items: end;
+            gap: 0.6mm;
         }
-        
-        .signature-box {
+
+        .sign-row .line {
+            border-bottom: 1px solid #000;
+            height: 4mm;
+        }
+
+        .sign-row .label {
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+        .right-block {
+            display: grid;
+            grid-template-rows: auto auto 1fr;
+        }
+
+        .seal-box {
+            border-bottom: 1px solid #000;
+            padding: 0.8mm;
+        }
+
+        .seal-box .label {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            margin-bottom: 0.6mm;
+        }
+
+        .seal-box .value {
+            font-size: 15px;
+            font-weight: 700;
+            text-transform: uppercase;
+            min-height: 6mm;
+        }
+
+        .charges {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .charges td {
+            border-bottom: 1px solid #000;
+            padding: 0.8mm;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .charges td:last-child {
+            width: 34%;
+            border-left: 1px solid #000;
+            text-align: right;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: none;
+        }
+
+        .charges tr:last-child td {
+            border-bottom: 0;
+            font-size: 13px;
+            font-weight: 900;
+        }
+
+        .company-sign {
             border-top: 1px solid #000;
-            padding-top: 5px;
-            text-align: center;
+            display: grid;
+            align-items: end;
+            padding: 1mm;
             font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            text-align: right;
+            min-height: 12mm;
         }
-        
+
         .watermark {
-            text-align: center;
-            font-size: 10px;
-            color: #999;
-            margin-top: 20px;
+            position: absolute;
+            left: 24mm;
+            top: 47mm;
+            font-size: 22px;
+            font-weight: 800;
+            color: rgba(0, 0, 0, 0.11);
+            transform: rotate(-25deg);
+            letter-spacing: 2px;
+            pointer-events: none;
+            user-select: none;
+            text-transform: uppercase;
+        }
+
+        .generated {
+            margin-top: 0.8mm;
+            font-size: 8px;
+            color: #555;
+            text-align: right;
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <div class="company-name">CTC LOGISTICS</div>
-        <div class="company-address">
-            Transport Services • PAN: XXXXX1234X • GSTIN: 33XXXXX1234X1ZX
+    <div class="sheet">
+        <div class="top-strip">
+            <div class="subject">Subject to Chennai Jurisdiction only</div>
+            <div>Phone: 044 - 4272 5261</div>
         </div>
-    </div>
-    
-    <div class="lr-header">
-        <div>
-            <div class="lr-number">LR No: {{lr_number}}</div>
+
+        <div class="brand-row">
+            <div class="logo">CTC</div>
+            <div class="name">Chandra Transport Corporation</div>
         </div>
-        <div>
-            <div class="lr-date">Date: {{date}}</div>
+
+        <div class="address-row">
+            Regd. O.: Flat No. 31, 3rd Floor, BBC Villa Complex, 65, Prakasam Salai, Broadway, Chennai - 600108
         </div>
-    </div>
-    
-    <!-- Parties Section -->
-    <div class="section">
-        <div class="row">
-            <div>
-                <div class="field">
-                    <div class="field-label">Consignor</div>
-                    <div class="field-value">{{consignor_name}}</div>
-                </div>
-                <div class="field">
-                    <div class="field-label">From</div>
-                    <div class="field-value">{{from}}</div>
-                </div>
+        <div class="tax-row">
+            E-mail: chennal@chandratransport.in | Website: www.chandratransport.in | GSTIN: 33AACPG4250G1ZA
+        </div>
+
+        <div class="meta-row">
+            <div>Lorry Receipt No. <span class="value">{{lr_number}}</span></div>
+            <div class="meta-right">Date <span class="value">{{date}}</span></div>
+        </div>
+
+        <div class="line-row">
+            <div class="line-field">
+                <span>Consignor</span>
+                <span class="line">{{consignor_name}}</span>
             </div>
-            <div>
-                <div class="field">
-                    <div class="field-label">Consignee</div>
-                    <div class="field-value">{{consignee_name}}</div>
-                </div>
-                <div class="field">
-                    <div class="field-label">To</div>
-                    <div class="field-value">{{to}}</div>
-                </div>
-                {{#if delivery_at}}
-                <div class="field">
-                    <div class="field-label">Delivery At</div>
-                    <div class="field-value">{{delivery_at}}</div>
-                </div>
-                {{/if}}
+            <div class="line-field">
+                <span>Consignee</span>
+                <span class="line">{{consignee_name}}</span>
             </div>
         </div>
-    </div>
-    
-    <!-- Goods Details Table -->
-    <div class="section">
-        <div class="section-title">Goods Details</div>
-        <table>
+
+        <div class="from-to-row">
+            <div class="left">
+                <span>From</span>
+                <span class="line">{{origin}}</span>
+                <span>To</span>
+                <span class="line">{{destination}}</span>
+            </div>
+            <div class="right">
+                <span>Delivery at</span>
+                <span class="line">{{delivery_at}}</span>
+            </div>
+        </div>
+
+        <table class="goods-table">
+            <colgroup>
+                <col style="width: 9%;">
+                <col style="width: 42%;">
+                <col style="width: 5%;">
+                <col style="width: 5%;">
+                <col style="width: 8%;">
+                <col style="width: 7%;">
+                <col style="width: 4%;">
+                <col style="width: 20%;">
+            </colgroup>
             <thead>
                 <tr>
-                    <th style="width: 80px;">Articles</th>
-                    <th>Description</th>
-                    <th style="width: 70px;">Weight<br>(QTL)</th>
-                    <th style="width: 70px;">Weight<br>(KG)</th>
-                    <th style="width: 80px;">Rate/QTL</th>
-                    <th style="width: 100px;">Freight (₹)</th>
-                    <th style="width: 100px;">Remarks</th>
+                    <th>No. of Articles</th>
+                    <th>Description of Goods<br>(Said to Contain)</th>
+                    <th colspan="2">Weight<br>QTL &nbsp; KG.</th>
+                    <th>Rate<br>Per QTL</th>
+                    <th colspan="2">Freight<br>Rs. &nbsp; P.</th>
+                    <th>Remarks</th>
                 </tr>
             </thead>
             <tbody>
-                {{#each goods_items}}
-                <tr>
-                    <td style="text-align: center;">{{this.articles_count}}</td>
-                    <td>{{this.description}}</td>
-                    <td style="text-align: right;">{{this.weight_qtl}}</td>
-                    <td style="text-align: right;">{{this.weight_kg}}</td>
-                    <td style="text-align: right;">₹{{this.rate_per_qtl}}</td>
-                    <td style="text-align: right;">₹{{this.freight_rs}}.{{this.freight_p}}</td>
-                    <td>{{this.remarks}}</td>
+                <tr class="goods-body">
+                    <td class="stack center">
+                        {{#each goods_items}}
+                        <div>{{this.articles_count}}</div>
+                        {{/each}}
+                    </td>
+                    <td class="desc">
+                        {{#each goods_items}}
+                        <div>{{this.description}}</div>
+                        {{/each}}
+                    </td>
+                    <td class="stack center">
+                        {{#each goods_items}}
+                        <div>{{this.weight_qtl}}</div>
+                        {{/each}}
+                    </td>
+                    <td class="stack center">
+                        {{#each goods_items}}
+                        <div>{{this.weight_kg}}</div>
+                        {{/each}}
+                    </td>
+                    <td class="stack right">
+                        {{#each goods_items}}
+                        <div>{{this.rate_per_qtl}}</div>
+                        {{/each}}
+                    </td>
+                    <td class="stack right">
+                        {{#each goods_items}}
+                        <div>{{this.freight_rs}}</div>
+                        {{/each}}
+                    </td>
+                    <td class="stack right">
+                        {{#each goods_items}}
+                        <div>{{this.freight_p}}</div>
+                        {{/each}}
+                    </td>
+                    <td class="stack">
+                        {{#each goods_items}}
+                        <div>{{this.remarks}}</div>
+                        {{/each}}
+                        {{#if remarks}}
+                        <div>{{remarks}}</div>
+                        {{/if}}
+                    </td>
                 </tr>
-                {{/each}}
             </tbody>
         </table>
-    </div>
-    
-    <!-- Vehicle & Loading Details -->
-    <div class="section">
-        <div class="row">
-            <div>
-                <div class="field">
-                    <div class="field-label">Vehicle No.</div>
-                    <div class="field-value">{{vehicle_number}}</div>
+
+        <div class="bottom">
+            <div class="left-block">
+                <div class="value-line">
+                    <span>Value Rs.</span>
+                    <span class="value">{{value_rs}}</span>
                 </div>
-                <div class="field">
-                    <div class="field-label">SEAL No.</div>
-                    <div class="field-value">{{seal_number}}</div>
-                </div>
-            </div>
-            <div>
-                {{#if loading_point_times}}
-                <div class="section-title" style="font-size: 11px;">At Loading Point</div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 10px;">
-                    <div>
-                        <div class="field-label">In Date</div>
-                        <div>{{loading_point_times.in_date}}</div>
+                <div class="copy-label">Carrier Copy</div>
+                <div class="risk-line">Booked on Owner's Risk {{#if booked_on_owners_risk}}YES{{else}}NO{{/if}}</div>
+
+                <div class="vehicle-loading">
+                    <div class="vehicle-box">
+                        <div class="label">Vehicle No.</div>
+                        <div class="value">{{vehicle_number}}</div>
                     </div>
-                    <div>
-                        <div class="field-label">In Time</div>
-                        <div>{{loading_point_times.in_time}}</div>
-                    </div>
-                    <div>
-                        <div class="field-label">Out Date</div>
-                        <div>{{loading_point_times.out_date}}</div>
-                    </div>
-                    <div>
-                        <div class="field-label">Out Time</div>
-                        <div>{{loading_point_times.out_time}}</div>
+                    <div class="loading-box">
+                        <div class="title">At Loading Point</div>
+                        <div class="loading-grid">
+                            <div class="cell">In Date</div>
+                            <div class="cell">{{loading_point_times.in_date}}</div>
+                            <div class="cell">In Time</div>
+                            <div class="cell">{{loading_point_times.in_time}}</div>
+                            <div class="cell">Out Date</div>
+                            <div class="cell">{{loading_point_times.out_date}}</div>
+                            <div class="cell">Out Time</div>
+                            <div class="cell">{{loading_point_times.out_time}}</div>
+                        </div>
                     </div>
                 </div>
-                {{/if}}
+
+                <div class="decl">
+                    I / We declare that the goods tendered by me / us do not contain any contraband goods and description of goods tendered by me / us has been correctly entered.
+                    I / We have read and understood the terms and condition printed on the reverse and I / We shall abide by the same.
+                </div>
+                <div class="liability">Not responsible for leakage &amp; breakage</div>
+
+                <div class="sign-row">
+                    <div class="line"></div>
+                    <div class="label">Signature of the Consignor</div>
+                </div>
+            </div>
+
+            <div class="right-block">
+                <div class="seal-box">
+                    <div class="label">Seal No.</div>
+                    <div class="value">{{seal_number}}</div>
+                </div>
+
+                <table class="charges">
+                    <tbody>
+                        <tr>
+                            <td>Surcharge</td>
+                            <td>{{surcharge}}</td>
+                        </tr>
+                        <tr>
+                            <td>Hamali Charges</td>
+                            <td>{{hamali_charges}}</td>
+                        </tr>
+                        <tr>
+                            <td>St. Charges</td>
+                            <td>{{st_charges}}</td>
+                        </tr>
+                        <tr>
+                            <td>Total</td>
+                            <td>{{total}}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="company-sign">For Chandra Transport Corporation</div>
             </div>
         </div>
-    </div>
-    
-    <!-- Financial Summary -->
-    <div class="totals">
-        <div class="totals-row">
-            <span>Value (Goods):</span>
-            <span>₹{{value_rs}}</span>
-        </div>
-        <div class="totals-row">
-            <span>Surcharge:</span>
-            <span>₹{{surcharge}}</span>
-        </div>
-        <div class="totals-row">
-            <span>Hamali Charges:</span>
-            <span>₹{{hamali_charges}}</span>
-        </div>
-        <div class="totals-row">
-            <span>St. Charges:</span>
-            <span>₹{{st_charges}}</span>
-        </div>
-        <div class="totals-row grand-total">
-            <span>TOTAL:</span>
-            <span>₹{{total}}</span>
-        </div>
-    </div>
-    
-    {{#if booked_on_owners_risk}}
-    <div style="margin-top: 15px; padding: 8px; background: #fff3cd; border: 1px solid #ffc107;">
-        <strong>⚠️ Booked on Owner's Risk</strong>
-    </div>
-    {{/if}}
-    
-    <!-- Footer -->
-    <div class="footer">
-        <div class="section-title">Terms & Conditions</div>
-        <ul style="font-size: 9px; color: #666; margin: 0; padding-left: 20px;">
-            <li>The consignee should take delivery within 24 hours of arrival</li>
-            <li>Goods are insured as per the declared value</li>
-            <li>All disputes subject to local jurisdiction only</li>
-        </ul>
-        
-        <div class="signature-section">
-            <div class="signature-box">
-                <div style="margin-top: 30px;"></div>
-                Consignor's Signature
-            </div>
-            <div class="signature-box">
-                <div style="margin-top: 30px;"></div>
-                Driver's Signature
-            </div>
-            <div class="signature-box">
-                <div style="margin-top: 30px;"></div>
-                For CTC Logistics
-            </div>
-        </div>
-    </div>
-    
-    <div class="watermark">
-        Generated on {{generated_at}} • System Generated Document
+
+        <div class="watermark">CTC</div>
+        <div class="generated">Generated on {{generated_at}}</div>
     </div>
 </body>
 </html>

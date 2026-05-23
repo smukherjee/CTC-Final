@@ -1,0 +1,125 @@
+openapi: "3.0.3"
+info:
+  title: CTC-ERP Payment Receipts API
+  version: "1.1"
+  description: |
+    Payment receipt register for cash/bank realization events.
+    Commercial deductions are finalized at LR stage and are not captured here.
+
+paths:
+  /api/payment-receipts/:
+    get:
+      summary: List payment receipts
+      operationId: listPaymentReceipts
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string, example: "2025-26" }
+      responses:
+        "200":
+          description: Payment receipt list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PaymentReceiptResponse"
+
+    post:
+      summary: Create payment receipt
+      operationId: createPaymentReceipt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentReceiptCreate"
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentReceiptResponse"
+
+  /api/payment-receipts/{id}:
+    put:
+      summary: Update payment receipt
+      operationId: updatePaymentReceipt
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentReceiptUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentReceiptResponse"
+
+    delete:
+      summary: Delete payment receipt
+      operationId: deletePaymentReceipt
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+
+components:
+  schemas:
+    PaymentReceiptCreate:
+      type: object
+      required: [payment_date, amount, received_from, financial_year]
+      properties:
+        payment_date: { type: string, format: date }
+        invoice_id: { type: integer, nullable: true }
+        amount: { type: number, format: float, minimum: 0.01 }
+        received_from: { type: string }
+        received_from_id: { type: integer, nullable: true }
+        payment_mode: { type: string, example: "BANK" }
+        financial_year: { type: string, example: "2025-26" }
+        notes: { type: string, nullable: true }
+
+    PaymentReceiptUpdate:
+      type: object
+      properties:
+        payment_date: { type: string, format: date }
+        invoice_id: { type: integer, nullable: true }
+        amount: { type: number, format: float, minimum: 0.01 }
+        received_from: { type: string }
+        received_from_id: { type: integer, nullable: true }
+        payment_mode: { type: string }
+        financial_year: { type: string }
+        notes: { type: string, nullable: true }
+
+    PaymentReceiptResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        payment_date: { type: string, format: date }
+        amount: { type: number }
+        invoice_id: { type: integer, nullable: true }
+        received_from: { type: string }
+        received_from_id: { type: integer, nullable: true }
+        payment_mode: { type: string }
+        financial_year: { type: string }
+        notes: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }

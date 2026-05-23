@@ -1,0 +1,131 @@
+openapi: "3.0.3"
+info:
+  title: CTC-ERP Hire Memo API
+  version: "1.0"
+  description: Hire Memo creation and register — auto-numbered per financial year
+
+paths:
+  /api/hirememos/:
+    get:
+      summary: List hire memos (register)
+      operationId: listHireMemos
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string, example: "2025-26" }
+          description: Financial year filter (defaults to current FY)
+        - name: lr_id
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: List of hire memos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HireMemoResponse"
+    post:
+      summary: Create a hire memo (auto-assigns hire_memo_no)
+      operationId: createHireMemo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HireMemoCreate"
+      responses:
+        "201":
+          description: Hire memo created with auto-assigned number
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HireMemoResponse"
+
+  /api/hirememos/{id}:
+    get:
+      summary: Get hire memo by ID
+      operationId: getHireMemo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HireMemoResponse"
+    put:
+      summary: Update hire memo
+      operationId: updateHireMemo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HireMemoUpdate"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HireMemoResponse"
+
+components:
+  schemas:
+    HireMemoCreate:
+      type: object
+      required: [lr_id, date, total_hire]
+      properties:
+        lr_id: { type: integer }
+        date: { type: string, format: date }
+        vehicle_no: { type: string }
+        driver_name: { type: string }
+        driver_mobile: { type: string }
+        driver_license: { type: string }
+        total_hire: { type: number }
+        advance_cash: { type: number, default: 0 }
+        advance_bank: { type: number, default: 0 }
+        remarks: { type: string }
+      description: |
+        hire_memo_no and financial_year are auto-assigned by the server.
+        Do NOT pass hire_memo_no in the request body.
+
+    HireMemoUpdate:
+      type: object
+      properties:
+        driver_name: { type: string }
+        driver_mobile: { type: string }
+        driver_license: { type: string }
+        total_hire: { type: number }
+        advance_cash: { type: number }
+        advance_bank: { type: number }
+        remarks: { type: string }
+
+    HireMemoResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        hire_memo_no: { type: integer, example: 127 }
+        financial_year: { type: string, example: "2025-26" }
+        lr_id: { type: integer }
+        lr_no: { type: string }
+        date: { type: string, format: date }
+        vehicle_no: { type: string }
+        driver_name: { type: string }
+        driver_mobile: { type: string }
+        driver_license: { type: string }
+        total_hire: { type: number }
+        advance_cash: { type: number }
+        advance_bank: { type: number }
+        balance: { type: number }
+        remarks: { type: string }
+        created_at: { type: string, format: date-time }

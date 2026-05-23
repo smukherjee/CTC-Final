@@ -1,0 +1,226 @@
+openapi: "3.0.3"
+info:
+  title: CTC-ERP Invoice API
+  version: "1.1"
+  description: |
+    Invoice register contract aligned to LR-total billing.
+    Invoice line billable amounts are derived from LR total and are not manually recomposed in invoice entry.
+
+paths:
+  /api/billing/invoices:
+    get:
+      summary: List invoices
+      operationId: listInvoices
+      parameters:
+        - name: fy
+          in: query
+          schema: { type: string, example: "2025-26" }
+        - name: client_id
+          in: query
+          schema: { type: integer }
+        - name: skip
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 100 }
+      responses:
+        "200":
+          description: Invoice list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InvoiceResponse"
+
+    post:
+      summary: Create invoice
+      operationId: createInvoice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceCreate"
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceResponse"
+
+  /api/billing/invoices/{invoice_id}:
+    get:
+      summary: Get invoice by id
+      operationId: getInvoice
+      parameters:
+        - name: invoice_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Invoice detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceResponse"
+
+    put:
+      summary: Update invoice header values
+      operationId: updateInvoice
+      parameters:
+        - name: invoice_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceResponse"
+
+    delete:
+      summary: Delete invoice
+      operationId: deleteInvoice
+      parameters:
+        - name: invoice_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+
+  /api/billing/invoices/{invoice_id}/print-data:
+    get:
+      summary: Get invoice print payload
+      operationId: getInvoicePrintData
+      parameters:
+        - name: invoice_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Printable payload with LR-context deduction lines
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoicePrintPayload"
+
+components:
+  schemas:
+    InvoiceCreate:
+      type: object
+      required: [client_id, invoice_date, financial_year, lines]
+      properties:
+        client_id: { type: integer }
+        invoice_date: { type: string, format: date }
+        financial_year: { type: string, example: "2025-26" }
+        po_no: { type: string }
+        po_date: { type: string, format: date }
+        tds_amount: { type: number, format: float, default: 0 }
+        hsn_code: { type: string, default: "996791" }
+        tax_on_reverse_charge: { type: boolean, default: true }
+        gst_paid_by: { type: string }
+        lines:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/InvoiceLineCreate"
+
+    InvoiceLineCreate:
+      type: object
+      required: [lr_id]
+      properties:
+        lr_id: { type: integer }
+      description: |
+        Billable line amount is sourced from LR total.
+        Invoice create/update does not accept editable charge-breakup amount fields.
+
+    InvoiceUpdate:
+      type: object
+      properties:
+        po_no: { type: string }
+        po_date: { type: string, format: date }
+        tds_amount: { type: number, format: float }
+        tax_on_reverse_charge: { type: boolean }
+        gst_paid_by: { type: string }
+        status: { type: string, enum: [draft, issued, partially_paid, paid] }
+
+    InvoiceResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        invoice_no: { type: string, example: "1543/25-26" }
+        invoice_date: { type: string, format: date }
+        financial_year: { type: string }
+        client_id: { type: integer }
+        client_name: { type: string }
+        po_no: { type: string }
+        po_date: { type: string, format: date }
+        hsn_code: { type: string }
+        tax_on_reverse_charge: { type: boolean }
+        gst_paid_by: { type: string }
+        gross_amount: { type: number }
+        tds_amount: { type: number }
+        net_amount: { type: number }
+        amount_received: { type: number }
+        outstanding_amount: { type: number }
+        status: { type: string }
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvoiceLineResponse"
+
+    InvoiceLineResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        lr_id: { type: integer }
+        lr_no: { type: string }
+        lr_date: { type: string, format: date }
+        line_amount: { type: number }
+        vehicle_no: { type: string }
+        consignor_name: { type: string }
+        consignee_name: { type: string }
+        origin: { type: string }
+        destination: { type: string }
+        deductions:
+          type: array
+          items:
+            $ref: "#/components/schemas/LRDeduction"
+
+    LRDeduction:
+      type: object
+      properties:
+        label: { type: string, example: "SEAL COST" }
+        amount: { type: number, example: 500 }
+
+    InvoicePrintPayload:
+      type: object
+      properties:
+        invoice:
+          $ref: "#/components/schemas/InvoiceResponse"
+        amount_in_words: { type: string }
+        less_lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/LRDeduction"

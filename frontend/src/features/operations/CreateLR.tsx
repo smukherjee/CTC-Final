@@ -1,102 +1,78 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import axios from 'axios';
 import { useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Trash2, Printer, Save, Lock, X } from 'lucide-react';
+import { Plus, Trash2, Printer, Save, Lock } from 'lucide-react';
 import { format } from 'date-fns';
-import { AgGridReact } from 'ag-grid-react';
-import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community';
 import type { LR, GoodsLineItem } from '@/types';
 import { Button } from '@/components/ui/button';
+import FileUpload from '@/components/FileUpload';
+import EWayBillManager from '@/components/EWayBillManager';
 import { printLR } from '@/utils/printLR';
-
-// Register AG Grid Modules
-ModuleRegistry.registerModules([AllCommunityModule]);
-
-// Mock data for dropdowns
-const CONSIGNORS = [
-    { id: 'C001', name: 'HAVELLS INDIA LTD SRICITY' },
-    { id: 'C003', name: 'SURYA ELECTRICALS CHENNAI' },
-    { id: 'C005', name: 'FLYJAC LOGISTICS P LTD' },
-    { id: 'C007', name: 'VOLTAS LTD' },
-    { id: 'C009', name: 'BLUE STAR LIMITED' },
-    { id: 'C003', name: 'VIJAY SALES P LTD' },
-];
-
-const CONSIGNEES = [
-    { id: 'C002', name: 'USHA ELECTROTRADE' },
-    { id: 'C004', name: 'METRO DISTRIBUTORS' },
-    { id: 'C006', name: 'PRIME AGENCIES PUNE' },
-    { id: 'C008', name: 'COOL ZONE HYDERABAD' },
-    { id: 'C010', name: 'SHARMA TRADERS DELHI' },
-    { id: 'C006', name: 'NATIONAL ELECTRONICS' },
-];
-
-const CITIES = ['SRICITY', 'CHENNAI', 'BANGALORE', 'HYDERABAD', 'MUMBAI', 'DELHI', 'PUNE', 'BHIWANDI', 'KANNUR'];
+import { EMPTY_FORM_OPTIONS, fetchFormOptions, type FormOptions } from '@/config/formOptions';
+import { mapApiLrToUi } from './lrMappings';
+import AppAgGrid from '@/components/grid/AppAgGrid';
+import { confirmDestructiveAction } from '@/utils/destructiveAction';
 
 // Zod Schema for Validation
 const lrSchema = z.object({
-    lr_number: z.string(),
-    date: z.string().refine((date) => new Date(date) <= new Date(), {
-        message: "Date cannot be in the future",
-    }),
-    consignor_id: z.string().min(1, "Consignor is required"),
-    consignee_id: z.string().min(1, "Consignee is required"),
-    from: z.string().min(1, "Origin is required"),
-    to: z.string().min(1, "Destination is required"),
-    vehicle_number: z.string()
-        .regex(/^[A-Z]{2}\s\d{2}\s[A-Z]{1,2}\s\d{4}$/, "Invalid Vehicle Number (e.g. MH 12 AB 1234)")
-        .optional()
-        .or(z.literal('')),
-    seal_number: z.string().optional(),
+    lr_number: z.string().min(1),
+    date: z.string().optional(),
+    consignor_id: z.string().min(1, 'Consignor is required'),
+    consignee_id: z.string().min(1, 'Consignee is required'),
+    origin: z.string().min(1, 'Origin is required'),
+    destination: z.string().min(1, 'Destination is required'),
+    through: z.string().optional(),
+    through_id: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().optional()),
+    fob_client_id: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().optional()),
     delivery_at: z.string().optional(),
+    vehicle_number: z.string().optional(),
+    vehicle_id: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().optional()),
+    driver_mobile: z.string().optional(),
+    seal_number: z.string().optional(),
     booked_on_owners_risk: z.boolean().optional(),
+    surcharge: z.preprocess((v) => Number(v), z.number().optional()),
+    hamali_charges: z.preprocess((v) => Number(v), z.number().optional()),
+    st_charges: z.preprocess((v) => Number(v), z.number().optional()),
     loading_point_times: z.object({
         in_date: z.string().optional(),
         in_time: z.string().optional(),
         out_date: z.string().optional(),
         out_time: z.string().optional(),
     }).optional(),
-    surcharge: z.coerce.number().min(0).optional(),
-    hamali_charges: z.coerce.number().min(0).optional(),
-    st_charges: z.coerce.number().min(0).optional(),
 });
 
 // TypeScript type inferred from Zod schema
 type LRFormValues = z.infer<typeof lrSchema>;
 
-// AG Grid Theme
-const ctcTheme = themeQuartz.withParams({
-    accentColor: '#1e293b',
-    backgroundColor: '#ffffff',
-    borderColor: '#e2e8f0',
-    browserColorScheme: 'light',
-    chromeBackgroundColor: '#f8fafc',
-    foregroundColor: '#0f172a',
-    headerFontSize: 11,
-    headerFontWeight: 600,
-    fontSize: 11,
-    rowBorder: true,
-    wrapperBorderRadius: 8,
-    cellHorizontalPaddingScale: 0.7,
-    headerHeight: 32,
-    rowHeight: 32,
-});
-
 interface CreateLRProps {
     lrId?: string;
     initialData?: LR;
     isModal?: boolean;
-    onClose?: () => void;
     onSave?: (lr: LR) => void;
 }
 
-export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose, onSave }: CreateLRProps) {
-    const { lrId: paramLrId } = useParams();
-    const lrId = propLrId || paramLrId;
+interface LRDeductionRow {
+    id?: number;
+    deduction_label: string;
+    deduction_amount: number;
+    sort_order?: number;
+}
 
-    // Goods Items State (Managed separately from RHF due to AG Grid complexity)
+export default function CreateLR({ lrId: propLrId, initialData, isModal, onSave }: CreateLRProps) {
+    const { lrId: paramLrId } = useParams();
+    // Prioritize prop (modal mode), fallback to param (route mode)
+    const lrId = propLrId || paramLrId;
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [toastMessage, setToastMessage] = useState('');
+    const [citiesList, setCitiesList] = useState<string[]>([]);
+    const [vendors, setVendors] = useState<any[]>([]);
+    const [consignors, setConsignors] = useState<{ id: string; name: string }[]>([]);
+    const [consignees, setConsignees] = useState<{ id: string; name: string }[]>([]);
+    const [fobClients, setFobClients] = useState<{ id: string; name: string }[]>([]);
     const [goodsItems, setGoodsItems] = useState<GoodsLineItem[]>([{
         id: '1',
         articles_count: 0,
@@ -107,14 +83,26 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
         freight_rs: 0,
         freight_p: 0,
     }]);
+    const [status, setStatus] = useState<string>('');
+    const [lrDeductions, setLrDeductions] = useState<LRDeductionRow[]>([]);
+    const [formOptions, setFormOptions] = useState<FormOptions>(EMPTY_FORM_OPTIONS);
+    const [resolvedLrId, setResolvedLrId] = useState<number | null>(null);
 
-    const [status, setStatus] = useState<string>('DRAFT');
-    const gridRef = useRef<AgGridReact>(null);
-
-    // Initial Defaults
-    const defaultValues: Partial<LRFormValues> = {
-        lr_number: (Math.floor(40000 + Math.random() * 10000)).toString(),
-        date: format(new Date(), 'yyyy-MM-dd'),
+    const defaultValues = {
+        lr_number: initialData?.lr_number || `LR-${Date.now()}`,
+        date: initialData?.date || format(new Date(), 'yyyy-MM-dd'),
+        consignor_id: initialData?.consignor_id || '',
+        consignee_id: initialData?.consignee_id || '',
+        origin: initialData?.origin || '',
+        destination: initialData?.destination || '',
+        through: initialData?.through || '',
+        through_id: initialData?.through_id ? Number(initialData.through_id) : undefined,
+        fob_client_id: (initialData as any)?.fob_client_id ? Number((initialData as any).fob_client_id) : undefined,
+        delivery_at: '',
+        vehicle_number: initialData?.vehicle_number || '',
+        vehicle_id: initialData?.vehicle_id ? Number(initialData.vehicle_id) : undefined,
+        driver_mobile: initialData?.driver_mobile || '',
+        seal_number: initialData?.seal_number || '',
         booked_on_owners_risk: false,
         surcharge: 0,
         hamali_charges: 0,
@@ -128,43 +116,216 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
         handleSubmit,
         reset,
         watch,
-        formState: { errors }
+        formState: { errors },
+        setValue
     } = useForm<LRFormValues>({
-        resolver: zodResolver(lrSchema) as any, // Cast to avoid strict type mismatch with Zod 4.x/3.x
+        resolver: zodResolver(lrSchema) as any,
         defaultValues,
     });
 
-    // Helper to find names
-    const getConsignorName = (id: string) => CONSIGNORS.find(c => c.id === id)?.name || '';
-    const getConsigneeName = (id: string) => CONSIGNEES.find(c => c.id === id)?.name || '';
+    const [vehiclesList, setVehiclesList] = useState<{id: string; number: string; type?: string}[]>([]);
+    const toNumber = useCallback((value: unknown): number => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }, []);
+
+    const getConsignorName = (id: string) => (consignors.find(c => String(c.id) === String(id)) || { name: '' }).name;
+    const getConsigneeName = (id: string) => (consignees.find(c => String(c.id) === String(id)) || { name: '' }).name;
 
     // Load Data
     useEffect(() => {
-        const lrToLoad = initialData;
-        if (lrToLoad) {
-            // Map existing LR to form values
-            reset({
-                lr_number: lrToLoad.lr_number,
-                date: lrToLoad.date,
-                consignor_id: lrToLoad.consignor_id,
-                consignee_id: lrToLoad.consignee_id,
-                from: lrToLoad.from,
-                to: lrToLoad.to,
-                delivery_at: lrToLoad.delivery_at,
-                vehicle_number: lrToLoad.vehicle_number || '',
-                seal_number: lrToLoad.seal_number || '',
-                booked_on_owners_risk: lrToLoad.booked_on_owners_risk || false,
-                surcharge: lrToLoad.surcharge || 0,
-                hamali_charges: lrToLoad.hamali_charges || 0,
-                st_charges: lrToLoad.st_charges || 0,
-                loading_point_times: lrToLoad.loading_point_times || {},
-            });
-            setGoodsItems(lrToLoad.goods_items || []);
-            setStatus(lrToLoad.status);
-        }
-    }, [initialData, reset]);
+        let mounted = true;
 
-    const isReadOnly = !!(lrId && status !== 'DRAFT');
+        const loadData = async () => {
+            try {
+                // 1. Load Master Lists in parallel
+                const [citiesRes, vendorsRes, clientRes, vehicleRes, optionsRes] = await Promise.all([
+                    axios.get('/api/city/').catch(() => ({ data: [] })),
+                    axios.get('/api/vendor/').catch(() => ({ data: [] })),
+                    axios.get('/api/clients/').catch(() => ({ data: [] })),
+                    axios.get('/api/vehicle/').catch(() => ({ data: [] })),
+                    fetchFormOptions().catch(() => EMPTY_FORM_OPTIONS),
+                ]);
+
+                if (!mounted) return;
+
+                setFormOptions(optionsRes);
+                const draftStatus = optionsRes.defaults.lr_status || '';
+
+                // Process Cities
+                let loadedCities: string[] = [];
+                if (Array.isArray(citiesRes.data)) {
+                    loadedCities = citiesRes.data.map((c: any) => c.name || c.code).filter(Boolean);
+                }
+                setCitiesList(loadedCities);
+
+                // Process Vendors
+                if (Array.isArray(vendorsRes.data)) {
+                    setVendors(vendorsRes.data);
+                }
+
+                // Process Vehicles
+                let loadedVehicles: any[] = [];
+                if (Array.isArray(vehicleRes.data)) {
+                    // Map to id/number pairs for stable selection
+                    const vList = vehicleRes.data
+                        .map((v: any) => ({
+                            id: String(v.id ?? v.vehicle_id ?? v._id ?? ''),
+                            number: (v.number || v.vehicle_number || v.vehicleNo || v.vehicle_no || '').toString(),
+                            type: (v.type || v.vehicle_type || '').toString(),
+                        }))
+                        .filter((x: any) => x.number);
+                    loadedVehicles = vList;
+                    setVehiclesList(vList);
+                }
+
+                // Process Clients
+                let loadedConsignors: { id: string, name: string }[] = [];
+                let loadedConsignees: { id: string, name: string }[] = [];
+
+                if (Array.isArray(clientRes.data)) {
+                    loadedConsignors = clientRes.data
+                        .filter((p: any) => {
+                            const clientType = String(p.type || '').toUpperCase();
+                            return clientType === 'CONSIGNOR' || clientType === 'BOTH';
+                        })
+                        .map((p: any) => ({ id: String(p.id), name: p.name }));
+                    loadedConsignees = clientRes.data
+                        .filter((p: any) => {
+                            const clientType = String(p.type || '').toUpperCase();
+                            return clientType === 'CONSIGNEE' || clientType === 'BOTH';
+                        })
+                        .map((p: any) => ({ id: String(p.id), name: p.name }));
+
+                    setConsignors(loadedConsignors);
+                    setConsignees(loadedConsignees);
+                    setFobClients(
+                        clientRes.data.map((p: any) => ({ id: String(p.id), name: String(p.name || '') }))
+                    );
+                }
+
+                // 2. Map Initial Data AFTER lists are loaded
+                // Helper to resolve 'through' (vendor) by id or name
+                const findThroughVendor = (id: any, name: any) => {
+                    const vendorsList = Array.isArray(vendorsRes.data) ? vendorsRes.data : [];
+                    const byId = vendorsList.find((v: any) => String(v.id) === String(id));
+                    if (byId) return { id: byId.id, name: byId.name };
+                    const byName = vendorsList.find((v: any) => String(v.name || '').trim().toUpperCase() === String(name || '').trim().toUpperCase());
+                    if (byName) return { id: byName.id, name: byName.name };
+                    return { id: undefined, name: name || '' };
+                };
+
+                const findConsignorId = (id: string, name: string) => {
+                    const byId = loadedConsignors.find(c => String(c.id) === String(id));
+                    if (byId) return byId.id;
+                    const byName = loadedConsignors.find(c => c.name?.trim().toUpperCase() === name?.trim().toUpperCase());
+                    return byName ? byName.id : '';
+                };
+
+                const findConsigneeId = (id: string, name: string) => {
+                    const byId = loadedConsignees.find(c => String(c.id) === String(id));
+                    if (byId) return byId.id;
+                    const byName = loadedConsignees.find(c => c.name?.trim().toUpperCase() === name?.trim().toUpperCase());
+                    return byName ? byName.id : '';
+                };
+
+                const normalizeCity = (city: string) => {
+                    if (!city) return '';
+                    const match = loadedCities.find(c => c.trim().toUpperCase() === city.trim().toUpperCase());
+                    return match || city;
+                };
+
+                const applyLrToForm = (lrData: any) => {
+                    const throughMatch = findThroughVendor(lrData?.through_id, lrData?.through);
+                    reset({
+                        lr_number: lrData?.lr_number || `LR-${Date.now()}`,
+                        date: lrData?.date || format(new Date(), 'yyyy-MM-dd'),
+                        consignor_id: findConsignorId(lrData?.consignor_id, lrData?.consignor_name),
+                        consignee_id: findConsigneeId(lrData?.consignee_id, lrData?.consignee_name),
+                        origin: normalizeCity(lrData?.origin || ''),
+                        destination: normalizeCity(lrData?.destination || ''),
+                        through: throughMatch.name || (lrData?.through || ''),
+                        through_id: throughMatch.id ? Number(throughMatch.id) : undefined,
+                        fob_client_id: lrData?.fob_client_id ? Number(lrData.fob_client_id) : undefined,
+                        delivery_at: lrData?.delivery_at || '',
+                        vehicle_number: lrData?.vehicle_number || '',
+                        vehicle_id: lrData?.vehicle_id
+                            ? Number(lrData.vehicle_id)
+                            : (lrData?.vehicle_number
+                                ? (loadedVehicles?.find((vv: any) => (vv.number || vv.vehicle_number || vv.vehicleNo || vv.vehicle_no) === lrData.vehicle_number) || {}).id
+                                : undefined),
+                        seal_number: lrData?.seal_number || '',
+                        booked_on_owners_risk: !!lrData?.booked_on_owners_risk,
+                        driver_mobile: lrData?.driver_mobile || '',
+                        surcharge: toNumber(lrData?.surcharge),
+                        hamali_charges: toNumber(lrData?.hamali_charges),
+                        st_charges: toNumber(lrData?.st_charges),
+                        loading_point_times: lrData?.loading_point_times || {},
+                    });
+                    setGoodsItems(Array.isArray(lrData?.goods_items) && lrData.goods_items.length > 0 ? lrData.goods_items : [{
+                        id: '1',
+                        articles_count: 0,
+                        description: '',
+                        weight_qtl: 0,
+                        weight_kg: 0,
+                        rate_per_qtl: 0,
+                        freight_rs: 0,
+                        freight_p: 0,
+                    }]);
+                    setLrDeductions(
+                        Array.isArray(lrData?.lr_deductions)
+                            ? lrData.lr_deductions.map((d: any) => ({
+                                id: typeof d?.id === 'number' ? d.id : undefined,
+                                deduction_label: String(d?.deduction_label || d?.deduction_name || ''),
+                                deduction_amount: toNumber(d?.deduction_amount ?? d?.amount),
+                                sort_order: toNumber(d?.sort_order),
+                            }))
+                            : []
+                    );
+                    setStatus(lrData?.status || draftStatus);
+                    const dbId = toNumber(lrData?.id);
+                    setResolvedLrId(dbId > 0 ? dbId : null);
+                };
+
+                const candidateId = toNumber(lrId || (initialData?.id ? String(initialData.id) : ''));
+                const canTryFetchById = candidateId > 0;
+
+                if (canTryFetchById) {
+                    try {
+                        const freshRes = await axios.get(`/api/lr/${candidateId}`, {
+                            params: { _ts: Date.now() },
+                            headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+                        });
+                        if (!mounted) return;
+                        applyLrToForm(freshRes.data);
+                    } catch (err) {
+                        console.error('Failed to fetch latest LR from DB; using initial data fallback', err);
+                        if (initialData) {
+                            applyLrToForm(initialData);
+                        } else {
+                            setStatus(draftStatus);
+                        }
+                    }
+                } else {
+                    setStatus(draftStatus);
+                }
+
+            } catch (err) {
+                console.error('Failed to load CreateLR data', err);
+            }
+        };
+
+        loadData();
+
+        return () => { mounted = false; };
+    }, [initialData, isModal, lrId, reset, toNumber]);
+
+    const draftStatus = formOptions.defaults.lr_status || '';
+    const isReadOnly = !!(lrId && draftStatus && status !== draftStatus);
+
+    // Use resolved DB id when available; fall back to route/prop or initialData id so
+    // upload managers remain enabled when viewing an existing (read-only) LR.
+    const effectiveLrId: number | undefined = resolvedLrId ?? (initialData?.id ? Number(initialData.id) : (lrId ? Number(lrId) : undefined));
 
     // --- AG Grid Handlers ---
 
@@ -185,49 +346,92 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
 
     const handleDeleteLine = useCallback((id: string) => {
         if (goodsItems.length > 1) {
+            const targetLine = goodsItems.find((item) => item.id === id);
+            const hasData = Boolean(
+                targetLine &&
+                (
+                    toNumber(targetLine.articles_count) > 0 ||
+                    toNumber(targetLine.weight_qtl) > 0 ||
+                    toNumber(targetLine.weight_kg) > 0 ||
+                    toNumber(targetLine.rate_per_qtl) > 0 ||
+                    toNumber(targetLine.freight_rs) > 0 ||
+                    toNumber(targetLine.freight_p) > 0 ||
+                    String(targetLine.description || '').trim() ||
+                    String((targetLine as any).remarks || '').trim()
+                )
+            );
+            if (hasData && !confirmDestructiveAction({ action: 'Delete this goods line' })) {
+                return;
+            }
             setGoodsItems(prev => prev.filter(item => item.id !== id));
         }
-    }, [goodsItems.length]);
+    }, [goodsItems, toNumber]);
 
     const onCellValueChanged = useCallback((event: any) => {
         const item = event.data as GoodsLineItem;
+        const weightQtl = toNumber(item.weight_qtl);
+        const weightKg = toNumber(item.weight_kg);
+        const ratePerQtl = toNumber(item.rate_per_qtl);
         // Recalculate freight
-        const totalQtl = item.weight_qtl + (item.weight_kg / 100);
-        const freightTotal = totalQtl * item.rate_per_qtl;
+        const totalQtl = weightQtl + (weightKg / 100);
+        const freightTotal = totalQtl * ratePerQtl;
         item.freight_rs = Math.floor(freightTotal);
         item.freight_p = Math.round((freightTotal - item.freight_rs) * 100);
+        item.articles_count = toNumber(item.articles_count);
+        item.weight_qtl = weightQtl;
+        item.weight_kg = weightKg;
+        item.rate_per_qtl = ratePerQtl;
 
         setGoodsItems(prev => prev.map(g => g.id === item.id ? { ...item } : g));
+    }, [toNumber]);
+
+    const addDeductionRow = useCallback(() => {
+        if (isReadOnly) return;
+        setLrDeductions((prev) => [...prev, { deduction_label: '', deduction_amount: 0, sort_order: prev.length }]);
+    }, [isReadOnly]);
+
+    const updateDeductionRow = useCallback((index: number, patch: Partial<LRDeductionRow>) => {
+        setLrDeductions((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
     }, []);
+
+    const removeDeductionRow = useCallback((index: number) => {
+        if (isReadOnly) return;
+        setLrDeductions((prev) => prev.filter((_, i) => i !== index));
+    }, [isReadOnly]);
 
     // --- Calculations ---
 
-    const { goodsValue, total, articlesCount, totalWeight, totalFreight } = useMemo(() => {
-        const goodsVal = goodsItems.reduce((sum, item) => sum + item.freight_rs + (item.freight_p / 100), 0);
-        const sur = watch('surcharge') || 0;
-        const ham = watch('hamali_charges') || 0;
-        const st = watch('st_charges') || 0;
+    const { goodsValue, total, articlesCount, totalWeight, totalFreight, totalDeduction } = useMemo(() => {
+        const goodsVal = goodsItems.reduce((sum, item) => {
+            return sum + toNumber(item.freight_rs) + (toNumber(item.freight_p) / 100);
+        }, 0);
+        const sur = toNumber(watch('surcharge'));
+        const ham = toNumber(watch('hamali_charges'));
+        const st = toNumber(watch('st_charges'));
+        const ded = lrDeductions.reduce((sum, row) => sum + toNumber(row.deduction_amount), 0);
 
         return {
             goodsValue: goodsVal,
-            total: goodsVal + sur + ham + st,
-            articlesCount: goodsItems.reduce((sum, item) => sum + item.articles_count, 0),
-            totalWeight: goodsItems.reduce((sum, item) => sum + item.weight_kg + (item.weight_qtl * 100), 0),
-            totalFreight: goodsVal
+            total: goodsVal + sur + ham + st - ded,
+            articlesCount: goodsItems.reduce((sum, item) => sum + toNumber(item.articles_count), 0),
+            totalWeight: goodsItems.reduce((sum, item) => sum + toNumber(item.weight_kg) + (toNumber(item.weight_qtl) * 100), 0),
+            totalFreight: goodsVal,
+            totalDeduction: ded,
         };
-    }, [goodsItems, watch('surcharge'), watch('hamali_charges'), watch('st_charges')]);
+    }, [goodsItems, lrDeductions, toNumber, watch('surcharge'), watch('hamali_charges'), watch('st_charges')]);
 
     // --- Submit Handler ---
 
-    const onSubmit = (data: LRFormValues) => {
+    const onSubmit = async (data: LRFormValues) => {
         if (goodsItems.length === 0) {
             alert("Please add at least one line item.");
             return;
         }
 
         const fullLR: LR = {
-            id: lrId || Date.now().toString(), // Generate simplified ID for new LRs
+            id: lrId || initialData?.id || '',
             ...data,
+            date: data.date || format(new Date(), 'yyyy-MM-dd'),
             // Explicitly cast or map optional fields
             loading_point_times: data.loading_point_times,
             booked_on_owners_risk: data.booked_on_owners_risk,
@@ -236,19 +440,127 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
             goods_items: goodsItems,
             // Computed fields for Dispatch Register
             articles_count: articlesCount,
-            weight: totalWeight, // In KG for consistency? grid says weight_kg and weight_qtl. This field is for DR summary.
+            weight: totalWeight,
             freight_amount: totalFreight,
             value_rs: goodsValue,
             total: total,
-            status: (status as any) || 'DRAFT',
+            status: (status as any) || draftStatus || undefined,
             // Default fields if new
             articles_description: goodsItems[0]?.description || '',
+            through: (data as any).through,
+            through_id: (data as any).through_id, // Keep as is, let validation handle it
+            lr_deductions: lrDeductions
+                .filter((row) => String(row.deduction_label || '').trim() || toNumber(row.deduction_amount) > 0)
+                .map((row, index) => ({
+                    id: row.id,
+                    deduction_label: String(row.deduction_label || '').trim(),
+                    deduction_amount: toNumber(row.deduction_amount),
+                    sort_order: Number.isFinite(toNumber(row.sort_order)) ? toNumber(row.sort_order) : index,
+                })) as any,
         };
 
-        if (onSave) {
-            onSave(fullLR);
-        } else {
-            console.warn("No onSave handler provided", fullLR);
+        // Helper to parse number strictly or return null
+        const toIntOrNull = (val: any) => {
+            if (val === null || val === undefined || val === '') return null;
+            const n = Number(val);
+            return isNaN(n) ? null : n;
+        };
+
+        // Sanitize data for backend
+        const sanitizedData = {
+            lr_number: fullLR.lr_number,
+            date: fullLR.date,
+            consignor_id: fullLR.consignor_id,
+            consignor_name: fullLR.consignor_name,
+            consignee_id: fullLR.consignee_id,
+            consignee_name: fullLR.consignee_name,
+            origin: fullLR.origin,
+            destination: fullLR.destination,
+            delivery_at: fullLR.delivery_at,
+            through: fullLR.through,
+            through_id: toIntOrNull(fullLR.through_id),
+            fob_client_id: toIntOrNull((fullLR as any).fob_client_id),
+            surcharge: Number(fullLR.surcharge || 0),
+            hamali_charges: Number(fullLR.hamali_charges || 0),
+            st_charges: Number(fullLR.st_charges || 0),
+            weight: Number(fullLR.weight || 0),
+            freight_amount: Number(fullLR.freight_amount || 0),
+            value_rs: Number(fullLR.value_rs || 0),
+            total: Number(fullLR.total || 0),
+            articles_count: Number(fullLR.articles_count || 0),
+            articles_description: fullLR.articles_description,
+                vehicle_id: toIntOrNull(fullLR.vehicle_id as any),
+            vehicle_number: fullLR.vehicle_number,
+            vehicle_type: fullLR.vehicle_id
+                ? (vehiclesList.find((v) => String(v.id) === String(fullLR.vehicle_id))?.type || '')
+                : undefined,
+            driver_mobile: fullLR.driver_mobile,
+            seal_number: fullLR.seal_number,
+            booked_on_owners_risk: fullLR.booked_on_owners_risk,
+            loading_point_times: fullLR.loading_point_times,
+            status: fullLR.status,
+            // Ensure goods items numbers are numbers
+            goods_items: fullLR.goods_items?.map(item => ({
+                id: item.id,
+                description: item.description,
+                articles_count: Number(item.articles_count || 0),
+                weight_qtl: Number(item.weight_qtl || 0),
+                weight_kg: Number(item.weight_kg || 0),
+                rate_per_qtl: Number(item.rate_per_qtl || 0),
+                freight_rs: Number(item.freight_rs || 0),
+                freight_p: Number(item.freight_p || 0),
+                remarks: (item as any).remarks, // Include remarks if present
+            })),
+            lr_deductions: (fullLR as any).lr_deductions,
+        };
+
+        // Standard submission handling
+        setIsSubmitting(true);
+        try {
+            // Always save to backend first
+            let savedLR: any = null;
+
+            let updateId = resolvedLrId;
+            if (!updateId) {
+                const idFromInitial = toNumber(initialData?.id);
+                const idFromRoute = toNumber(lrId);
+                updateId = idFromInitial || idFromRoute || null;
+            }
+
+            if (updateId) {
+                const res = await axios.put(`/api/lr/${updateId}`, sanitizedData);
+                // Use backend response which includes all fields
+                savedLR = res.data;
+                setResolvedLrId(updateId);
+            } else {
+                const res = await axios.post('/api/lr/', sanitizedData);
+                // Backend returns full object including new ID
+                if (res.data) {
+                    savedLR = res.data;
+                    const createdId = toNumber(res.data.id);
+                    setResolvedLrId(createdId > 0 ? createdId : null);
+                }
+            }
+
+            // Map backend fields to grid-compatible format
+            if (savedLR) {
+                savedLR = mapApiLrToUi(savedLR, draftStatus);
+            }
+
+            setToastMessage('LR saved successfully');
+
+            // If external onSave is provided, call it with the saved data
+            if (onSave && savedLR) {
+                onSave(savedLR as LR);
+                return;
+            }
+
+            setTimeout(() => setToastMessage(''), 3000);
+        } catch (err: any) {
+            console.error('Failed to save LR', err);
+            alert('Failed to save LR: ' + (err?.response?.data?.detail || err.message || err));
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -259,6 +571,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
             consignor_name: getConsignorName(data.consignor_id),
             consignee_name: getConsigneeName(data.consignee_id),
             goods_items: goodsItems,
+            lr_deductions: lrDeductions,
             value_rs: goodsValue,
             total: total,
         };
@@ -266,7 +579,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
     };
 
     // --- Column Definitions ---
-    const colDefs = useMemo<any[]>(() => [
+    const colDefs = useMemo<unknown[]>(() => [
         {
             field: 'articles_count',
             headerName: 'No. of Articles',
@@ -324,17 +637,19 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
         },
         {
             headerName: 'Act',
-            width: 60,
+            width: 90,
             pinned: 'right',
             cellRenderer: (params: { data: GoodsLineItem }) => (
                 <div className="flex items-center justify-center h-full">
                     <button
                         type="button"
                         onClick={() => handleDeleteLine(params.data.id)}
-                        className="p-1 rounded hover:bg-red-100 text-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="h-11 w-11 inline-flex items-center justify-center rounded-md hover:bg-red-100 text-red-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                         disabled={goodsItems.length === 1 || isReadOnly}
+                        aria-label="Delete line item"
+                        title="Delete line item"
                     >
-                        <Trash2 size={14} />
+                        <Trash2 size={16} />
                     </button>
                 </div>
             ),
@@ -347,7 +662,7 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
             {isModal && (
                 <div className="flex items-center justify-between px-6 py-4 border-b bg-white">
                     <div>
-                        <h2 className="text-xl font-bold text-slate-900">
+                        <h2 className="text-2xl font-bold tracking-tight text-slate-900">
                             {lrId ? (isReadOnly ? 'View Lorry Receipt' : 'Edit Lorry Receipt') : 'Create Lorry Receipt'}
                         </h2>
                         {isReadOnly && (
@@ -357,9 +672,6 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                             </span>
                         )}
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-                        <X size={20} />
-                    </button>
                 </div>
             )}
 
@@ -386,9 +698,10 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                         {!isReadOnly && (
                             <Button type="submit" className="gap-2">
                                 <Save size={16} />
-                                Save LR
+                                <span className='text-white'>{isSubmitting ? 'Saving...' : 'Save'}</span>
                             </Button>
                         )}
+                        {toastMessage && <div className="text-green-600 self-center">{toastMessage}</div>}
                     </div>
 
                     {/* Form Card */}
@@ -397,16 +710,18 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                         {/* 1. Header Details */}
                         <div className="grid grid-cols-2 gap-8">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1.5">LR Number</label>
+                                <label htmlFor="lr_number" className="block text-sm font-medium text-slate-700 mb-1.5">LR Number</label>
                                 <input
                                     {...register('lr_number')}
+                                    id="lr_number"
                                     disabled
                                     className="w-full px-3 py-2 border border-slate-200 rounded-md bg-slate-50 text-slate-500"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Date</label>
+                                <label htmlFor="date" className="block text-sm font-medium text-slate-700 mb-1.5">Date</label>
                                 <input
+                                    id="date"
                                     type="date"
                                     {...register('date')}
                                     disabled={isReadOnly}
@@ -418,63 +733,68 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
 
                         <div className="h-px bg-slate-100" />
 
-                        {/* 2. Parties */}
+                        {/* 2. Clients */}
                         <div className="grid grid-cols-2 gap-8">
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Consignor <span className="text-red-500">*</span></label>
-                                    <select
-                                        {...register('consignor_id')}
-                                        disabled={isReadOnly}
-                                        className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
-                                    >
-                                        <option value="">Select Consignor</option>
-                                        {CONSIGNORS.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
+                                    <label htmlFor="consignor_id" className="block text-sm font-medium text-slate-700 mb-1.5">Consignor <span className="text-red-500">*</span></label>
+                                        <select
+                                            id="consignor_id"
+                                            {...register('consignor_id')}
+                                            disabled={isReadOnly}
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
+                                        >
+                                            <option value="">Select Consignor</option>
+                                            {consignors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        </select>
                                     {errors.consignor_id && <p className="text-red-500 text-xs mt-1">{errors.consignor_id.message}</p>}
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">From City <span className="text-red-500">*</span></label>
+                                    <label htmlFor="origin" className="block text-sm font-medium text-slate-700 mb-1.5">Origin <span className="text-red-500">*</span></label>
                                     <select
-                                        {...register('from')}
+                                        id="origin"
+                                        {...register('origin')}
                                         disabled={isReadOnly}
                                         className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
                                     >
                                         <option value="">Select Origin</option>
-                                        {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                        {citiesList.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
-                                    {errors.from && <p className="text-red-500 text-xs mt-1">{errors.from.message}</p>}
+                                    {errors.origin && <p className="text-red-500 text-xs mt-1">{errors.origin.message}</p>}
                                 </div>
                             </div>
 
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Consignee <span className="text-red-500">*</span></label>
+                                    <label htmlFor="consignee_id" className="block text-sm font-medium text-slate-700 mb-1.5">Consignee <span className="text-red-500">*</span></label>
                                     <select
+                                        id="consignee_id"
                                         {...register('consignee_id')}
                                         disabled={isReadOnly}
                                         className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
                                     >
                                         <option value="">Select Consignee</option>
-                                        {CONSIGNEES.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        {consignees.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
                                     {errors.consignee_id && <p className="text-red-500 text-xs mt-1">{errors.consignee_id.message}</p>}
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">To City <span className="text-red-500">*</span></label>
+                                    <label htmlFor="destination" className="block text-sm font-medium text-slate-700 mb-1.5">Destination <span className="text-red-500">*</span></label>
                                     <select
-                                        {...register('to')}
+                                        id="destination"
+                                        {...register('destination')}
                                         disabled={isReadOnly}
                                         className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
                                     >
                                         <option value="">Select Destination</option>
-                                        {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                        {citiesList.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
-                                    {errors.to && <p className="text-red-500 text-xs mt-1">{errors.to.message}</p>}
+                                    {errors.destination && <p className="text-red-500 text-xs mt-1">{errors.destination.message}</p>}
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Delivery At</label>
+                                    <label htmlFor="delivery_at" className="block text-sm font-medium text-slate-700 mb-1.5">Delivery At</label>
                                     <input
+                                        id="delivery_at"
                                         {...register('delivery_at')}
                                         disabled={isReadOnly}
                                         placeholder="Specific location..."
@@ -485,6 +805,42 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                         </div>
 
                         <div className="h-px bg-slate-100" />
+
+                        {/* Carrier / Through */}
+                        <div className="grid grid-cols-2 gap-8">
+                            <div>
+                                <label htmlFor="through_id" className="block text-sm font-medium text-slate-700 mb-1.5">Through (Carrier/Broker)</label>
+                                <select
+                                    id="through_id"
+                                    {...register('through_id')}
+                                    disabled={isReadOnly}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setValue('through_id', val ? Number(val) : undefined);
+                                        const v = (vendors.length ? vendors : []).find((vv: any) => String(vv.id) === String(val));
+                                        if (v) setValue('through', v.name);
+                                        else setValue('through', '');
+                                    }}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
+                                >
+                                    <option value="">Select Carrier / Broker</option>
+                                    {(vendors.length ? vendors : []).map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label htmlFor="fob_client_id" className="block text-sm font-medium text-slate-700 mb-1.5">FOB Client</label>
+                                <select
+                                    id="fob_client_id"
+                                    {...register('fob_client_id')}
+                                    disabled={isReadOnly}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900"
+                                >
+                                    <option value="">Select FOB Client</option>
+                                    {fobClients.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
 
                         {/* 3. Goods Grid */}
                         <div className="space-y-3">
@@ -498,39 +854,65 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                                 )}
                             </div>
 
-                            <div className="h-64 rounded-md overflow-hidden border border-slate-200">
-                                <AgGridReact
-                                    ref={gridRef}
-                                    rowData={goodsItems}
-                                    columnDefs={colDefs}
-                                    defaultColDef={{ sortable: false, resizable: true }}
-                                    theme={ctcTheme}
-                                    editType="fullRow"
-                                    stopEditingWhenCellsLoseFocus={true}
-                                    onCellValueChanged={onCellValueChanged}
-                                    suppressRowClickSelection={true}
-                                />
-                            </div>
+                            <AppAgGrid<GoodsLineItem>
+                                rowData={goodsItems}
+                                columnDefs={colDefs}
+                                defaultColDef={{ sortable: false, resizable: true }}
+                                rowSelection={{
+                                    mode: 'singleRow',
+                                    enableClickSelection: false,
+                                    checkboxes: false,
+                                }}
+                                domLayout="autoHeight"
+                                editType="fullRow"
+                                stopEditingWhenCellsLoseFocus={true}
+                                onCellValueChanged={onCellValueChanged}
+                                pagination={false}
+                                fitColumns={false}
+                                alwaysShowHorizontalScroll={true}
+                                showExportCsv={false}
+                            />
                         </div>
 
                         {/* 4. Transport & Loading */}
                         <div className="grid grid-cols-2 gap-8">
                             <div className="space-y-4">
                                 <h4 className="text-sm font-medium text-slate-900">Vehicle Details</h4>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-3 gap-4">
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-500 mb-1">Vehicle No.</label>
-                                        <input
-                                            {...register('vehicle_number')}
+                                        <label htmlFor="vehicle_id" className="block text-xs font-medium text-slate-500 mb-1">Vehicle No.</label>
+                                        <select
+                                            id="vehicle_id"
+                                            {...register('vehicle_id')}
                                             disabled={isReadOnly}
-                                            placeholder="MH 04 AB 1234"
-                                            className="w-full px-3 py-2 border border-slate-200 rounded-md uppercase"
-                                        />
-                                        {errors.vehicle_number && <p className="text-red-500 text-xs mt-1">{errors.vehicle_number.message}</p>}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setValue('vehicle_id', val ? Number(val) : undefined);
+                                                const found = vehiclesList.find(v => String(v.id) === String(val));
+                                                setValue('vehicle_number', found ? found.number : '');
+                                            }}
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-md uppercase focus:ring-2 focus:ring-slate-900"
+                                        >
+                                            <option value="">Select Vehicle</option>
+                                            {vehiclesList.map(v => (
+                                                <option key={v.id} value={v.id}>{v.number}</option>
+                                            ))}
+                                        </select>
+                                        {errors.vehicle_id && <p className="text-red-500 text-xs mt-1">{errors.vehicle_id.message}</p>}
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-500 mb-1">Seal No.</label>
+                                        <label htmlFor="driver_mobile" className="block text-xs font-medium text-slate-500 mb-1">Driver Mobile</label>
                                         <input
+                                            id="driver_mobile"
+                                            {...register('driver_mobile')}
+                                            disabled={isReadOnly}
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-md"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="seal_number" className="block text-xs font-medium text-slate-500 mb-1">Seal No.</label>
+                                        <input
+                                            id="seal_number"
                                             {...register('seal_number')}
                                             disabled={isReadOnly}
                                             className="w-full px-3 py-2 border border-slate-200 rounded-md"
@@ -556,20 +938,20 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                                 <h4 className="text-sm font-medium text-slate-900">Loading Point Time</h4>
                                 <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-md border border-slate-100">
                                     <div>
-                                        <label className="block text-xs text-slate-500 mb-1">In Date</label>
-                                        <input type="date" {...register('loading_point_times.in_date')} disabled={isReadOnly} className="w-full text-xs px-2 py-1 border rounded" />
+                                        <label htmlFor="loading_point_in_date" className="block text-xs text-slate-500 mb-1">In Date</label>
+                                        <input id="loading_point_in_date" type="date" {...register('loading_point_times.in_date')} disabled={isReadOnly} className="w-full text-xs px-2 py-1 border rounded" />
                                     </div>
                                     <div>
-                                        <label className="block text-xs text-slate-500 mb-1">In Time</label>
-                                        <input type="time" {...register('loading_point_times.in_time')} disabled={isReadOnly} className="w-full text-xs px-2 py-1 border rounded" />
+                                        <label htmlFor="loading_point_in_time" className="block text-xs text-slate-500 mb-1">In Time</label>
+                                        <input id="loading_point_in_time" type="time" {...register('loading_point_times.in_time')} disabled={isReadOnly} className="w-full text-xs px-2 py-1 border rounded" />
                                     </div>
                                     <div>
-                                        <label className="block text-xs text-slate-500 mb-1">Out Date</label>
-                                        <input type="date" {...register('loading_point_times.out_date')} disabled={isReadOnly} className="w-full text-xs px-2 py-1 border rounded" />
+                                        <label htmlFor="loading_point_out_date" className="block text-xs text-slate-500 mb-1">Out Date</label>
+                                        <input id="loading_point_out_date" type="date" {...register('loading_point_times.out_date')} disabled={isReadOnly} className="w-full text-xs px-2 py-1 border rounded" />
                                     </div>
                                     <div>
-                                        <label className="block text-xs text-slate-500 mb-1">Out Time</label>
-                                        <input type="time" {...register('loading_point_times.out_time')} disabled={isReadOnly} className="w-full text-xs px-2 py-1 border rounded" />
+                                        <label htmlFor="loading_point_out_time" className="block text-xs text-slate-500 mb-1">Out Time</label>
+                                        <input id="loading_point_out_time" type="time" {...register('loading_point_times.out_time')} disabled={isReadOnly} className="w-full text-xs px-2 py-1 border rounded" />
                                     </div>
                                 </div>
                             </div>
@@ -586,8 +968,9 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
 
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between gap-4">
-                                        <label className="text-sm text-slate-600">Surcharge</label>
+                                        <label htmlFor="surcharge" className="text-sm text-slate-600">Surcharge</label>
                                         <input
+                                            id="surcharge"
                                             type="number"
                                             {...register('surcharge')}
                                             disabled={isReadOnly}
@@ -595,8 +978,9 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                                         />
                                     </div>
                                     <div className="flex items-center justify-between gap-4">
-                                        <label className="text-sm text-slate-600">Hamali Charges</label>
+                                        <label htmlFor="hamali_charges" className="text-sm text-slate-600">Hamali Charges</label>
                                         <input
+                                            id="hamali_charges"
                                             type="number"
                                             {...register('hamali_charges')}
                                             disabled={isReadOnly}
@@ -604,13 +988,62 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                                         />
                                     </div>
                                     <div className="flex items-center justify-between gap-4">
-                                        <label className="text-sm text-slate-600">St. Charges</label>
+                                        <label htmlFor="st_charges" className="text-sm text-slate-600">St. Charges</label>
                                         <input
+                                            id="st_charges"
                                             type="number"
                                             {...register('st_charges')}
                                             disabled={isReadOnly}
                                             className="w-32 px-2 py-1 text-right border border-slate-200 rounded"
                                         />
+                                    </div>
+                                    <div className="space-y-2 border rounded-md border-slate-200 p-3 bg-slate-50">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-sm font-medium text-slate-700">LR Deductions</label>
+                                            {!isReadOnly && (
+                                                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={addDeductionRow}>
+                                                    <Plus size={12} /> Add Deduction
+                                                </Button>
+                                            )}
+                                        </div>
+                                        {lrDeductions.length === 0 && (
+                                            <p className="text-xs text-slate-500">No deductions added</p>
+                                        )}
+                                        {lrDeductions.map((row, index) => (
+                                            <div key={`${row.id ?? 'new'}-${index}`} className="grid grid-cols-[1fr_120px_40px] gap-2 items-center">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Deduction reason"
+                                                    value={row.deduction_label}
+                                                    disabled={isReadOnly}
+                                                    onChange={(e) => updateDeductionRow(index, { deduction_label: e.target.value })}
+                                                    className="px-2 py-1 border border-slate-200 rounded text-sm"
+                                                />
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    value={row.deduction_amount}
+                                                    disabled={isReadOnly}
+                                                    onChange={(e) => updateDeductionRow(index, { deduction_amount: toNumber(e.target.value) })}
+                                                    className="px-2 py-1 border border-slate-200 rounded text-sm text-right"
+                                                />
+                                                {!isReadOnly && (
+                                                    <button
+                                                        type="button"
+                                                        className="inline-flex h-8 w-8 items-center justify-center rounded text-red-600 hover:bg-red-100"
+                                                        onClick={() => removeDeductionRow(index)}
+                                                        aria-label="Delete deduction row"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                        <div className="flex justify-between text-sm font-medium pt-1 border-t border-slate-200">
+                                            <span className="text-slate-600">Total Deductions</span>
+                                            <span className="text-slate-900">-₹{totalDeduction.toFixed(2)}</span>
+                                        </div>
                                     </div>
                                     <div className="flex items-center justify-between gap-4 pt-3 border-t border-slate-100">
                                         <label className="font-bold text-slate-900">Grand Total</label>
@@ -618,6 +1051,20 @@ export default function CreateLR({ lrId: propLrId, initialData, isModal, onClose
                                     </div>
                                 </div>
                             </div>
+                        </div>
+
+                        {/* 6. File Uploads */}
+                        <div className="border-t border-slate-200 pt-6">
+                            <EWayBillManager lrId={effectiveLrId} />
+                        </div>
+
+                        {/* 7. File Uploads */}
+                        <div className="border-t border-slate-200 pt-6">
+                            <FileUpload
+                                title="LR / Invoice / E-Way / POD Uploads"
+                                lrId={effectiveLrId}
+                                allowedDocumentTypes={['LR', 'INVOICE', 'EWAY_BILL', 'POD']}
+                            />
                         </div>
 
                     </div>

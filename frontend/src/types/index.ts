@@ -7,23 +7,24 @@ export interface User {
     branch_id: string;
 }
 
-export type PartyType = 'CONSIGNOR' | 'CONSIGNEE' | 'BOTH';
+export type ClientType = 'CONSIGNOR' | 'CONSIGNEE' | 'BOTH';
 
-export interface Party {
+export interface Client {
     id: string;
     name: string;
     address: string;
     gstin?: string;
     mobile?: string;
-    type: PartyType;
+    type: ClientType;
+    tds_rate?: number;
 }
 
 export interface Vendor {
     id: string;
     name: string;
+    gstin?: string;
     mobile: string;
     pan?: string;
-    rating?: number;
 }
 
 export type VehicleStatus = 'AVAILABLE' | 'IN_TRANSIT' | 'MAINTENANCE';
@@ -33,36 +34,42 @@ export interface Vehicle {
     number: string;
     type: string; // e.g., '32 FT MXL'
     capacity: string; // e.g., '18 Tons'
-    owner_id?: string; // Link to Vendor if 3rd party
+    owner_id?: string; // Link to Vendor if 3rd client
     status: VehicleStatus;
 }
 
-export type TripStatus = 'SCHEDULED' | 'IN_TRANSIT' | 'COMPLETED' | 'CANCELLED';
-
-export interface Trip {
+export interface Contract {
     id: string;
-    trip_id: string; // Readable ID e.g., TRIP-2025-001
-    vehicle_id: string;
-    driver_id?: string;
-    driver_name?: string;
-    driver_mobile?: string;
-    start_date: string; // ISO Date
-    expected_delivery_date: string; // ISO Date
-    origin: string;
-    destination: string;
-    status: TripStatus;
-    lrs: LR[]; // Hydrated LRs for this trip
+    name: string;
+    client_id?: string;
+    start_date?: string;
+    end_date?: string;
+    expiry_alert_days?: number;
+}
+
+export interface Template {
+    id: string;
+    name: string;
+    description?: string;
+    file_url?: string;
 }
 
 export type LRStatus = 'DRAFT' | 'DISPATCHED' | 'DELIVERED' | 'POD_UPLOADED' | 'POD_VERIFIED' | 'BILLED';
 
 export interface EWayBill {
-    id: string;
+    id: string | number;
+    lr_id?: string | number;
     number: string;
-    valid_from: string;
-    valid_upto: string;
+    valid_from?: string;
+    valid_upto?: string;
+    expires_at?: string;
     status: 'ACTIVE' | 'EXPIRED';
-    alert_sent: boolean;
+    is_expired?: boolean;
+    alert_sent?: boolean;
+    file_url?: string;
+    extension_count?: number;
+    last_extended_at?: string;
+    meta?: Record<string, unknown>;
 }
 
 export interface GoodsLineItem {
@@ -84,11 +91,17 @@ export interface LoadingPointTimes {
     out_time?: string;
 }
 
+export interface LRDeduction {
+    id?: number;
+    deduction_label: string;
+    deduction_amount: number;
+    sort_order?: number;
+}
+
 export interface LR {
     id: string;
     lr_number: string; // e.g., 49301
     date: string; // ISO Date
-    dispatch_id?: string; // Link to Trip
 
     consignor_id: string;
     consignor_name: string; // Denormalized for Grid Performance
@@ -96,11 +109,10 @@ export interface LR {
     consignee_name: string; // Denormalized
 
     // Locations
-    from: string; // Origin city
-    to: string; // Destination city
     delivery_at?: string; // Specific delivery point
 
-    eway_bill?: EWayBill;
+    // eway_bill JSONB deprecated — use eway_bills (from eway_bills table)
+    eway_bills?: EWayBill[];
 
     // Goods - Multi-line items
     goods_items: GoodsLineItem[];
@@ -113,8 +125,11 @@ export interface LR {
 
     // Logistics
     vehicle_type?: string;
+    vehicle_id?: string | number;
     vehicle_number?: string;
     seal_number?: string;
+    driver_name?: string;
+    driver_mobile?: string;
 
     // Loading Point Times
     loading_point_times?: LoadingPointTimes;
@@ -125,16 +140,19 @@ export interface LR {
     hamali_charges?: number;
     st_charges?: number;
     total?: number; // Auto-calculated
+    lr_deductions?: LRDeduction[];
 
     // Origin/Destination (for dispatch register)
-    origin?: string;
-    destination?: string;
+    origin: string;
+    destination: string;
     bill_number?: string;
     remarks?: string;
 
     // New fields from Requirements
     fob?: string;
+    fob_client_id?: number;
     through?: string; // Broker/Vendor Ref
+    through_id?: number; // Vendor id (foreign key)
 
     status: LRStatus;
 
@@ -142,7 +160,12 @@ export interface LR {
     booked_on_owners_risk?: boolean;
 
     pod_url?: string;
+    pod_received?: boolean;
+    pod_file_id?: number;
     pod_verified_at?: string;
+    financial_year?: string;
+    eway_bill_no?: string;
+    eway_bill_expiry?: string;
 }
 
 // Stats for Dashboard

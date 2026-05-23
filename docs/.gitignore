@@ -1,0 +1,4 @@
+# .gitignore for docs
+.DS_Store
+*.log
+.idea/
