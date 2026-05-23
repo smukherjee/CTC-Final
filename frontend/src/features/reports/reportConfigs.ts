@@ -12,6 +12,7 @@ export const REPORT_CONFIGS: ReportConfig[] = [
     endpoint: 'pending-billing',
     noRowsMessage: 'No pending billing rows.',
     supportsFy: true,
+    helpText: 'Shows all LRs that have not yet been billed. Data is filtered by selected financial year (FY).',
     columns: [
       { field: 'lr_number', headerName: 'LR No', minWidth: 140, flex: 1 },
       { field: 'date', headerName: 'Date', minWidth: 130, flex: 1, valueFormatter: fmtDate },
@@ -26,6 +27,7 @@ export const REPORT_CONFIGS: ReportConfig[] = [
     endpoint: 'outstanding-receivables',
     noRowsMessage: 'No outstanding receivables.',
     supportsFy: true,
+    helpText: 'Lists clients with unpaid invoices and their outstanding totals. Data is filtered by FY.',
     columns: [
       { field: 'client_name', headerName: 'Client', minWidth: 220, flex: 1.4 },
       { field: 'invoice_count', headerName: 'Invoices', minWidth: 120, flex: 1 },
@@ -38,6 +40,7 @@ export const REPORT_CONFIGS: ReportConfig[] = [
     endpoint: 'hirememo-register',
     noRowsMessage: 'No hire memos found.',
     supportsFy: true,
+    helpText: 'Displays all hire memos created in the selected FY, including driver, vehicle, and balance details.',
     columns: [
       { field: 'hire_memo_no', headerName: 'HM No', minWidth: 130, flex: 1 },
       { field: 'hire_memo_date', headerName: 'Date', minWidth: 120, flex: 1, valueFormatter: fmtDate },
@@ -53,6 +56,7 @@ export const REPORT_CONFIGS: ReportConfig[] = [
     endpoint: 'advance-payment-register',
     noRowsMessage: 'No advance payments found.',
     supportsFy: true,
+    helpText: 'Shows all advance payments made to drivers for each hire memo in the selected FY.',
     columns: [
       { field: 'hire_memo_no', headerName: 'HM No', minWidth: 130, flex: 1 },
       { field: 'advance_payment_date', headerName: 'Advance Date', minWidth: 140, flex: 1, valueFormatter: fmtDate },
@@ -68,6 +72,7 @@ export const REPORT_CONFIGS: ReportConfig[] = [
     endpoint: 'driver-settlement',
     noRowsMessage: 'No driver settlement rows.',
     supportsFy: true,
+    helpText: 'Summarizes total trips, advances, and balances for each driver in the selected FY.',
     columns: [
       { field: 'driver_name', headerName: 'Driver', minWidth: 180, flex: 1.3 },
       { field: 'trip_count', headerName: 'Trips', minWidth: 100, flex: 1 },
@@ -82,6 +87,7 @@ export const REPORT_CONFIGS: ReportConfig[] = [
     endpoint: 'driver-outstanding',
     noRowsMessage: 'No driver outstanding rows.',
     supportsFy: true,
+    helpText: 'Lists drivers with outstanding balances for trips in the selected FY.',
     columns: [
       { field: 'driver_name', headerName: 'Driver', minWidth: 200, flex: 1.4 },
       { field: 'trip_count', headerName: 'Trips', minWidth: 100, flex: 1 },
@@ -94,6 +100,7 @@ export const REPORT_CONFIGS: ReportConfig[] = [
     endpoint: 'vendor-spend',
     noRowsMessage: 'No vendor spend rows.',
     supportsFy: true,
+    helpText: 'Shows total spend and trip count for each vendor in the selected FY.',
     columns: [
       { field: 'vendor_name', headerName: 'Vendor', minWidth: 200, flex: 1.4 },
       { field: 'trip_count', headerName: 'Trips', minWidth: 100, flex: 1 },
@@ -107,6 +114,7 @@ export const REPORT_CONFIGS: ReportConfig[] = [
     endpoint: 'settlement-variance',
     noRowsMessage: 'No settlement variance rows.',
     supportsFy: true,
+    helpText: 'Compares invoice and hire memo totals for each FY to show any variances.',
     columns: [
       { field: 'financial_year', headerName: 'FY', minWidth: 100, flex: 1 },
       { field: 'invoice_total', headerName: 'Invoice Total', minWidth: 140, flex: 1, valueFormatter: fmtMoney, currencyTotal: true },
@@ -120,6 +128,7 @@ export const REPORT_CONFIGS: ReportConfig[] = [
     endpoint: 'advance-aging',
     noRowsMessage: 'No advance aging rows.',
     supportsFy: true,
+    helpText: 'Shows advances to drivers and their aging buckets for the selected FY.',
     columns: [
       { field: 'hire_memo_no', headerName: 'HM No', minWidth: 130, flex: 1 },
       { field: 'driver_name', headerName: 'Driver', minWidth: 160, flex: 1.2 },
@@ -135,6 +144,7 @@ export const REPORT_CONFIGS: ReportConfig[] = [
     endpoint: 'cash-advance-utilization',
     noRowsMessage: 'No utilization rows.',
     supportsFy: false,
+    helpText: 'Shows cash advances and their utilization percentage by FY.',
     columns: [
       { field: 'financial_year', headerName: 'FY', minWidth: 120, flex: 1 },
       { field: 'cash_advance_total', headerName: 'Cash Advance', minWidth: 150, flex: 1, valueFormatter: fmtMoney, currencyTotal: true },
@@ -149,6 +159,7 @@ export const REPORT_CONFIGS: ReportConfig[] = [
     noRowsMessage: 'No print trace rows.',
     supportsFy: true,
     serverSearch: true,
+    helpText: 'Tracks print status and history for hire memos, searchable by HM number or driver.',
     columns: [
       { field: 'hire_memo_no', headerName: 'HM No', minWidth: 130, flex: 1 },
       { field: 'hire_memo_date', headerName: 'Date', minWidth: 120, flex: 1, valueFormatter: fmtDate },
@@ -166,6 +177,7 @@ export const REPORT_CONFIGS: ReportConfig[] = [
     endpoint: 'trip-profitability',
     noRowsMessage: 'No profitability rows.',
     supportsFy: true,
+    helpText: 'Shows revenue, cost, and profit for each trip/invoice in the selected FY.',
     columns: [
       { field: 'invoice_no', headerName: 'Invoice No', minWidth: 120, flex: 1 },
       { field: 'invoice_date', headerName: 'Invoice Date', minWidth: 130, flex: 1, valueFormatter: fmtDate },

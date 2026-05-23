@@ -65,15 +65,39 @@ export default function GenericReportView({ config, fy }: GenericReportViewProps
     );
   }, [config.serverSearch, rows, query]);
 
+  // Tooltip state
+  const [showTooltip, setShowTooltip] = useState(false);
+
   return (
     <div className="space-y-3">
-      <div className="bg-white border rounded-lg p-3">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search visible report rows..."
-          className="w-full md:w-96 border rounded px-3 py-2"
-        />
+      <div className="flex items-center justify-between">
+        <div className="bg-white border rounded-lg p-3 w-full">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search visible report rows..."
+            className="w-full md:w-96 border rounded px-3 py-2"
+          />
+        </div>
+        {config.helpText && (
+          <div className="relative ml-2 flex-shrink-0">
+            <button
+              type="button"
+              aria-label="Help"
+              className="bg-slate-900 text-white hover:bg-slate-800 rounded-full w-7 h-7 flex items-center justify-center text-lg font-bold shadow transition-colors border border-slate-300"
+              onMouseEnter={() => setShowTooltip(true)}
+              onMouseLeave={() => setShowTooltip(false)}
+              tabIndex={0}
+            >
+              ?
+            </button>
+            {showTooltip && (
+              <div className="absolute right-0 z-20 mt-2 w-64 bg-white text-slate-900 text-sm border border-slate-300 rounded-lg shadow-lg p-3" style={{ top: '2.5rem' }}>
+                {config.helpText}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       <AppAgGrid<Record<string, unknown>>
         rowData={filteredRows}

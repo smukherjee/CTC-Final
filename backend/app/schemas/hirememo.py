@@ -51,44 +51,44 @@ class HireMemoCreate(HireMemoBase):
 
 
 class HireMemoUpdate(BaseModel):
-    total_amount: Optional[float]
-    advance_cash: Optional[float]
-    advance_bank: Optional[float]
-    advance_payment_date: Optional[date]
-    balance: Optional[float]
-    balance_payment_date: Optional[date]
-    driver_name: Optional[str]
-    driver_mobile: Optional[str]
-    driver_license: Optional[str]
+    total_amount: Optional[float] = None
+    advance_cash: Optional[float] = None
+    advance_bank: Optional[float] = None
+    advance_payment_date: Optional[date] = None
+    balance: Optional[float] = None
+    balance_payment_date: Optional[date] = None
+    driver_name: Optional[str] = None
+    driver_mobile: Optional[str] = None
+    driver_license: Optional[str] = None
 
     # Meta
-    hire_memo_no: Optional[str]
-    hire_memo_date: Optional[date]
-    branch: Optional[str]
+    hire_memo_no: Optional[str] = None
+    hire_memo_date: Optional[date] = None
+    branch: Optional[str] = None
 
     # Vehicle
-    vehicle_id: Optional[int]
-    vehicle_number: Optional[str]
+    vehicle_id: Optional[int] = None
+    vehicle_number: Optional[str] = None
 
     # Route
-    from_location: Optional[str]
-    to_location: Optional[str]
-    payment_location: Optional[str]
+    from_location: Optional[str] = None
+    to_location: Optional[str] = None
+    payment_location: Optional[str] = None
 
     # Financials
-    rate_type: Optional[str]
-    freight_rate: Optional[float]
-    freight_weight: Optional[float]
-    guaranteed_weight: Optional[float]
+    rate_type: Optional[str] = None
+    freight_rate: Optional[float] = None
+    freight_weight: Optional[float] = None
+    guaranteed_weight: Optional[float] = None
     
     # Deductions
-    commission: Optional[float]
-    hamali: Optional[float]
-    mamul: Optional[float]
-    other_deductions: Optional[float]
+    commission: Optional[float] = None
+    hamali: Optional[float] = None
+    mamul: Optional[float] = None
+    other_deductions: Optional[float] = None
 
-    ack_status: Optional[str]
-    notes: Optional[str]
+    ack_status: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class HireMemo(HireMemoBase):

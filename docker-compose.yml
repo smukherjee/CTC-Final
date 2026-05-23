@@ -29,7 +29,7 @@ services:
     volumes:
       - ./backend:/app
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/ctc_erp
+      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:54322/postgres
       - ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
     ports:
       - "8000:8000"
