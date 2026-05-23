@@ -24,4 +24,5 @@ export interface ReportConfig {
     cellStyle?: Record<string, string | number>;
     currencyTotal?: boolean;
   }>;
+  helpText?: string; // Logic/explanation for the report data
 }

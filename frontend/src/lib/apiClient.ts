@@ -28,10 +28,20 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    const message: string =
-      error?.response?.data?.detail ??
-      error?.message ??
-      'An unexpected error occurred';
+    const detail = error?.response?.data?.detail;
+    const message: string = Array.isArray(detail)
+      ? detail
+          .map((item) => {
+            if (typeof item === 'string') return item;
+            if (item && typeof item === 'object') {
+              return item.msg || item.message || JSON.stringify(item);
+            }
+            return String(item);
+          })
+          .join('; ')
+      : typeof detail === 'string'
+        ? detail
+        : error?.message ?? 'An unexpected error occurred';
     // Attach a user-friendly message so callers can display it directly
     error.userMessage = message;
     showToast(message, 'error');
